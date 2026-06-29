@@ -1,1410 +1,2818 @@
 <!DOCTYPE html>
+
 <html lang="ko">
+
 <head>
+
 <meta charset="UTF-8">
+
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>소재 인덱싱 시스템</title>
+
 <style>
+
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
   body {
+
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif;
+
     background: #f0f2f5; color: #1a1a2e; min-height: 100vh;
+
   }
+
+
 
   .header {
+
     background: #1a1a2e; color: #fff; padding: 0 32px; height: 56px;
+
     display: flex; align-items: center; justify-content: space-between;
+
     position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.25);
+
   }
+
   .header h1 { font-size: 16px; font-weight: 600; }
 
+
+
   .tab-nav {
+
     background: #fff; border-bottom: 1px solid #e5e7eb;
+
     display: flex; padding: 0 32px;
+
   }
+
   .tab-btn {
+
     padding: 14px 20px; font-size: 13px; font-weight: 500; color: #6b7280;
+
     cursor: pointer; border: none; background: none;
+
     border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all .15s;
+
   }
+
   .tab-btn.active { color: #4f6ef7; border-bottom-color: #4f6ef7; }
+
   .tab-btn:hover:not(.active) { color: #374151; }
 
+
+
   .btn {
+
     display: inline-flex; align-items: center; gap: 6px;
+
     padding: 8px 16px; border-radius: 6px; font-size: 13px;
+
     font-weight: 500; cursor: pointer; border: none; transition: all .15s;
+
   }
+
   .btn:disabled { opacity: .5; cursor: not-allowed; }
+
   .btn-primary  { background: #4f6ef7; color: #fff; }
+
   .btn-primary:hover:not(:disabled)  { background: #3b5beb; }
+
   .btn-secondary { background: #fff; color: #374151; border: 1px solid #d1d5db; }
+
   .btn-secondary:hover:not(:disabled) { background: #f9fafb; }
+
   .btn-detect   { background: #0ea5e9; color: #fff; }
+
   .btn-detect:hover:not(:disabled)   { background: #0284c7; }
+
   .btn-danger   { background: #ef4444; color: #fff; }
+
   .btn-danger:hover:not(:disabled)   { background: #dc2626; }
+
   .btn-ghost    { background: transparent; color: #6b7280; border: 1px solid #e5e7eb; }
+
   .btn-ghost:hover:not(:disabled)    { background: #f9fafb; }
+
   .btn-sm  { padding: 5px 10px; font-size: 12px; }
+
   .btn-lg  { padding: 11px 24px; font-size: 14px; width: 100%; justify-content: center; }
 
+
+
   .tab-panel { display: none; }
+
   .tab-panel.active { display: block; }
 
+
+
   .container {
+
     max-width: 1100px; margin: 0 auto; padding: 28px 24px;
+
     display: grid; grid-template-columns: 320px 1fr; gap: 24px; align-items: start;
+
   }
+
   .container-single { max-width: 960px; margin: 0 auto; padding: 28px 24px; }
 
+
+
   .card { background: #fff; border-radius: 10px; border: 1px solid #e5e7eb; overflow: hidden; margin-bottom: 16px; }
+
   .card:last-child { margin-bottom: 0; }
+
   .card-header {
+
     padding: 14px 20px; border-bottom: 1px solid #f3f4f6;
+
     font-size: 13px; font-weight: 600; color: #374151;
+
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
+
   }
+
   .card-body { padding: 20px; }
 
+
+
   .upload-zone {
+
     border: 2px dashed #d1d5db; border-radius: 8px; padding: 28px 16px;
+
     text-align: center; cursor: pointer; transition: all .2s; background: #fafafa; position: relative;
+
   }
+
   .upload-zone.dragover { border-color: #4f6ef7; background: #eff2ff; }
+
   .upload-zone:hover { border-color: #9ca3af; }
+
   .upload-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
   .upload-icon { font-size: 28px; margin-bottom: 6px; }
+
   .upload-hint { font-size: 11px; color: #6b7280; margin-top: 3px; }
 
+
+
   .preview-area { margin-top: 10px; display: none; }
+
   .preview-area.show { display: block; }
+
   .preview-area img, .preview-area video {
+
     width: 100%; border-radius: 6px; border: 1px solid #e5e7eb;
+
     max-height: 200px; object-fit: contain; background: #f9fafb;
+
   }
+
   .preview-name { margin-top: 5px; font-size: 11px; color: #6b7280; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
+
+
   .auto-field {
+
     background: #f8faff; border: 1px solid #dbeafe; border-radius: 6px;
+
     padding: 9px 11px; font-size: 12px; margin-bottom: 8px;
+
   }
+
   .auto-field label { font-size: 11px; color: #6b7280; display: block; margin-bottom: 2px; }
+
   .auto-field .value { font-weight: 600; color: #1d4ed8; word-break: break-all; }
+
   .auto-field .value.empty { color: #9ca3af; font-weight: 400; font-style: italic; }
 
+
+
   .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
   .form-group { display: flex; flex-direction: column; gap: 4px; }
+
   .form-group.full { grid-column: 1 / -1; }
+
   .form-group label { font-size: 12px; font-weight: 500; color: #374151; }
+
   .form-group label .req { color: #ef4444; margin-left: 2px; }
+
   .form-control {
+
     padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px;
+
     font-size: 13px; color: #1a1a2e; background: #fff; transition: border-color .15s; width: 100%;
+
   }
+
   .form-control:focus { outline: none; border-color: #4f6ef7; box-shadow: 0 0 0 3px rgba(79,110,247,.1); }
+
   .form-control:disabled { background: #f9fafb; color: #9ca3af; cursor: not-allowed; }
+
   .form-control.error { border-color: #ef4444; }
 
+
+
   /* 계층 드롭다운 섹션 구분선 */
+
   .cascade-section {
+
     background: #f8f9ff; border: 1px solid #e0e7ff; border-radius: 8px;
+
     padding: 14px; margin-bottom: 12px;
+
   }
+
   .cascade-section-label {
+
     font-size: 11px; font-weight: 600; color: #6366f1; margin-bottom: 10px;
+
     text-transform: uppercase; letter-spacing: .5px;
+
   }
+
+
 
   .msg {
+
     border-radius: 7px; padding: 10px 13px; font-size: 13px;
+
     display: none; margin-bottom: 12px; align-items: flex-start; gap: 8px;
+
   }
+
   .msg.show { display: flex; }
+
   .msg-success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+
   .msg-error   { background: #fff1f2; border: 1px solid #fecdd3; color: #991b1b; }
+
   .msg-info    { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
 
+
+
   .detect-panel { display: none; margin-top: 16px; }
+
   .detect-panel.show { display: block; }
+
   .detect-list { max-height: 260px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 6px; margin-top: 10px; }
+
   .detect-item {
+
     padding: 9px 13px; border-bottom: 1px solid #f3f4f6;
+
     font-size: 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+
   }
+
   .detect-item:last-child { border-bottom: none; }
+
   .detect-item.done { opacity: .4; }
+
   .detect-item-info .media { font-weight: 600; color: #4f6ef7; }
+
   .detect-item-info .name  { color: #374151; margin-top: 2px; }
+
   .detect-badge {
+
     display: inline-block; padding: 2px 8px; border-radius: 12px;
+
     font-size: 10px; font-weight: 600; background: #dbeafe; color: #1e40af; white-space: nowrap;
+
   }
+
   .detect-badge.done { background: #d1fae5; color: #065f46; }
 
+
+
   /* -- 설정 탭 -- */
+
   .settings-intro {
+
     background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
+
     padding: 11px 15px; font-size: 13px; color: #92400e; margin-bottom: 16px;
+
   }
+
+
 
   /* 계층 테이블 */
+
   .h-table-wrap { overflow-x: auto; }
+
   .h-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 560px; }
+
   .h-table th {
+
     background: #f3f4f6; padding: 8px 10px; text-align: left;
+
     font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb; white-space: nowrap;
+
   }
+
   .h-table td { padding: 4px 5px; border-bottom: 1px solid #f3f4f6; }
+
   .h-table tr:last-child td { border-bottom: none; }
+
   .h-input {
+
     width: 100%; padding: 5px 8px; border: 1px solid #e5e7eb;
+
     border-radius: 5px; font-size: 12px; min-width: 90px;
+
   }
+
   .h-input:focus { outline: none; border-color: #4f6ef7; }
 
+
+
   /* 기타 드롭다운 그리드 */
+
   .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
   .category-block { border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
+
   .category-header {
+
     background: #f9fafb; padding: 10px 13px;
+
     display: flex; align-items: center; gap: 8px;
+
   }
+
   .category-name-input {
+
     flex: 1; border: none; background: transparent;
+
     font-size: 13px; font-weight: 600; color: #374151; outline: none;
+
   }
+
   .category-name-input:focus { color: #4f6ef7; }
+
   .category-body { padding: 11px 13px; }
 
+
+
   .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; min-height: 24px; }
+
   .chip {
+
     display: inline-flex; align-items: center; gap: 3px;
+
     background: #eff2ff; color: #3730a3; border: 1px solid #c7d2fe;
+
     border-radius: 20px; padding: 2px 9px; font-size: 12px;
+
   }
+
   .chip-remove {
+
     cursor: pointer; color: #6366f1; font-size: 14px; line-height: 1;
+
     background: none; border: none; padding: 0;
+
   }
+
   .chip-remove:hover { color: #ef4444; }
+
   .chip-empty { font-size: 12px; color: #9ca3af; font-style: italic; }
 
+
+
   .add-value-row { display: flex; gap: 5px; }
+
   .add-value-input {
+
     flex: 1; padding: 5px 8px; border: 1px solid #d1d5db;
+
     border-radius: 6px; font-size: 12px;
+
   }
+
   .add-value-input:focus { outline: none; border-color: #4f6ef7; }
 
+
+
   .add-category-row {
+
     display: flex; gap: 8px; padding: 12px 14px;
+
     border: 2px dashed #d1d5db; border-radius: 8px;
+
     align-items: center; margin-bottom: 14px;
+
   }
+
   .add-category-input {
+
     flex: 1; padding: 7px 11px; border: 1px solid #d1d5db;
+
     border-radius: 6px; font-size: 13px;
+
   }
+
   .add-category-input:focus { outline: none; border-color: #4f6ef7; }
 
+
+
   .spinner {
+
     width: 15px; height: 15px; border: 2px solid rgba(255,255,255,.4);
+
     border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; display: none;
+
   }
+
   .spinner.show { display: inline-block; }
+
   @keyframes spin { to { transform: rotate(360deg); } }
 
+
+
   /* 이미지 선택 모달 */
+
   .modal-overlay {
+
     position: fixed; inset: 0; background: rgba(0,0,0,.55);
+
     display: none; align-items: center; justify-content: center;
+
     z-index: 1000; padding: 20px;
+
   }
+
   .modal-overlay.open { display: flex; }
+
   .modal {
+
     background: #fff; border-radius: 14px; width: 100%; max-width: 900px;
+
     max-height: 88vh; display: flex; flex-direction: column;
+
     box-shadow: 0 24px 64px rgba(0,0,0,.35);
+
   }
+
   .modal-header {
+
     padding: 16px 20px; border-bottom: 1px solid #e5e7eb; flex-shrink: 0;
+
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
+
   }
+
   .modal-title { font-size: 15px; font-weight: 600; color: #1a1a2e; }
+
   .modal-search {
+
     padding: 7px 12px; border: 1px solid #d1d5db; border-radius: 6px;
+
     font-size: 13px; width: 220px;
+
   }
+
   .modal-search:focus { outline: none; border-color: #4f6ef7; box-shadow: 0 0 0 3px rgba(79,110,247,.1); }
+
   .modal-body { padding: 16px; overflow-y: auto; flex: 1; min-height: 0; }
+
   .modal-empty {
+
     text-align: center; padding: 60px 20px; color: #9ca3af; font-size: 13px;
+
     grid-column: 1 / -1;
+
   }
+
+
 
   /* 이미지 피커 그리드 (모달) */
+
   .img-picker-grid {
+
     display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px;
+
   }
+
   .img-pick-item {
+
     border: 2px solid #e5e7eb; border-radius: 10px; overflow: hidden;
+
     cursor: pointer; transition: border-color .15s, box-shadow .15s; background: #fff;
+
   }
+
   .img-pick-item:hover { border-color: #4f6ef7; }
+
   .img-pick-item.selected {
+
     border-color: #4f6ef7;
+
     box-shadow: 0 0 0 3px rgba(79,110,247,.25);
+
   }
+
   .img-pick-thumb {
+
     width: 100%; aspect-ratio: 1; object-fit: cover;
+
     background: #f3f4f6; display: block;
+
   }
+
   .img-pick-placeholder {
+
     width: 100%; aspect-ratio: 1; display: flex; align-items: center;
+
     justify-content: center; font-size: 36px; background: #f3f4f6;
+
   }
+
   .img-pick-info { padding: 6px 8px 8px; }
+
   .img-pick-code {
+
     font-size: 11px; font-weight: 700; color: #4f6ef7;
+
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+
   }
+
   .img-pick-name {
+
     font-size: 11px; color: #374151; margin-top: 2px;
+
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+
   }
+
   .img-pick-date { font-size: 10px; color: #9ca3af; margin-top: 2px; }
 
+
+
   /* 선택 결과 바 */
+
   .img-selected-bar {
+
     display: none; margin-top: 8px; padding: 8px 10px;
+
     background: #eff2ff; border: 1px solid #c7d2fe; border-radius: 6px;
+
     font-size: 12px; color: #3730a3; align-items: center; gap: 8px;
+
   }
+
   .img-selected-bar.show { display: flex; }
+
   .img-selected-thumb {
+
     width: 36px; height: 36px; object-fit: cover; border-radius: 5px;
+
     background: #e0e7ff; flex-shrink: 0;
+
   }
+
+
 
   .divider { border: none; border-top: 1px solid #f3f4f6; margin: 16px 0; }
+
   .count-badge {
+
     background: #ef4444; color: #fff; border-radius: 10px;
+
     padding: 1px 7px; font-size: 11px; font-weight: 700;
+
   }
+
   .section-title {
+
     font-size: 13px; font-weight: 700; color: #1a1a2e; margin-bottom: 12px;
+
     display: flex; align-items: center; gap: 6px;
+
   }
+
+
 
   @media (max-width: 768px) {
+
     .container { grid-template-columns: 1fr; padding: 14px; }
+
     .form-grid  { grid-template-columns: 1fr; }
+
     .settings-grid { grid-template-columns: 1fr; }
+
     .tab-nav { padding: 0 14px; }
+
     .container-single { padding: 16px; }
+
   }
+
 </style>
+
 </head>
+
 <body>
 
+
+
 <div class="header">
+
   <h1>📋 소재 인덱싱 시스템</h1>
+
   <button class="btn btn-detect" id="btnDetect" onclick="runDetect()">
+
     <span>🔍 신규 소재 감지</span>
+
     <div class="spinner" id="spinDetect"></div>
+
   </button>
+
 </div>
+
+
 
 <div class="tab-nav">
+
   <button class="tab-btn active" onclick="switchTab('register', this)">📝 소재 등록</button>
+
   <button class="tab-btn" onclick="switchTab('settings', this)">⚙️ 설정 관리</button>
+
 </div>
 
+
+
 <!-- ════ TAB 1: 소재 등록 ════ -->
+
 <div class="tab-panel active" id="panel-register">
+
   <div class="container">
 
+
+
     <!-- 왼쪽 -->
+
     <div>
-      <div class="card">
-        <div class="card-header">🖼 소재 파일</div>
-        <div class="card-body">
-          <div class="upload-zone" id="uploadZone"
-               ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
-            <input type="file" id="fileInput"
-                   accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime"
-                   onchange="onFileSelected(event)">
-            <div class="upload-icon">📁</div>
-            <div style="font-size:13px;color:#374151;font-weight:500;">드래그하거나 클릭해서 선택</div>
-            <div class="upload-hint">jpg, png, gif, webp · mp4, mov</div>
-          </div>
-          <div class="preview-area" id="previewArea">
-            <img id="previewImg" src="" alt="미리보기" style="display:none;">
-            <video id="previewVideo" controls style="display:none;"></video>
-            <div class="preview-name" id="previewName"></div>
-          </div>
-        </div>
-      </div>
 
       <div class="card">
-        <div class="card-header">
-          <span>⚙️ 이미지코드</span>
-          <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:400;cursor:pointer;">
-            <input type="checkbox" id="useExistingCode" onchange="toggleCodeMode(this.checked)">
-            기존 코드 선택
-          </label>
-        </div>
+
+        <div class="card-header">🖼 소재 파일</div>
+
         <div class="card-body">
-          <!-- 자동 생성 모드 -->
-          <div id="autoCodeArea">
-            <div class="auto-field">
-              <label>이미지코드</label>
-              <div class="value empty" id="displayCode">저장 시 자동 생성</div>
-            </div>
+
+          <div class="upload-zone" id="uploadZone"
+
+               ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+
+            <input type="file" id="fileInput"
+
+                   accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime"
+
+                   onchange="onFileSelected(event)">
+
+            <div class="upload-icon">📁</div>
+
+            <div style="font-size:13px;color:#374151;font-weight:500;">드래그하거나 클릭해서 선택</div>
+
+            <div class="upload-hint">jpg, png, gif, webp · mp4, mov</div>
+
           </div>
-          <!-- 기존 코드 선택 모드 -->
-          <div id="selectCodeArea" style="display:none;">
-            <button class="btn btn-secondary" style="width:100%;justify-content:center;"
-                    onclick="openImageModal()">🖼 이미지 선택하기</button>
-            <div class="img-selected-bar" id="imgSelectedBar">
-              <img class="img-selected-thumb" id="imgSelectedThumb" src="" alt="">
-              <span id="imgSelectedText" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
-              <button class="btn btn-ghost btn-sm" style="flex-shrink:0;"
-                      onclick="clearImageSelection()">선택 해제</button>
-            </div>
+
+          <div class="preview-area" id="previewArea">
+
+            <img id="previewImg" src="" alt="미리보기" style="display:none;">
+
+            <video id="previewVideo" controls style="display:none;"></video>
+
+            <div class="preview-name" id="previewName"></div>
+
           </div>
-          <div class="auto-field" style="margin-top:8px;">
-            <label>이미지URL</label>
-            <div class="value empty" id="displayUrl" style="font-size:11px;">업로드 후 자동 생성</div>
-          </div>
+
         </div>
+
       </div>
+
+
+
+      <div class="card">
+
+        <div class="card-header">
+
+          <span>⚙️ 이미지코드</span>
+
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:400;cursor:pointer;">
+
+            <input type="checkbox" id="useExistingCode" onchange="toggleCodeMode(this.checked)">
+
+            기존 코드 선택
+
+          </label>
+
+        </div>
+
+        <div class="card-body">
+
+          <!-- 자동 생성 모드 -->
+
+          <div id="autoCodeArea">
+
+            <div class="auto-field">
+
+              <label>이미지코드</label>
+
+              <div class="value empty" id="displayCode">저장 시 자동 생성</div>
+
+            </div>
+
+          </div>
+
+          <!-- 기존 코드 선택 모드 -->
+
+          <div id="selectCodeArea" style="display:none;">
+
+            <button class="btn btn-secondary" style="width:100%;justify-content:center;"
+
+                    onclick="openImageModal()">🖼 이미지 선택하기</button>
+
+            <div class="img-selected-bar" id="imgSelectedBar">
+
+              <img class="img-selected-thumb" id="imgSelectedThumb" src="" alt="">
+
+              <span id="imgSelectedText" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+
+              <button class="btn btn-ghost btn-sm" style="flex-shrink:0;"
+
+                      onclick="clearImageSelection()">선택 해제</button>
+
+            </div>
+
+          </div>
+
+          <div class="auto-field" style="margin-top:8px;">
+
+            <label>이미지URL</label>
+
+            <div class="value empty" id="displayUrl" style="font-size:11px;">업로드 후 자동 생성</div>
+
+          </div>
+
+        </div>
+
+      </div>
+
     </div>
 
+
+
     <!-- 오른쪽 -->
+
     <div>
+
       <div class="msg msg-success" id="msgSuccess"><span>✅</span><span id="msgSuccessText"></span></div>
+
       <div class="msg msg-error"   id="msgError">  <span>❌</span><span id="msgErrorText"></span></div>
 
+
+
       <div class="card">
+
         <div class="card-header">✏️ 소재 정보 입력</div>
+
         <div class="card-body">
 
+
+
           <!-- 연쇄 드롭다운 섹션 -->
+
           <div class="cascade-section">
+
             <div class="cascade-section-label">🔗 매체 계층 선택</div>
+
             <div class="form-grid">
+
               <div class="form-group">
+
                 <label>매체 <span class="req">*</span></label>
+
                 <select class="form-control" id="f_매체" onchange="onMediaChange()">
+
                   <option value="">선택</option>
+
                 </select>
+
               </div>
 
+
+
               <div class="form-group">
+
                 <label>캠페인 <span class="req">*</span></label>
+
                 <select class="form-control" id="f_캠페인" onchange="onCampaignChange()" disabled>
+
                   <option value="">매체 선택 후</option>
+
                 </select>
+
               </div>
 
+
+
               <div class="form-group">
+
                 <label>그룹 <span class="req">*</span></label>
+
                 <select class="form-control" id="f_그룹" onchange="onGroupChange()" disabled>
+
                   <option value="">캠페인 선택 후</option>
+
                 </select>
+
               </div>
 
+
+
               <div class="form-group">
+
                 <label>소재이름 <span class="req">*</span></label>
+
                 <select class="form-control" id="f_소재이름" disabled>
+
                   <option value="">그룹 선택 후</option>
+
                 </select>
+
               </div>
+
             </div>
+
           </div>
+
+
 
           <!-- 나머지 필드 -->
+
           <div class="form-grid">
+
             <div class="form-group">
+
               <label>보종 <span class="req">*</span></label>
+
               <select class="form-control" id="f_보종"><option value="">선택</option></select>
+
             </div>
 
+
+
             <div class="form-group">
+
               <label>광고유형 <span class="req">*</span></label>
+
               <select class="form-control" id="f_광고유형"><option value="">선택</option></select>
+
             </div>
 
+
+
             <div class="form-group">
+
               <label>소재유형 <span class="req">*</span></label>
+
               <select class="form-control" id="f_소재유형"><option value="">선택</option></select>
+
             </div>
 
+
+
             <div class="form-group">
+
               <label>소구포인트</label>
+
               <select class="form-control" id="f_소구포인트"><option value="">선택</option></select>
+
             </div>
 
+
+
             <div class="form-group">
+
               <label>후킹방식</label>
+
               <select class="form-control" id="f_후킹방식"><option value="">선택</option></select>
+
             </div>
 
+
+
             <div class="form-group">
+
               <label>이미지유형</label>
+
               <select class="form-control" id="f_이미지유형"><option value="">선택</option></select>
+
             </div>
 
+
+
             <div class="form-group">
+
               <label>모델유형</label>
+
               <select class="form-control" id="f_모델유형"><option value="">선택</option></select>
+
             </div>
+
+
 
             <div class="form-group full">
+
               <label>소구상세</label>
+
               <input class="form-control" type="text" id="f_소구상세" placeholder="소구 내용 상세 입력">
+
             </div>
+
           </div>
+
+
 
           <hr class="divider">
 
+
+
           <button class="btn btn-primary btn-lg" id="btnSave" onclick="submitForm()">
+
             <div class="spinner" id="spinSave"></div>
+
             <span id="btnSaveText">💾 저장</span>
+
           </button>
+
           <button class="btn btn-secondary btn-lg" onclick="resetForm()" style="margin-top:8px;">초기화</button>
+
         </div>
+
       </div>
+
+
 
       <!-- 신규 감지 결과 -->
+
       <div class="detect-panel card" id="detectPanel">
+
         <div class="card-header">
+
           <span>🔍 신규 소재 감지 결과</span>
+
           <span class="count-badge" id="detectCount">0</span>
+
         </div>
+
         <div class="card-body">
+
           <div class="msg msg-info show"><span>ℹ️</span><span id="detectMsgText"></span></div>
+
           <div class="detect-list" id="detectList"></div>
+
           <button class="btn btn-primary btn-lg" id="btnStartIndex"
+
                   onclick="startIndexing()" style="margin-top:12px;display:none;">
+
             ▶ 인덱싱 시작
+
           </button>
+
         </div>
+
       </div>
+
     </div>
+
   </div>
+
 </div>
+
+
 
 <!-- ════ TAB 2: 설정 관리 ════ -->
+
 <div class="tab-panel" id="panel-settings">
+
   <div class="container-single">
 
+
+
     <div class="msg msg-success" id="settingsMsgSuccess"><span>✅</span><span id="settingsMsgSuccessText"></span></div>
+
     <div class="msg msg-error"   id="settingsMsgError">  <span>❌</span><span id="settingsMsgErrorText"></span></div>
 
+
+
     <div class="settings-intro">
+
       💡 <strong>매체 계층</strong>: 매체→캠페인→그룹→소재이름 경로를 행으로 추가하세요.
+
       &nbsp;|&nbsp; <strong>기타 드롭다운</strong>: 각 항목의 선택지를 추가·삭제합니다.
+
       변경 후 각 섹션의 저장 버튼을 눌러야 반영됩니다.
+
     </div>
+
+
 
     <!-- -- 매체 계층 -- -->
+
     <div class="card">
+
       <div class="card-header">
+
         <span>🔗 매체 계층 구조 (매체 → 캠페인 → 그룹 → 소재이름)</span>
+
         <button class="btn btn-ghost btn-sm" onclick="addHierarchyRow()">+ 행 추가</button>
+
       </div>
+
       <div class="card-body">
+
         <p style="font-size:12px;color:#6b7280;margin-bottom:10px;">
+
           한 행 = 하나의 경로입니다. 같은 캠페인의 그룹이 여러 개면 각각 행으로 추가하세요.
+
         </p>
+
         <div class="h-table-wrap">
+
           <table class="h-table">
+
             <thead>
+
               <tr>
+
                 <th style="width:18%">매체</th>
+
                 <th style="width:25%">캠페인</th>
+
                 <th style="width:25%">그룹</th>
+
                 <th>소재이름</th>
+
                 <th style="width:50px"></th>
+
               </tr>
+
             </thead>
+
             <tbody id="hierarchyBody"></tbody>
+
           </table>
+
         </div>
+
         <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+
           <button class="btn btn-primary" id="btnSaveHierarchy" onclick="saveHierarchyData()">
+
             <div class="spinner" id="spinHierarchy"></div>
-            <span id="btnSaveHierarchyText">💾 계층 저장</span>
+
+            <span id="btnSaveHierarchyText">계층 저장</span>
+
           </button>
+
           <button class="btn btn-secondary" onclick="loadHierarchyPanel()">↺ 불러오기</button>
+
         </div>
+
       </div>
+
     </div>
+
+
 
     <!-- -- 기타 드롭다운 -- -->
+
     <div class="card">
+
       <div class="card-header">
+
         <span>🏷 기타 드롭다운 (광고유형, 보종 등)</span>
+
         <div style="display:flex;gap:6px;">
+
           <input class="add-category-input" type="text" id="newCategoryName"
+
                  placeholder="새 카테고리명" style="padding:5px 10px;font-size:12px;width:140px;">
+
           <button class="btn btn-ghost btn-sm" onclick="addCategory()">+ 추가</button>
+
         </div>
+
       </div>
+
       <div class="card-body">
+
         <div class="settings-grid" id="categoryList"></div>
+
         <div style="margin-top:14px;display:flex;gap:8px;">
+
           <button class="btn btn-primary" id="btnSaveSettings" onclick="saveAllSettings()">
+
             <div class="spinner" id="spinSettings"></div>
+
             <span id="btnSaveSettingsText">💾 드롭다운 저장</span>
+
           </button>
+
           <button class="btn btn-secondary" onclick="loadSettingsPanel()">↺ 불러오기</button>
+
         </div>
+
       </div>
+
     </div>
 
+
+
   </div>
+
 </div>
 
+
+
 <script>
+
 // --- 전역 오류 포착 ------------------------------
+
 window.onerror = function(msg, src, line) {
+
   var el = document.getElementById('_jsErr');
+
   if (!el) {
+
     el = document.createElement('div');
+
     el.id = '_jsErr';
+
     el.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#991b1b;color:#fff;padding:10px 16px;font-size:12px;z-index:9999;white-space:pre-wrap;';
+
     document.body.appendChild(el);
+
   }
+
   el.textContent = 'JS 오류: ' + msg + ' (line ' + line + ')';
+
 };
+
+
 
 // --- 전역 상태 -----------------------------------
+
 let fileBase64        = null;
+
 let fileName          = null;
+
 let fileMime          = null;
+
 let fileHash          = null;
+
 let existingImageUrl  = '';
+
 let settings       = {};
+
 let settingsState  = [];
+
 let hierarchy      = [];   // [{ 매체, 캠페인, 그룹, 소재이름 }]
+
 let hierarchyState = [];   // 설정 탭 편집용
+
 let detectItems    = [];
+
 let detectIndex    = 0;
+
 let isIndexing     = false;
 
+
+
 // 기타 드롭다운 맵 (계층 4개 제외)
+
 const DROPDOWN_MAP = {
+
   '광고유형':   'f_광고유형',
+
   '소재유형':   'f_소재유형',
+
   '소구포인트': 'f_소구포인트',
+
   '후킹방식':   'f_후킹방식',
+
   '이미지유형': 'f_이미지유형',
+
   '모델유형':   'f_모델유형',
+
   '보종':       'f_보종'
+
 };
+
 // 계층 키 (설정 탭 chip 렌더에서 제외)
+
 const HIERARCHY_KEYS = new Set(['매체', '캠페인', '그룹', '소재이름']);
 
+
+
 // --- 탭 전환 -------------------------------------
+
 function switchTab(tab, btn) {
+
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+
   document.getElementById('panel-' + tab).classList.add('active');
+
   btn.classList.add('active');
+
   if (tab === 'settings') {
+
     loadSettingsPanel();
+
     loadHierarchyPanel();
+
   }
+
 }
+
+
 
 // --- 초기화 --------------------------------------
+
 document.addEventListener('DOMContentLoaded', () => {
+
   loadSettings();
+
   loadHierarchy();
+
 });
 
+
+
 function loadSettings() {
+
   google.script.run
+
     .withSuccessHandler(s => { settings = s; populateDropdowns(s); })
+
     .withFailureHandler(err => showError('설정 로드 실패: ' + err.message))
+
     .getSettings();
+
 }
+
+
 
 function populateDropdowns(s) {
+
   Object.entries(DROPDOWN_MAP).forEach(([key, id]) => {
+
     const sel = document.getElementById(id);
+
     if (!sel) return;
+
     const cur = sel.value;
+
     sel.innerHTML = '<option value="">선택</option>';
+
     (s[key] || []).forEach(v => {
+
       const o = document.createElement('option');
+
       o.value = v; o.textContent = v;
+
       sel.appendChild(o);
+
     });
+
     if (cur) sel.value = cur;
+
   });
+
 }
+
+
 
 // --- 계층 로드 -----------------------------------
+
 function loadHierarchy() {
+
   google.script.run
+
     .withSuccessHandler(data => {
+
       hierarchy = data;
+
       // 매체 셀렉트 초기화
+
       const mediaVals = [...new Set(data.map(r => r.매체).filter(Boolean))];
+
       fillSelect('f_매체', mediaVals, '선택');
+
       document.getElementById('f_캠페인').disabled = true;
+
       document.getElementById('f_그룹').disabled = true;
+
       document.getElementById('f_소재이름').disabled = true;
+
     })
+
     .withFailureHandler(() => {})
+
     .getHierarchy();
+
 }
+
+
 
 // --- 연쇄 드롭다운 -------------------------------
+
 function onMediaChange() {
+
   const 매체 = document.getElementById('f_매체').value;
+
   resetCascade(['f_캠페인','f_그룹','f_소재이름']);
 
+
+
   if (!매체) return;
+
   const vals = unique(hierarchy.filter(r => r.매체 === 매체).map(r => r.캠페인).filter(Boolean));
+
   fillSelect('f_캠페인', vals, '캠페인 선택');
+
   document.getElementById('f_캠페인').disabled = false;
+
 }
+
+
 
 function onCampaignChange() {
+
   const 매체   = document.getElementById('f_매체').value;
+
   const 캠페인 = document.getElementById('f_캠페인').value;
+
   resetCascade(['f_그룹','f_소재이름']);
 
+
+
   if (!캠페인) return;
+
   const vals = unique(
+
     hierarchy.filter(r => r.매체 === 매체 && r.캠페인 === 캠페인).map(r => r.그룹).filter(Boolean)
+
   );
+
   fillSelect('f_그룹', vals, '그룹 선택');
+
   document.getElementById('f_그룹').disabled = false;
+
 }
+
+
 
 function onGroupChange() {
+
   const 매체   = document.getElementById('f_매체').value;
+
   const 캠페인 = document.getElementById('f_캠페인').value;
+
   const 그룹   = document.getElementById('f_그룹').value;
+
   resetCascade(['f_소재이름']);
 
+
+
   if (!그룹) return;
+
   const vals = unique(
+
     hierarchy.filter(r => r.매체 === 매체 && r.캠페인 === 캠페인 && r.그룹 === 그룹)
+
              .map(r => r.소재이름).filter(Boolean)
+
   );
+
   fillSelect('f_소재이름', vals, '소재이름 선택');
+
   document.getElementById('f_소재이름').disabled = false;
+
 }
+
+
 
 function fillSelect(id, values, placeholder) {
+
   const sel = document.getElementById(id);
+
   sel.innerHTML = `<option value="">${placeholder}</option>`;
+
   values.forEach(v => {
+
     const o = document.createElement('option');
+
     o.value = v; o.textContent = v;
+
     sel.appendChild(o);
+
   });
+
 }
 
+
+
 function resetCascade(ids) {
+
   const placeholders = {
+
     'f_캠페인':   '매체 선택 후',
+
     'f_그룹':     '캠페인 선택 후',
+
     'f_소재이름': '그룹 선택 후'
+
   };
+
   ids.forEach(id => {
+
     const el = document.getElementById(id);
+
     el.innerHTML = `<option value="">${placeholders[id] || '선택'}</option>`;
+
     el.disabled = true;
+
     el.classList.remove('error');
+
   });
+
 }
+
+
 
 function unique(arr) { return [...new Set(arr)]; }
 
-// --- 설정 탭 — 기타 드롭다운 ---------------------
+
+
+// --- 설정 탭 - 기타 드롭다운 ---------------------
+
 function loadSettingsPanel() {
+
   hideSettingsMessages();
+
   google.script.run
+
     .withSuccessHandler(s => {
+
       settings = s;
+
       settingsState = Object.entries(s)
+
         .filter(([name]) => !HIERARCHY_KEYS.has(name))
+
         .map(([name, values]) => ({ name, values: [...values] }));
+
       renderCategories();
+
     })
+
     .withFailureHandler(err => showSettingsError('불러오기 실패: ' + err.message))
+
     .getSettings();
+
 }
+
+
 
 function renderCategories() {
+
   const list = document.getElementById('categoryList');
+
   list.innerHTML = '';
+
   settingsState.forEach((cat, ci) => list.appendChild(buildCategoryBlock(cat, ci)));
+
 }
+
+
 
 function buildCategoryBlock(cat, ci) {
+
   const block = document.createElement('div');
+
   block.className = 'category-block';
+
   block.id = 'cat-block-' + ci;
 
+
+
   const header = document.createElement('div');
+
   header.className = 'category-header';
+
   header.innerHTML = `
+
     <input class="category-name-input" type="text" value="${escHtml(cat.name)}"
+
            onchange="settingsState[${ci}].name = this.value.trim()" placeholder="카테고리명">
+
     <span style="font-size:11px;color:#9ca3af;" id="badge-count-${ci}">${cat.values.length}개</span>
+
     <button class="btn btn-danger btn-sm" onclick="removeCategory(${ci})">삭제</button>`;
+
   block.appendChild(header);
 
+
+
   const body = document.createElement('div');
+
   body.className = 'category-body';
 
+
+
   const chips = document.createElement('div');
+
   chips.className = 'chips'; chips.id = 'chips-' + ci;
+
   renderChips(chips, cat.values, ci);
+
   body.appendChild(chips);
 
+
+
   const addRow = document.createElement('div');
+
   addRow.className = 'add-value-row';
+
   addRow.innerHTML = `
+
     <input class="add-value-input" type="text" id="newVal-${ci}" placeholder="값 입력 후 Enter"
+
            onkeydown="if(event.key==='Enter'){event.preventDefault();addValue(${ci});}">
+
     <button class="btn btn-ghost btn-sm" onclick="addValue(${ci})">+ 추가</button>`;
+
   body.appendChild(addRow);
+
   block.appendChild(body);
+
   return block;
+
 }
+
+
 
 function renderChips(container, values, ci) {
+
   container.innerHTML = '';
+
   if (!values.length) {
+
     container.innerHTML = '<span class="chip-empty">값 없음</span>';
+
     return;
+
   }
+
   values.forEach((v, vi) => {
+
     const chip = document.createElement('span');
+
     chip.className = 'chip';
-    chip.innerHTML = `${escHtml(v)}<button class="chip-remove" onclick="removeValue(${ci},${vi})">×</button>`;
+
+    chip.innerHTML = escHtml(v) + '<button class="chip-remove" onclick="removeValue(' + ci + ',' + vi + ')">&times;</button>';
+
     container.appendChild(chip);
+
   });
+
 }
+
+
 
 function addValue(ci) {
+
   const input = document.getElementById('newVal-' + ci);
+
   const val = input.value.trim();
+
   if (!val) return;
+
   settingsState[ci].values.push(val);
+
   input.value = '';
+
   renderChips(document.getElementById('chips-' + ci), settingsState[ci].values, ci);
+
   document.getElementById('badge-count-' + ci).textContent = settingsState[ci].values.length + '개';
+
 }
+
+
 
 function removeValue(ci, vi) {
+
   settingsState[ci].values.splice(vi, 1);
+
   renderChips(document.getElementById('chips-' + ci), settingsState[ci].values, ci);
+
   document.getElementById('badge-count-' + ci).textContent = settingsState[ci].values.length + '개';
+
 }
+
+
 
 function removeCategory(ci) {
+
   if (!confirm(`"${settingsState[ci].name}" 카테고리를 삭제하시겠습니까?`)) return;
+
   settingsState.splice(ci, 1);
+
   renderCategories();
+
 }
+
+
 
 function addCategory() {
+
   const input = document.getElementById('newCategoryName');
+
   const name = input.value.trim();
+
   if (!name) { alert('카테고리명을 입력하세요.'); return; }
+
   settingsState.push({ name, values: [] });
+
   input.value = '';
+
   renderCategories();
+
   document.querySelector('#categoryList .category-block:last-child')
+
     ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
 }
+
+
 
 function saveAllSettings() {
+
   if (settingsState.some(c => !c.name.trim())) {
+
     showSettingsError('카테고리명이 비어 있는 항목이 있습니다.'); return;
+
   }
+
   setSavingSettings(true);
+
   google.script.run
+
     .withSuccessHandler(res => {
+
       setSavingSettings(false);
+
       if (res.error) { showSettingsError(res.message); return; }
+
       showSettingsSuccess('드롭다운 저장 완료!');
+
       loadSettings();
+
     })
+
     .withFailureHandler(err => { setSavingSettings(false); showSettingsError('저장 실패: ' + err.message); })
+
     .saveSettings(settingsState);
+
 }
+
+
 
 function setSavingSettings(saving) {
+
   document.getElementById('btnSaveSettings').disabled = saving;
+
   document.getElementById('spinSettings').classList.toggle('show', saving);
-  document.getElementById('btnSaveSettingsText').textContent = saving ? '저장 중...' : '💾 드롭다운 저장';
+
+  document.getElementById('btnSaveSettingsText').textContent = saving ? '저장 중...' : '드롭다운 저장';
+
 }
 
-// --- 설정 탭 — 계층 관리 -------------------------
+
+
+// --- 설정 탭 - 계층 관리 -------------------------
+
 function loadHierarchyPanel() {
+
   google.script.run
+
     .withSuccessHandler(data => {
+
       hierarchyState = data.map(r => ({ ...r }));
+
       renderHierarchyTable();
+
     })
+
     .withFailureHandler(() => {})
+
     .getHierarchy();
+
 }
+
+
 
 function renderHierarchyTable() {
+
   const tbody = document.getElementById('hierarchyBody');
+
   tbody.innerHTML = '';
+
   hierarchyState.forEach((row, i) => tbody.appendChild(buildHierarchyRow(row, i)));
+
   if (!hierarchyState.length) {
+
     tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:16px;color:#9ca3af;font-size:12px;">행이 없습니다. 위 [+ 행 추가] 버튼으로 추가하세요.</td></tr>';
+
   }
+
 }
+
+
 
 function buildHierarchyRow(row, i) {
+
   const tr = document.createElement('tr');
+
   tr.id = 'hrow-' + i;
+
   ['매체','캠페인','그룹','소재이름'].forEach(key => {
+
     const td = document.createElement('td');
+
     const inp = document.createElement('input');
+
     inp.type = 'text'; inp.className = 'h-input';
+
     inp.value = row[key] || '';
+
     inp.placeholder = key;
+
     inp.oninput = () => { hierarchyState[i][key] = inp.value; };
+
     td.appendChild(inp);
+
     tr.appendChild(td);
+
   });
+
   const tdDel = document.createElement('td');
+
   tdDel.innerHTML = `<button class="btn btn-danger btn-sm" onclick="removeHierarchyRow(${i})">삭제</button>`;
+
   tr.appendChild(tdDel);
+
   return tr;
+
 }
+
+
 
 function addHierarchyRow() {
+
   hierarchyState.push({ 매체: '', 캠페인: '', 그룹: '', 소재이름: '' });
+
   renderHierarchyTable();
+
   document.querySelector('#hierarchyBody tr:last-child')
+
     ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
   // 마지막 행 첫 번째 input 포커스
+
   document.querySelector('#hierarchyBody tr:last-child .h-input')?.focus();
+
 }
+
+
 
 function removeHierarchyRow(i) {
+
   hierarchyState.splice(i, 1);
+
   renderHierarchyTable();
+
 }
+
+
 
 function saveHierarchyData() {
+
   document.getElementById('btnSaveHierarchy').disabled = true;
+
   document.getElementById('spinHierarchy').classList.add('show');
+
   document.getElementById('btnSaveHierarchyText').textContent = '저장 중...';
 
+
+
   google.script.run
+
     .withSuccessHandler(res => {
+
       document.getElementById('btnSaveHierarchy').disabled = false;
+
       document.getElementById('spinHierarchy').classList.remove('show');
-      document.getElementById('btnSaveHierarchyText').textContent = '💾 계층 저장';
+
+      document.getElementById('btnSaveHierarchyText').textContent = '계층 저장';
+
       if (res.error) { showSettingsError(res.message); return; }
+
       showSettingsSuccess('계층 구조 저장 완료! 등록 탭 드롭다운이 업데이트됩니다.');
+
       loadHierarchy(); // 등록 탭 연쇄 드롭다운 갱신
+
     })
+
     .withFailureHandler(err => {
+
       document.getElementById('btnSaveHierarchy').disabled = false;
+
       document.getElementById('spinHierarchy').classList.remove('show');
-      document.getElementById('btnSaveHierarchyText').textContent = '💾 계층 저장';
+
+      document.getElementById('btnSaveHierarchyText').textContent = '계층 저장';
+
       showSettingsError('저장 실패: ' + err.message);
+
     })
+
     .saveHierarchy(hierarchyState);
+
 }
+
+
 
 // --- 이미지코드 모드 전환 -------------------------
+
 let selectedImageCodeValue = '';
+
 let allImageCodes = [];   // 검색 필터용 전체 목록
+
 let imageCodesLoaded = false;
 
+
+
 function toggleCodeMode(useExisting) {
+
   document.getElementById('autoCodeArea').style.display   = useExisting ? 'none'  : 'block';
+
   document.getElementById('selectCodeArea').style.display = useExisting ? 'block' : 'none';
+
   if (!useExisting) clearImageSelection();
+
 }
+
+
 
 // --- 이미지 선택 모달 ----------------------------
+
 function ensureModal() {
+
   if (document.getElementById('imgModalOverlay')) return;
 
+
+
   var overlay = document.createElement('div');
+
   overlay.id = 'imgModalOverlay';
+
   overlay.className = 'modal-overlay';
+
   overlay.addEventListener('click', onModalOverlayClick);
 
+
+
   var modal = document.createElement('div');
+
   modal.className = 'modal';
+
   modal.id = 'imgModal';
 
+
+
   // 헤더
+
   var header = document.createElement('div');
+
   header.className = 'modal-header';
 
+
+
   var title = document.createElement('span');
+
   title.className = 'modal-title';
-  title.textContent = '🖼 이미지 선택';
+
+  title.textContent = '이미지 선택';
+
+
 
   var controls = document.createElement('div');
+
   controls.style.cssText = 'display:flex;align-items:center;gap:10px;';
 
+
+
   var searchInput = document.createElement('input');
+
   searchInput.type = 'text';
+
   searchInput.className = 'modal-search';
+
   searchInput.id = 'imgSearch';
+
   searchInput.placeholder = '코드 또는 소재명 검색...';
+
   searchInput.addEventListener('input', filterImagePicker);
 
+
+
   var closeBtn = document.createElement('button');
+
   closeBtn.className = 'btn btn-ghost btn-sm';
-  closeBtn.textContent = '✕ 닫기';
+
+  closeBtn.textContent = '닫기';
+
   closeBtn.addEventListener('click', closeImageModal);
 
+
+
   controls.appendChild(searchInput);
+
   controls.appendChild(closeBtn);
+
   header.appendChild(title);
+
   header.appendChild(controls);
 
+
+
   // 바디
+
   var body = document.createElement('div');
+
   body.className = 'modal-body';
 
+
+
   var grid = document.createElement('div');
+
   grid.className = 'img-picker-grid';
+
   grid.id = 'imgPickerGrid';
 
+
+
   var loading = document.createElement('div');
+
   loading.className = 'modal-empty';
+
   loading.textContent = '불러오는 중...';
 
+
+
   grid.appendChild(loading);
+
   body.appendChild(grid);
+
   modal.appendChild(header);
+
   modal.appendChild(body);
+
   overlay.appendChild(modal);
+
   document.body.appendChild(overlay);
+
 }
+
+
 
 function openImageModal() {
+
   ensureModal();
+
   document.getElementById('imgModalOverlay').classList.add('open');
+
   document.getElementById('imgSearch').value = '';
+
   if (!imageCodesLoaded) {
+
     loadExistingCodes();
+
   } else {
+
     filterImagePicker();
+
   }
+
 }
+
+
 
 function closeImageModal() {
+
   document.getElementById('imgModalOverlay').classList.remove('open');
+
 }
+
+
 
 function onModalOverlayClick(e) {
+
   if (e.target === document.getElementById('imgModalOverlay')) closeImageModal();
+
 }
+
+
 
 function loadExistingCodes() {
+
   const grid = document.getElementById('imgPickerGrid');
+
   grid.innerHTML = '<div class="modal-empty">불러오는 중...</div>';
+
   google.script.run
+
     .withSuccessHandler(codes => {
+
       allImageCodes = codes;
+
       imageCodesLoaded = true;
+
       renderImagePicker(codes);
+
     })
+
     .withFailureHandler(() => {
-      grid.innerHTML = '<div class="modal-empty" style="color:#ef4444;">로드 실패 — 다시 시도해 주세요.</div>';
+
+      grid.innerHTML = '<div class="modal-empty" style="color:#ef4444;">로드 실패 - 다시 시도해 주세요.</div>';
+
     })
+
     .getImageCodes();
+
 }
+
+
 
 function filterImagePicker() {
+
   const q = document.getElementById('imgSearch').value.trim().toLowerCase();
+
   const filtered = q
+
     ? allImageCodes.filter(c =>
+
         c.code.toLowerCase().includes(q) || c.소재이름.toLowerCase().includes(q))
+
     : allImageCodes;
+
   renderImagePicker(filtered);
+
 }
+
+
 
 function driveThumbnail(url) {
+
   if (!url) return '';
+
   const m = url.match(/[?&]id=([^&]+)/);
+
   return m ? 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w200' : url;
+
 }
+
+
 
 function renderImagePicker(codes) {
+
   const grid = document.getElementById('imgPickerGrid');
+
   if (!codes.length) {
+
     grid.innerHTML = '<div class="modal-empty">검색 결과가 없습니다.</div>';
+
     return;
+
   }
+
   grid.innerHTML = '';
+
   codes.forEach(c => {
+
     const item = document.createElement('div');
+
     item.className = 'img-pick-item';
+
     if (c.code === selectedImageCodeValue) item.classList.add('selected');
+
     item.dataset.code = c.code;
+
     item.onclick = () => selectImageCode(c.code, c.소재이름, c.imageUrl, item);
 
+
+
     const isVideo = !c.imageUrl || c.imageUrl.includes('video');
+
     const thumbUrl = driveThumbnail(c.imageUrl);
+
     if (thumbUrl && !isVideo) {
+
       const img = document.createElement('img');
+
       img.className = 'img-pick-thumb';
+
       img.src = thumbUrl;
+
       img.loading = 'lazy';
+
       img.onerror = function() {
+
         const ph = document.createElement('div');
+
         ph.className = 'img-pick-placeholder';
-        ph.textContent = '🖼';
+
+        ph.textContent = '[IMG]';
+
         this.replaceWith(ph);
+
       };
+
       item.appendChild(img);
+
     } else {
+
       const ph = document.createElement('div');
+
       ph.className = 'img-pick-placeholder';
-      ph.textContent = isVideo ? '🎬' : '🖼';
+
+      ph.textContent = isVideo ? '[VID]' : '[IMG]';
+
       item.appendChild(ph);
+
     }
+
     const info = document.createElement('div');
+
     info.className = 'img-pick-info';
-    info.innerHTML = `
-      <div class="img-pick-code">${escHtml(c.code)}</div>
-      <div class="img-pick-name">${escHtml(c.소재이름)}</div>
-      <div class="img-pick-date">${escHtml(c.등록일자)}</div>`;
+
+    info.innerHTML = '<div class="img-pick-code">' + escHtml(c.code) + '</div>'
+
+      + '<div class="img-pick-name">' + escHtml(c.소재이름) + '</div>'
+
+      + '<div class="img-pick-date">' + escHtml(c.등록일자) + '</div>';
+
     item.appendChild(info);
+
     grid.appendChild(item);
+
   });
+
 }
+
+
 
 function selectImageCode(code, name, imageUrl, el) {
+
   selectedImageCodeValue = code;
+
   closeImageModal();
 
+
+
   // 선택 바 업데이트
+
   const thumbUrl = driveThumbnail(imageUrl);
+
   const thumb = document.getElementById('imgSelectedThumb');
+
   thumb.src = thumbUrl || '';
+
   thumb.style.display = thumbUrl ? 'block' : 'none';
+
   document.getElementById('imgSelectedText').textContent = `${code}  |  ${name}`;
+
   document.getElementById('imgSelectedBar').classList.add('show');
 
+
+
   // 폼 자동 채우기
+
   google.script.run
+
     .withSuccessHandler(autoFillForm)
+
     .withFailureHandler(() => {})
+
     .getCreativeByImageCode(code);
+
 }
+
+
 
 function clearImageSelection() {
+
   selectedImageCodeValue = '';
+
   existingImageUrl = '';
+
   document.getElementById('imgSelectedBar').classList.remove('show');
+
   document.getElementById('imgSelectedThumb').src = '';
+
 }
+
+
 
 function autoFillForm(data) {
+
   if (!data) return;
+
   document.getElementById('f_매체').value = data.매체;
+
   onMediaChange();
+
   document.getElementById('f_캠페인').value = data.캠페인;
+
   onCampaignChange();
+
   document.getElementById('f_그룹').value = data.그룹;
+
   onGroupChange();
+
   document.getElementById('f_소재이름').value = data.소재이름;
+
   document.getElementById('f_보종').value = data.보종;
+
   document.getElementById('f_광고유형').value = data.광고유형;
+
   document.getElementById('f_소재유형').value = data.소재유형;
+
   document.getElementById('f_소구포인트').value = data.소구포인트;
+
   document.getElementById('f_후킹방식').value = data.후킹방식;
+
   document.getElementById('f_소구상세').value = data.소구상세;
+
   document.getElementById('f_이미지유형').value = data.이미지유형;
+
   document.getElementById('f_모델유형').value = data.모델유형;
 
+
+
   // 기존 이미지 URL 표시 및 미리보기
+
   existingImageUrl = data.이미지URL || '';
+
   const urlEl = document.getElementById('displayUrl');
+
   urlEl.textContent = existingImageUrl || '(URL 없음)';
+
   urlEl.classList.toggle('empty', !existingImageUrl);
+
   if (existingImageUrl) {
+
     const img = document.getElementById('previewImg');
+
     const vid = document.getElementById('previewVideo');
+
     img.src = driveThumbnail(existingImageUrl);
+
     img.style.display = 'block';
+
     vid.style.display = 'none';
+
     document.getElementById('previewName').textContent = '기존 이미지';
+
     document.getElementById('previewArea').classList.add('show');
+
   }
+
 }
+
+
 
 // --- 파일 업로드 ---------------------------------
+
 function onDragOver(e) { e.preventDefault(); document.getElementById('uploadZone').classList.add('dragover'); }
+
 function onDragLeave()  { document.getElementById('uploadZone').classList.remove('dragover'); }
+
 function onDrop(e) { e.preventDefault(); onDragLeave(); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); }
+
 function onFileSelected(e) { if (e.target.files[0]) handleFile(e.target.files[0]); }
 
+
+
 async function handleFile(file) {
+
   const allowed = ['image/jpeg','image/png','image/gif','image/webp','video/mp4','video/quicktime'];
+
   if (!allowed.includes(file.type)) { showError('지원하지 않는 파일 형식입니다.'); return; }
+
   fileName = file.name; fileMime = file.type; fileHash = null;
 
+
+
   // SHA-256 해시 계산 (동일 이미지 판별용)
+
   try {
+
     const buffer = await file.arrayBuffer();
+
     const hashBuf = await crypto.subtle.digest('SHA-256', buffer);
+
     fileHash = Array.from(new Uint8Array(hashBuf))
+
       .map(b => b.toString(16).padStart(2, '0')).join('');
+
   } catch (e) {
-    fileHash = null; // 해시 실패 시 무시 — 신규로 처리
+
+    fileHash = null; // 해시 실패 시 무시 - 신규로 처리
+
   }
+
+
 
   const reader = new FileReader();
+
   reader.onload = ev => {
+
     fileBase64 = ev.target.result.split(',')[1];
+
     const img = document.getElementById('previewImg');
+
     const vid = document.getElementById('previewVideo');
+
     document.getElementById('previewArea').classList.add('show');
+
     if (file.type.startsWith('image/')) {
+
       img.src = ev.target.result; img.style.display = 'block'; vid.style.display = 'none';
+
     } else {
+
       vid.src = ev.target.result; vid.style.display = 'block'; img.style.display = 'none';
+
     }
+
     document.getElementById('previewName').textContent = file.name;
+
   };
+
   reader.readAsDataURL(file);
+
 }
+
+
 
 // --- 폼 저장 -------------------------------------
+
 const REQUIRED_IDS = ['f_매체','f_캠페인','f_그룹','f_소재이름','f_보종','f_광고유형','f_소재유형'];
 
+
+
 function validateForm() {
+
   let ok = true;
+
   REQUIRED_IDS.forEach(id => {
+
     const el = document.getElementById(id);
+
     if (!el.value) { el.classList.add('error'); ok = false; }
+
     else el.classList.remove('error');
+
   });
+
   return ok;
+
 }
+
+
 
 function getFormData(forceSave) {
+
   return {
+
     매체:       document.getElementById('f_매체').value,
+
     캠페인:     document.getElementById('f_캠페인').value,
+
     그룹:       document.getElementById('f_그룹').value,
+
     소재이름:   document.getElementById('f_소재이름').value,
+
     보종:       document.getElementById('f_보종').value,
+
     광고유형:   document.getElementById('f_광고유형').value,
+
     소재유형:   document.getElementById('f_소재유형').value,
+
     소구포인트: document.getElementById('f_소구포인트').value,
+
     후킹방식:   document.getElementById('f_후킹방식').value,
+
     소구상세:   document.getElementById('f_소구상세').value.trim(),
+
     이미지유형: document.getElementById('f_이미지유형').value,
+
     모델유형:   document.getElementById('f_모델유형').value,
+
     fileData: fileBase64, fileName, mimeType: fileMime, fileHash,
+
     existingImageUrl,
+
     selectedImageCode: document.getElementById('useExistingCode').checked
+
       ? selectedImageCodeValue : '',
+
     forceSave: !!forceSave
+
   };
+
 }
+
+
 
 function submitForm(forceSave) {
+
   hideMessages();
+
   if (!validateForm()) { showError('필수 항목(*)을 모두 선택해 주세요.'); return; }
+
   setSaving(true);
+
   google.script.run
+
     .withSuccessHandler(res => {
+
       setSaving(false);
+
       if (res.duplicate) {
+
         if (confirm('이미 등록된 소재입니다. 그래도 등록하시겠습니까?')) submitForm(true);
+
         return;
+
       }
+
       if (res.error) { showError(res.message); return; }
+
       document.getElementById('displayCode').textContent = res.imageCode;
+
       document.getElementById('displayCode').classList.remove('empty');
+
       document.getElementById('displayUrl').textContent = res.imageUrl || '(파일 없음)';
+
       document.getElementById('displayUrl').classList.remove('empty');
-      const reuseMsg = res.reused ? ' (동일 이미지 — 기존 코드 재사용)' : '';
+
+      const reuseMsg = res.reused ? ' (동일 이미지 - 기존 코드 재사용)' : '';
+
       showSuccess('등록 완료! 이미지코드: ' + res.imageCode + reuseMsg);
+
       if (isIndexing) { markDetectItemDone(detectIndex - 1); loadNextDetectItem(); }
+
       else setTimeout(resetForm, 2000);
+
     })
+
     .withFailureHandler(err => { setSaving(false); showError('저장 실패: ' + err.message); })
+
     .saveCreative(getFormData(forceSave));
+
 }
+
+
 
 function resetForm() {
+
   // 계층 드롭다운 리셋
+
   document.getElementById('f_매체').value = '';
+
   resetCascade(['f_캠페인','f_그룹','f_소재이름']);
+
   // 기타 드롭다운 리셋
+
   Object.values(DROPDOWN_MAP).forEach(id => {
+
     const el = document.getElementById(id);
+
     if (el) { el.selectedIndex = 0; el.classList.remove('error'); }
+
   });
+
   document.getElementById('f_소구상세').value = '';
+
   REQUIRED_IDS.forEach(id => document.getElementById(id)?.classList.remove('error'));
 
+
+
   fileBase64 = fileName = fileMime = fileHash = null;
+
   existingImageUrl = '';
+
   document.getElementById('fileInput').value = '';
+
   document.getElementById('useExistingCode').checked = false;
+
   toggleCodeMode(false);
+
   document.getElementById('previewArea').classList.remove('show');
+
   document.getElementById('previewImg').src = '';
+
   document.getElementById('previewVideo').src = '';
+
   document.getElementById('displayCode').textContent = '저장 시 자동 생성';
+
   document.getElementById('displayCode').classList.add('empty');
+
   document.getElementById('displayUrl').textContent = '업로드 후 자동 생성';
+
   document.getElementById('displayUrl').classList.add('empty');
+
   hideMessages();
+
 }
+
+
 
 // --- 신규 소재 감지 ------------------------------
+
 function runDetect() {
+
   const btn = document.getElementById('btnDetect');
+
   btn.disabled = true;
+
   document.getElementById('spinDetect').classList.add('show');
+
   google.script.run
+
     .withSuccessHandler(res => {
+
       btn.disabled = false; document.getElementById('spinDetect').classList.remove('show');
+
       if (res.error) { showError(res.message); return; }
+
       renderDetectPanel(res);
+
     })
+
     .withFailureHandler(err => {
+
       btn.disabled = false; document.getElementById('spinDetect').classList.remove('show');
+
       showError('감지 실패: ' + err.message);
+
     })
+
     .detectNewCreatives();
+
 }
+
+
 
 function renderDetectPanel(res) {
+
   detectItems = res.items || []; detectIndex = 0; isIndexing = false;
+
   document.getElementById('detectCount').textContent = res.count;
+
   document.getElementById('detectMsgText').textContent = res.message;
+
   document.getElementById('detectPanel').classList.add('show');
+
   const list = document.getElementById('detectList');
+
   list.innerHTML = '';
+
   detectItems.forEach((item, i) => {
+
     const div = document.createElement('div');
+
     div.className = 'detect-item'; div.id = 'detect-item-' + i;
+
     div.innerHTML = `
+
       <div class="detect-item-info">
+
         <div class="media">${escHtml(item.매체)}</div>
+
         <div class="name">${escHtml(item.캠페인)} / ${escHtml(item.그룹)} / ${escHtml(item.소재이름)}</div>
+
       </div>
+
       <span class="detect-badge" id="badge-${i}">대기</span>`;
+
     list.appendChild(div);
+
   });
+
   document.getElementById('btnStartIndex').style.display = detectItems.length ? 'flex' : 'none';
+
 }
+
+
 
 function startIndexing() {
+
   if (!detectItems.length) return;
+
   isIndexing = true; detectIndex = 0;
+
   document.getElementById('btnStartIndex').style.display = 'none';
+
   loadNextDetectItem();
+
 }
+
+
 
 function loadNextDetectItem() {
+
   if (detectIndex >= detectItems.length) {
+
     isIndexing = false;
+
     showSuccess(`인덱싱 완료! 총 ${detectItems.length}건 등록되었습니다.`);
+
     return;
+
   }
+
   const item = detectItems[detectIndex++];
+
   resetForm();
 
+
+
   // 매체 선택 후 연쇄 드롭다운 자동 설정
+
   const mediaSel = document.getElementById('f_매체');
+
   mediaSel.value = item.매체;
+
   onMediaChange();
 
+
+
   // 약간의 딜레이 후 캠페인/그룹/소재이름 설정 (DOM 업데이트 후)
+
   setTimeout(() => {
+
     document.getElementById('f_캠페인').value = item.캠페인;
+
     onCampaignChange();
+
     setTimeout(() => {
+
       document.getElementById('f_그룹').value = item.그룹;
+
       onGroupChange();
+
       setTimeout(() => {
+
         document.getElementById('f_소재이름').value = item.소재이름;
+
       }, 50);
+
     }, 50);
+
   }, 50);
 
+
+
   const badge = document.getElementById('badge-' + (detectIndex - 1));
+
   if (badge) { badge.textContent = '진행 중'; badge.style.cssText = 'background:#fef3c7;color:#92400e;'; }
+
   window.scrollTo({ top: 0, behavior: 'smooth' });
+
   showSuccess(`(${detectIndex}/${detectItems.length}) 나머지 정보를 선택 후 저장하세요.`);
+
 }
+
+
 
 function markDetectItemDone(i) {
+
   document.getElementById('detect-item-' + i)?.classList.add('done');
+
   const badge = document.getElementById('badge-' + i);
+
   if (badge) { badge.textContent = '완료'; badge.className = 'detect-badge done'; }
+
 }
+
+
 
 // --- 유틸 ----------------------------------------
+
 function escHtml(s) {
+
   return String(s)
+
     .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
 }
+
+
 
 function setSaving(saving) {
+
   document.getElementById('btnSave').disabled = saving;
+
   document.getElementById('spinSave').classList.toggle('show', saving);
-  document.getElementById('btnSaveText').textContent = saving ? '저장 중...' : '💾 저장';
+
+  document.getElementById('btnSaveText').textContent = saving ? '저장 중...' : '저장';
+
 }
 
+
+
 function showSuccess(msg) {
+
   document.getElementById('msgSuccessText').textContent = msg;
+
   document.getElementById('msgSuccess').classList.add('show');
+
   document.getElementById('msgError').classList.remove('show');
+
 }
+
 function showError(msg) {
+
   document.getElementById('msgErrorText').textContent = msg;
+
   document.getElementById('msgError').classList.add('show');
+
   document.getElementById('msgSuccess').classList.remove('show');
+
 }
+
 function hideMessages() {
+
   document.getElementById('msgSuccess').classList.remove('show');
+
   document.getElementById('msgError').classList.remove('show');
+
 }
+
 function showSettingsSuccess(msg) {
+
   document.getElementById('settingsMsgSuccessText').textContent = msg;
+
   document.getElementById('settingsMsgSuccess').classList.add('show');
+
   document.getElementById('settingsMsgError').classList.remove('show');
+
 }
+
 function showSettingsError(msg) {
+
   document.getElementById('settingsMsgErrorText').textContent = msg;
+
   document.getElementById('settingsMsgError').classList.add('show');
+
   document.getElementById('settingsMsgSuccess').classList.remove('show');
+
 }
+
 function hideSettingsMessages() {
+
   document.getElementById('settingsMsgSuccess').classList.remove('show');
+
   document.getElementById('settingsMsgError').classList.remove('show');
+
 }
+
 </script>
+
 </body>
+
 </html>
+
