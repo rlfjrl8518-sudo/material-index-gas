@@ -302,7 +302,14 @@ function saveCreative(data) {
     if (data.fileData) imageUrl = uploadImageToDrive(data.fileData, data.fileName, data.mimeType);
 
     const ss = getSpreadsheet();
-    const sheet = ss.getSheetByName(MASTER_SHEET_NAME);
+    let sheet = ss.getSheetByName(MASTER_SHEET_NAME);
+    if (!sheet) {
+      sheet = ss.insertSheet(MASTER_SHEET_NAME);
+      const headers = ['이미지코드','등록일자','매체','캠페인','그룹','소재이름','보종',
+        '광고유형','소재유형','소구포인트','후킹방식','소구상세','이미지유형','모델유형','이미지URL','파일해시'];
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+      sheet.setFrozenRows(1);
+    }
     const dateStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
 
     sheet.appendRow([
