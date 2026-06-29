@@ -570,6 +570,18 @@
 </div>
 
 <script>
+// ─── 전역 오류 포착 ──────────────────────────────
+window.onerror = function(msg, src, line) {
+  var el = document.getElementById('_jsErr');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = '_jsErr';
+    el.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#991b1b;color:#fff;padding:10px 16px;font-size:12px;z-index:9999;white-space:pre-wrap;';
+    document.body.appendChild(el);
+  }
+  el.textContent = 'JS 오류: ' + msg + ' (line ' + line + ')';
+};
+
 // ─── 전역 상태 ───────────────────────────────────
 let fileBase64        = null;
 let fileName          = null;
@@ -931,25 +943,61 @@ function toggleCodeMode(useExisting) {
 // ─── 이미지 선택 모달 ────────────────────────────
 function ensureModal() {
   if (document.getElementById('imgModalOverlay')) return;
-  const overlay = document.createElement('div');
+
+  var overlay = document.createElement('div');
   overlay.id = 'imgModalOverlay';
   overlay.className = 'modal-overlay';
-  overlay.onclick = onModalOverlayClick;
-  overlay.innerHTML =
-    '<div class="modal" id="imgModal">' +
-      '<div class="modal-header">' +
-        '<span class="modal-title">🖼 이미지 선택</span>' +
-        '<div style="display:flex;align-items:center;gap:10px;">' +
-          '<input type="text" class="modal-search" id="imgSearch" placeholder="코드 또는 소재명 검색..." oninput="filterImagePicker()">' +
-          '<button class="btn btn-ghost btn-sm" onclick="closeImageModal()">✕ 닫기</button>' +
-        '</div>' +
-      '</div>' +
-      '<div class="modal-body">' +
-        '<div class="img-picker-grid" id="imgPickerGrid">' +
-          '<div class="modal-empty">불러오는 중...</div>' +
-        '</div>' +
-      '</div>' +
-    '</div>';
+  overlay.addEventListener('click', onModalOverlayClick);
+
+  var modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.id = 'imgModal';
+
+  // 헤더
+  var header = document.createElement('div');
+  header.className = 'modal-header';
+
+  var title = document.createElement('span');
+  title.className = 'modal-title';
+  title.textContent = '🖼 이미지 선택';
+
+  var controls = document.createElement('div');
+  controls.style.cssText = 'display:flex;align-items:center;gap:10px;';
+
+  var searchInput = document.createElement('input');
+  searchInput.type = 'text';
+  searchInput.className = 'modal-search';
+  searchInput.id = 'imgSearch';
+  searchInput.placeholder = '코드 또는 소재명 검색...';
+  searchInput.addEventListener('input', filterImagePicker);
+
+  var closeBtn = document.createElement('button');
+  closeBtn.className = 'btn btn-ghost btn-sm';
+  closeBtn.textContent = '✕ 닫기';
+  closeBtn.addEventListener('click', closeImageModal);
+
+  controls.appendChild(searchInput);
+  controls.appendChild(closeBtn);
+  header.appendChild(title);
+  header.appendChild(controls);
+
+  // 바디
+  var body = document.createElement('div');
+  body.className = 'modal-body';
+
+  var grid = document.createElement('div');
+  grid.className = 'img-picker-grid';
+  grid.id = 'imgPickerGrid';
+
+  var loading = document.createElement('div');
+  loading.className = 'modal-empty';
+  loading.textContent = '불러오는 중...';
+
+  grid.appendChild(loading);
+  body.appendChild(grid);
+  modal.appendChild(header);
+  modal.appendChild(body);
+  overlay.appendChild(modal);
   document.body.appendChild(overlay);
 }
 
