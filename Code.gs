@@ -218,7 +218,8 @@ function getCreativeByImageCode(imageCode) {
     후킹방식:   String(row[10] || ''),
     소구상세:   String(row[11] || ''),
     이미지유형: String(row[12] || ''),
-    모델유형:   String(row[13] || '')
+    모델유형:   String(row[13] || ''),
+    이미지URL:  String(row[14] || '')
   };
 }
 
@@ -327,8 +328,12 @@ function saveCreative(data) {
       }
     }
 
-    // 파일이 있으면 항상 Drive에 업로드 (코드 재사용이어도 새 파일은 별도 저장)
-    if (data.fileData) imageUrl = uploadImageToDrive(data.fileData, data.fileName, data.mimeType);
+    // 새 파일이 있으면 Drive 업로드, 없으면 기존 URL 유지
+    if (data.fileData) {
+      imageUrl = uploadImageToDrive(data.fileData, data.fileName, data.mimeType);
+    } else if (data.existingImageUrl) {
+      imageUrl = data.existingImageUrl;
+    }
 
     const ss = getSpreadsheet();
     let sheet = ss.getSheetByName(MASTER_SHEET_NAME);
