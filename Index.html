@@ -14,46 +14,28 @@
     min-height: 100vh;
   }
 
-  /* ─── Header ─── */
   .header {
-    background: #1a1a2e;
-    color: #fff;
-    padding: 0 32px;
-    height: 56px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    position: sticky;
-    top: 0;
-    z-index: 100;
+    background: #1a1a2e; color: #fff;
+    padding: 0 32px; height: 56px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
     box-shadow: 0 2px 8px rgba(0,0,0,.25);
   }
-  .header h1 { font-size: 16px; font-weight: 600; letter-spacing: -.3px; }
+  .header h1 { font-size: 16px; font-weight: 600; }
   .header-actions { display: flex; gap: 8px; align-items: center; }
 
-  /* ─── Tab Navigation ─── */
   .tab-nav {
-    background: #fff;
-    border-bottom: 1px solid #e5e7eb;
-    display: flex;
-    padding: 0 32px;
+    background: #fff; border-bottom: 1px solid #e5e7eb;
+    display: flex; padding: 0 32px;
   }
   .tab-btn {
-    padding: 14px 20px;
-    font-size: 13px;
-    font-weight: 500;
-    color: #6b7280;
-    cursor: pointer;
-    border: none;
-    background: none;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
-    transition: all .15s;
+    padding: 14px 20px; font-size: 13px; font-weight: 500; color: #6b7280;
+    cursor: pointer; border: none; background: none;
+    border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all .15s;
   }
   .tab-btn.active { color: #4f6ef7; border-bottom-color: #4f6ef7; }
   .tab-btn:hover:not(.active) { color: #374151; }
 
-  /* ─── Buttons ─── */
   .btn {
     display: inline-flex; align-items: center; gap: 6px;
     padding: 8px 16px; border-radius: 6px; font-size: 13px;
@@ -70,59 +52,30 @@
   .btn-danger:hover:not(:disabled)   { background: #dc2626; }
   .btn-ghost    { background: transparent; color: #6b7280; border: 1px solid #e5e7eb; }
   .btn-ghost:hover:not(:disabled)    { background: #f9fafb; }
-  .btn-sm       { padding: 5px 10px; font-size: 12px; }
-  .btn-lg       { padding: 11px 24px; font-size: 14px; width: 100%; justify-content: center; }
+  .btn-sm  { padding: 5px 10px; font-size: 12px; }
+  .btn-lg  { padding: 11px 24px; font-size: 14px; width: 100%; justify-content: center; }
 
-  /* ─── Tab Panels ─── */
   .tab-panel { display: none; }
   .tab-panel.active { display: block; }
 
-  /* ─── Layout ─── */
   .container {
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 28px 24px;
-    display: grid;
-    grid-template-columns: 320px 1fr;
-    gap: 24px;
-    align-items: start;
+    max-width: 1100px; margin: 0 auto; padding: 28px 24px;
+    display: grid; grid-template-columns: 320px 1fr; gap: 24px; align-items: start;
   }
-  .container-single {
-    max-width: 860px;
-    margin: 0 auto;
-    padding: 28px 24px;
-  }
+  .container-single { max-width: 900px; margin: 0 auto; padding: 28px 24px; }
 
-  /* ─── Card ─── */
-  .card {
-    background: #fff;
-    border-radius: 10px;
-    border: 1px solid #e5e7eb;
-    overflow: hidden;
-  }
+  .card { background: #fff; border-radius: 10px; border: 1px solid #e5e7eb; overflow: hidden; }
   .card-header {
-    padding: 16px 20px;
-    border-bottom: 1px solid #f3f4f6;
-    font-size: 13px;
-    font-weight: 600;
-    color: #374151;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
+    padding: 16px 20px; border-bottom: 1px solid #f3f4f6;
+    font-size: 13px; font-weight: 600; color: #374151;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
   }
   .card-body { padding: 20px; }
 
-  /* ─── Upload Zone ─── */
   .upload-zone {
-    border: 2px dashed #d1d5db;
-    border-radius: 8px;
-    padding: 32px 16px;
-    text-align: center;
-    cursor: pointer;
-    transition: all .2s;
-    background: #fafafa;
-    position: relative;
+    border: 2px dashed #d1d5db; border-radius: 8px; padding: 32px 16px;
+    text-align: center; cursor: pointer; transition: all .2s;
+    background: #fafafa; position: relative;
   }
   .upload-zone.dragover { border-color: #4f6ef7; background: #eff2ff; }
   .upload-zone:hover { border-color: #9ca3af; }
@@ -130,42 +83,34 @@
   .upload-icon { font-size: 32px; margin-bottom: 8px; }
   .upload-hint { font-size: 12px; color: #6b7280; margin-top: 4px; }
 
-  /* ─── Preview ─── */
   .preview-area { margin-top: 12px; display: none; }
   .preview-area.show { display: block; }
   .preview-area img, .preview-area video {
-    width: 100%; border-radius: 6px;
-    border: 1px solid #e5e7eb;
-    max-height: 220px; object-fit: contain;
-    background: #f9fafb;
+    width: 100%; border-radius: 6px; border: 1px solid #e5e7eb;
+    max-height: 220px; object-fit: contain; background: #f9fafb;
   }
   .preview-name { margin-top: 6px; font-size: 11px; color: #6b7280; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
 
-  /* ─── Auto Fields ─── */
   .auto-field {
     background: #f8faff; border: 1px solid #dbeafe;
-    border-radius: 6px; padding: 10px 12px;
-    font-size: 12px; color: #374151; margin-bottom: 10px;
+    border-radius: 6px; padding: 10px 12px; font-size: 12px; margin-bottom: 10px;
   }
   .auto-field label { font-size: 11px; color: #6b7280; display: block; margin-bottom: 2px; }
   .auto-field .value { font-weight: 600; color: #1d4ed8; word-break: break-all; }
   .auto-field .value.empty { color: #9ca3af; font-weight: 400; font-style: italic; }
 
-  /* ─── Form ─── */
   .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .form-group { display: flex; flex-direction: column; gap: 5px; }
   .form-group.full { grid-column: 1 / -1; }
   .form-group label { font-size: 12px; font-weight: 500; color: #374151; }
   .form-group label .req { color: #ef4444; margin-left: 2px; }
   .form-control {
-    padding: 9px 11px; border: 1px solid #d1d5db;
-    border-radius: 6px; font-size: 13px; color: #1a1a2e;
-    background: #fff; transition: border-color .15s; width: 100%;
+    padding: 9px 11px; border: 1px solid #d1d5db; border-radius: 6px;
+    font-size: 13px; color: #1a1a2e; background: #fff; transition: border-color .15s; width: 100%;
   }
   .form-control:focus { outline: none; border-color: #4f6ef7; box-shadow: 0 0 0 3px rgba(79,110,247,.1); }
   .form-control.error { border-color: #ef4444; }
 
-  /* ─── Status Messages ─── */
   .msg {
     border-radius: 7px; padding: 11px 14px; font-size: 13px;
     display: none; margin-bottom: 14px; align-items: flex-start; gap: 8px;
@@ -175,7 +120,6 @@
   .msg-error   { background: #fff1f2; border: 1px solid #fecdd3; color: #991b1b; }
   .msg-info    { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
 
-  /* ─── Detect Panel ─── */
   .detect-panel { display: none; margin-top: 24px; }
   .detect-panel.show { display: block; }
   .detect-list { max-height: 280px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 6px; margin-top: 12px; }
@@ -193,55 +137,58 @@
   }
   .detect-badge.done { background: #d1fae5; color: #065f46; }
 
-  /* ─── Settings Panel ─── */
+  /* ─── 설정 관리 ─── */
   .settings-intro {
     background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
     padding: 12px 16px; font-size: 13px; color: #92400e; margin-bottom: 20px;
   }
-  .category-block {
-    border: 1px solid #e5e7eb; border-radius: 8px;
-    margin-bottom: 14px; overflow: hidden;
+  .settings-intro code {
+    background: #fef3c7; padding: 1px 6px; border-radius: 4px; font-size: 12px;
   }
+
+  /* 설정 그리드: 카테고리를 2열로 배치 */
+  .settings-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+  .category-block { border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
   .category-header {
-    background: #f9fafb; padding: 12px 16px;
-    display: flex; align-items: center; gap: 10px;
+    background: #f9fafb; padding: 11px 14px;
+    display: flex; align-items: center; gap: 8px;
   }
   .category-name-input {
     flex: 1; border: none; background: transparent;
-    font-size: 13px; font-weight: 600; color: #374151;
-    outline: none; min-width: 80px;
+    font-size: 13px; font-weight: 600; color: #374151; outline: none; min-width: 60px;
   }
   .category-name-input:focus { color: #4f6ef7; }
-  .category-body { padding: 14px 16px; }
+  .category-body { padding: 12px 14px; }
 
-  /* 값 칩 */
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; min-height: 28px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; min-height: 26px; }
   .chip {
-    display: inline-flex; align-items: center; gap: 4px;
-    background: #eff2ff; color: #3730a3;
-    border: 1px solid #c7d2fe; border-radius: 20px;
-    padding: 3px 10px; font-size: 12px;
+    display: inline-flex; align-items: center; gap: 3px;
+    background: #eff2ff; color: #3730a3; border: 1px solid #c7d2fe;
+    border-radius: 20px; padding: 2px 9px; font-size: 12px;
   }
   .chip-remove {
     cursor: pointer; color: #6366f1; font-size: 14px; line-height: 1;
-    background: none; border: none; padding: 0; margin-left: 2px;
+    background: none; border: none; padding: 0; margin-left: 1px;
   }
   .chip-remove:hover { color: #ef4444; }
   .chip-empty { font-size: 12px; color: #9ca3af; font-style: italic; }
 
-  /* 값 추가 인풋 */
-  .add-value-row { display: flex; gap: 6px; }
+  .add-value-row { display: flex; gap: 5px; }
   .add-value-input {
-    flex: 1; padding: 6px 10px; border: 1px solid #d1d5db;
+    flex: 1; padding: 5px 9px; border: 1px solid #d1d5db;
     border-radius: 6px; font-size: 12px;
   }
   .add-value-input:focus { outline: none; border-color: #4f6ef7; }
 
-  /* 새 카테고리 추가 */
   .add-category-row {
-    display: flex; gap: 8px; margin-top: 4px; padding: 16px;
-    border: 2px dashed #d1d5db; border-radius: 8px;
-    align-items: center;
+    display: flex; gap: 8px; padding: 14px;
+    border: 2px dashed #d1d5db; border-radius: 8px; align-items: center;
+    margin-bottom: 16px;
   }
   .add-category-input {
     flex: 1; padding: 8px 12px; border: 1px solid #d1d5db;
@@ -249,7 +196,6 @@
   }
   .add-category-input:focus { outline: none; border-color: #4f6ef7; }
 
-  /* ─── Spinner ─── */
   .spinner {
     width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.4);
     border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; display: none;
@@ -257,7 +203,6 @@
   .spinner.show { display: inline-block; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* ─── Misc ─── */
   .divider { border: none; border-top: 1px solid #f3f4f6; margin: 18px 0; }
   .count-badge {
     background: #ef4444; color: #fff; border-radius: 10px;
@@ -266,7 +211,8 @@
 
   @media (max-width: 768px) {
     .container { grid-template-columns: 1fr; padding: 16px; }
-    .form-grid { grid-template-columns: 1fr; }
+    .form-grid  { grid-template-columns: 1fr; }
+    .settings-grid { grid-template-columns: 1fr; }
     .tab-nav { padding: 0 16px; }
   }
 </style>
@@ -290,13 +236,11 @@
   <button class="tab-btn" onclick="switchTab('settings', this)">⚙️ 설정 관리</button>
 </div>
 
-<!-- ════════════════════════════════════════
-     TAB 1: 소재 등록
-════════════════════════════════════════ -->
+<!-- ════ TAB 1: 소재 등록 ════ -->
 <div class="tab-panel active" id="panel-register">
   <div class="container">
 
-    <!-- ── 왼쪽: 파일 업로드 + 자동 생성 필드 ── -->
+    <!-- 왼쪽: 파일 업로드 + 자동 생성 -->
     <div>
       <div class="card" style="margin-bottom:16px;">
         <div class="card-header">🖼 소재 파일</div>
@@ -333,7 +277,7 @@
       </div>
     </div>
 
-    <!-- ── 오른쪽: 입력 폼 ── -->
+    <!-- 오른쪽: 입력 폼 -->
     <div>
       <div class="msg msg-success" id="msgSuccess"><span>✅</span><span id="msgSuccessText"></span></div>
       <div class="msg msg-error"   id="msgError">  <span>❌</span><span id="msgErrorText"></span></div>
@@ -341,41 +285,41 @@
       <div class="card">
         <div class="card-header">✏️ 소재 정보 입력</div>
         <div class="card-body">
-          <div class="form-grid" id="formGrid">
+          <div class="form-grid">
 
             <div class="form-group">
               <label>매체 <span class="req">*</span></label>
-              <select class="form-control" id="f_매체" required><option value="">선택</option></select>
+              <select class="form-control" id="f_매체"><option value="">선택</option></select>
             </div>
 
             <div class="form-group">
               <label>보종 <span class="req">*</span></label>
-              <select class="form-control" id="f_보종" required><option value="">선택</option></select>
+              <select class="form-control" id="f_보종"><option value="">선택</option></select>
             </div>
 
             <div class="form-group full">
               <label>캠페인 <span class="req">*</span></label>
-              <input class="form-control" type="text" id="f_캠페인" placeholder="캠페인명 입력">
+              <select class="form-control" id="f_캠페인"><option value="">선택</option></select>
             </div>
 
             <div class="form-group full">
               <label>그룹 <span class="req">*</span></label>
-              <input class="form-control" type="text" id="f_그룹" placeholder="광고그룹명 입력">
+              <select class="form-control" id="f_그룹"><option value="">선택</option></select>
             </div>
 
             <div class="form-group full">
               <label>소재이름 <span class="req">*</span></label>
-              <input class="form-control" type="text" id="f_소재이름" placeholder="소재명 입력">
+              <select class="form-control" id="f_소재이름"><option value="">선택</option></select>
             </div>
 
             <div class="form-group">
               <label>광고유형 <span class="req">*</span></label>
-              <select class="form-control" id="f_광고유형" required><option value="">선택</option></select>
+              <select class="form-control" id="f_광고유형"><option value="">선택</option></select>
             </div>
 
             <div class="form-group">
               <label>소재유형 <span class="req">*</span></label>
-              <select class="form-control" id="f_소재유형" required><option value="">선택</option></select>
+              <select class="form-control" id="f_소재유형"><option value="">선택</option></select>
             </div>
 
             <div class="form-group">
@@ -415,7 +359,7 @@
         </div>
       </div>
 
-      <!-- 신규 소재 감지 결과 패널 -->
+      <!-- 신규 소재 감지 결과 -->
       <div class="detect-panel card" id="detectPanel">
         <div class="card-header">
           <span>🔍 신규 소재 감지 결과</span>
@@ -434,9 +378,7 @@
   </div>
 </div>
 
-<!-- ════════════════════════════════════════
-     TAB 2: 설정 관리
-════════════════════════════════════════ -->
+<!-- ════ TAB 2: 설정 관리 ════ -->
 <div class="tab-panel" id="panel-settings">
   <div class="container-single">
 
@@ -444,12 +386,10 @@
     <div class="msg msg-error"   id="settingsMsgError">  <span>❌</span><span id="settingsMsgErrorText"></span></div>
 
     <div class="settings-intro">
-      💡 각 항목의 드롭다운 값을 자유롭게 추가·삭제·수정할 수 있습니다.
-      카테고리명도 변경 가능하며, 새 카테고리를 추가하거나 삭제할 수도 있습니다.
-      변경 후 반드시 <strong>저장</strong>을 눌러야 반영됩니다.
+      💡 각 카테고리 안에 값을 입력하고 <strong>Enter</strong> 또는 <strong>+ 추가</strong>를 누르세요.
+      변경 후 <strong>💾 설정 저장</strong>을 눌러야 반영됩니다.<br>
+      구글 시트 <code>설정</code> 탭에서도 직접 입력할 수 있습니다 (1행=카테고리명, 2행~=값, 세로로 입력).
     </div>
-
-    <div id="categoryList"></div>
 
     <!-- 새 카테고리 추가 -->
     <div class="add-category-row">
@@ -458,7 +398,9 @@
       <button class="btn btn-ghost btn-sm" onclick="addCategory()">+ 추가</button>
     </div>
 
-    <div style="margin-top:20px;display:flex;gap:8px;">
+    <div class="settings-grid" id="categoryList"></div>
+
+    <div style="display:flex;gap:8px;">
       <button class="btn btn-primary" id="btnSaveSettings" onclick="saveAllSettings()">
         <div class="spinner" id="spinSettings"></div>
         <span id="btnSaveSettingsText">💾 설정 저장</span>
@@ -471,14 +413,29 @@
 
 <script>
 // ─── 전역 상태 ────────────────────────────────────
-let fileBase64   = null;
-let fileName     = null;
-let fileMime     = null;
-let settings     = {};        // { 카테고리명: [값...] }
-let settingsState = [];       // [{ name, values[] }, ...]  (설정 탭 편집 상태)
-let detectItems  = [];
-let detectIndex  = 0;
-let isIndexing   = false;
+let fileBase64    = null;
+let fileName      = null;
+let fileMime      = null;
+let settings      = {};
+let settingsState = [];
+let detectItems   = [];
+let detectIndex   = 0;
+let isIndexing    = false;
+
+// 드롭다운 매핑 (설정 시트 카테고리명 → 폼 요소 ID)
+const DROPDOWN_MAP = {
+  '매체':       'f_매체',
+  '광고유형':   'f_광고유형',
+  '소재유형':   'f_소재유형',
+  '소구포인트': 'f_소구포인트',
+  '후킹방식':   'f_후킹방식',
+  '이미지유형': 'f_이미지유형',
+  '모델유형':   'f_모델유형',
+  '보종':       'f_보종',
+  '캠페인':     'f_캠페인',
+  '그룹':       'f_그룹',
+  '소재이름':   'f_소재이름'
+};
 
 // ─── 탭 전환 ──────────────────────────────────────
 function switchTab(tab, btn) {
@@ -486,7 +443,6 @@ function switchTab(tab, btn) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('panel-' + tab).classList.add('active');
   btn.classList.add('active');
-
   if (tab === 'settings') loadSettingsPanel();
 }
 
@@ -495,33 +451,28 @@ document.addEventListener('DOMContentLoaded', loadSettings);
 
 function loadSettings() {
   google.script.run
-    .withSuccessHandler(s => {
-      settings = s;
-      populateDropdowns(s);
-    })
+    .withSuccessHandler(s => { settings = s; populateDropdowns(s); })
     .withFailureHandler(err => showError('설정 로드 실패: ' + err.message))
     .getSettings();
 }
 
 function populateDropdowns(s) {
-  const map = {
-    '매체': 'f_매체', '광고유형': 'f_광고유형', '소재유형': 'f_소재유형',
-    '소구포인트': 'f_소구포인트', '후킹방식': 'f_후킹방식',
-    '이미지유형': 'f_이미지유형', '모델유형': 'f_모델유형', '보종': 'f_보종'
-  };
-  Object.entries(map).forEach(([key, id]) => {
+  Object.entries(DROPDOWN_MAP).forEach(([key, id]) => {
     const sel = document.getElementById(id);
-    if (!sel || !s[key]) return;
+    if (!sel) return;
+    const current = sel.value;
     sel.innerHTML = '<option value="">선택</option>';
-    s[key].forEach(v => {
+    (s[key] || []).forEach(v => {
       const opt = document.createElement('option');
       opt.value = v; opt.textContent = v;
       sel.appendChild(opt);
     });
+    // 기존 선택값 유지
+    if (current) sel.value = current;
   });
 }
 
-// ─── 설정 관리 탭 렌더 ────────────────────────────
+// ─── 설정 관리 탭 ─────────────────────────────────
 function loadSettingsPanel() {
   hideSettingsMessages();
   google.script.run
@@ -537,9 +488,7 @@ function loadSettingsPanel() {
 function renderCategories() {
   const list = document.getElementById('categoryList');
   list.innerHTML = '';
-  settingsState.forEach((cat, ci) => {
-    list.appendChild(buildCategoryBlock(cat, ci));
-  });
+  settingsState.forEach((cat, ci) => list.appendChild(buildCategoryBlock(cat, ci)));
 }
 
 function buildCategoryBlock(cat, ci) {
@@ -550,13 +499,10 @@ function buildCategoryBlock(cat, ci) {
   const header = document.createElement('div');
   header.className = 'category-header';
   header.innerHTML = `
-    <input class="category-name-input" type="text"
-           value="${escHtml(cat.name)}"
-           onchange="updateCategoryName(${ci}, this.value)"
-           placeholder="카테고리명">
-    <span style="font-size:12px;color:#9ca3af;margin-left:auto;">${cat.values.length}개 항목</span>
-    <button class="btn btn-danger btn-sm" onclick="removeCategory(${ci})">삭제</button>
-  `;
+    <input class="category-name-input" type="text" value="${escHtml(cat.name)}"
+           onchange="updateCategoryName(${ci}, this.value)" placeholder="카테고리명">
+    <span style="font-size:11px;color:#9ca3af;margin-left:auto;" id="badge-count-${ci}">${cat.values.length}개</span>
+    <button class="btn btn-danger btn-sm" onclick="removeCategory(${ci})">삭제</button>`;
   block.appendChild(header);
 
   const body = document.createElement('div');
@@ -571,10 +517,9 @@ function buildCategoryBlock(cat, ci) {
   const addRow = document.createElement('div');
   addRow.className = 'add-value-row';
   addRow.innerHTML = `
-    <input class="add-value-input" type="text" id="newVal-${ci}" placeholder="값 입력 후 Enter 또는 추가 클릭"
+    <input class="add-value-input" type="text" id="newVal-${ci}" placeholder="값 입력 후 Enter"
            onkeydown="if(event.key==='Enter'){event.preventDefault();addValue(${ci});}">
-    <button class="btn btn-ghost btn-sm" onclick="addValue(${ci})">+ 추가</button>
-  `;
+    <button class="btn btn-ghost btn-sm" onclick="addValue(${ci})">+ 추가</button>`;
   body.appendChild(addRow);
   block.appendChild(body);
 
@@ -583,14 +528,14 @@ function buildCategoryBlock(cat, ci) {
 
 function renderChips(container, values, ci) {
   container.innerHTML = '';
-  if (values.length === 0) {
-    container.innerHTML = '<span class="chip-empty">값이 없습니다. 아래에서 추가하세요.</span>';
+  if (!values.length) {
+    container.innerHTML = '<span class="chip-empty">값 없음 — 아래에서 추가하세요</span>';
     return;
   }
   values.forEach((v, vi) => {
     const chip = document.createElement('span');
     chip.className = 'chip';
-    chip.innerHTML = `${escHtml(v)}<button class="chip-remove" onclick="removeValue(${ci},${vi})" title="삭제">×</button>`;
+    chip.innerHTML = `${escHtml(v)}<button class="chip-remove" onclick="removeValue(${ci},${vi})">×</button>`;
     container.appendChild(chip);
   });
 }
@@ -604,13 +549,13 @@ function addValue(ci) {
   settingsState[ci].values.push(val);
   input.value = '';
   renderChips(document.getElementById('chips-' + ci), settingsState[ci].values, ci);
-  updateCountBadge(ci);
+  updateBadgeCount(ci);
 }
 
 function removeValue(ci, vi) {
   settingsState[ci].values.splice(vi, 1);
   renderChips(document.getElementById('chips-' + ci), settingsState[ci].values, ci);
-  updateCountBadge(ci);
+  updateBadgeCount(ci);
 }
 
 function removeCategory(ci) {
@@ -626,33 +571,29 @@ function addCategory() {
   settingsState.push({ name, values: [] });
   input.value = '';
   renderCategories();
-  const last = document.querySelector('#categoryList .category-block:last-child');
-  if (last) last.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.querySelector('#categoryList .category-block:last-child')
+    ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function updateCountBadge(ci) {
-  const block = document.getElementById('cat-block-' + ci);
-  if (!block) return;
-  const badge = block.querySelector('.category-header span');
-  if (badge) badge.textContent = settingsState[ci].values.length + '개 항목';
+function updateBadgeCount(ci) {
+  const el = document.getElementById('badge-count-' + ci);
+  if (el) el.textContent = settingsState[ci].values.length + '개';
 }
 
 function saveAllSettings() {
-  const invalid = settingsState.some(c => !c.name.trim());
-  if (invalid) { showSettingsError('카테고리명이 비어 있는 항목이 있습니다.'); return; }
-
+  if (settingsState.some(c => !c.name.trim())) {
+    showSettingsError('카테고리명이 비어 있는 항목이 있습니다.');
+    return;
+  }
   setSavingSettings(true);
   google.script.run
     .withSuccessHandler(res => {
       setSavingSettings(false);
       if (res.error) { showSettingsError(res.message); return; }
-      showSettingsSuccess('설정이 저장되었습니다. 등록 탭의 드롭다운이 업데이트됩니다.');
+      showSettingsSuccess('저장 완료! 등록 탭 드롭다운이 업데이트됩니다.');
       loadSettings();
     })
-    .withFailureHandler(err => {
-      setSavingSettings(false);
-      showSettingsError('저장 실패: ' + err.message);
-    })
+    .withFailureHandler(err => { setSavingSettings(false); showSettingsError('저장 실패: ' + err.message); })
     .saveSettings(settingsState);
 }
 
@@ -665,27 +606,19 @@ function setSavingSettings(saving) {
 // ─── 파일 업로드 ──────────────────────────────────
 function onDragOver(e) { e.preventDefault(); document.getElementById('uploadZone').classList.add('dragover'); }
 function onDragLeave()  { document.getElementById('uploadZone').classList.remove('dragover'); }
-function onDrop(e) {
-  e.preventDefault(); onDragLeave();
-  const file = e.dataTransfer.files[0];
-  if (file) handleFile(file);
-}
+function onDrop(e) { e.preventDefault(); onDragLeave(); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); }
 function onFileSelected(e) { if (e.target.files[0]) handleFile(e.target.files[0]); }
 
 function handleFile(file) {
   const allowed = ['image/jpeg','image/png','image/gif','image/webp','video/mp4','video/quicktime'];
   if (!allowed.includes(file.type)) { showError('지원하지 않는 파일 형식입니다.'); return; }
-
-  fileName = file.name;
-  fileMime = file.type;
-
+  fileName = file.name; fileMime = file.type;
   const reader = new FileReader();
   reader.onload = ev => {
     fileBase64 = ev.target.result.split(',')[1];
-    const previewArea = document.getElementById('previewArea');
     const img = document.getElementById('previewImg');
     const vid = document.getElementById('previewVideo');
-    previewArea.classList.add('show');
+    document.getElementById('previewArea').classList.add('show');
     if (file.type.startsWith('image/')) {
       img.src = ev.target.result; img.style.display = 'block'; vid.style.display = 'none';
     } else {
@@ -697,13 +630,13 @@ function handleFile(file) {
 }
 
 // ─── 폼 저장 ──────────────────────────────────────
-const REQUIRED_FIELDS = ['f_매체','f_캠페인','f_그룹','f_소재이름','f_보종','f_광고유형','f_소재유형'];
+const REQUIRED_SELECT_IDS = ['f_매체','f_캠페인','f_그룹','f_소재이름','f_보종','f_광고유형','f_소재유형'];
 
 function validateForm() {
   let ok = true;
-  REQUIRED_FIELDS.forEach(id => {
+  REQUIRED_SELECT_IDS.forEach(id => {
     const el = document.getElementById(id);
-    if (!el.value.trim()) { el.classList.add('error'); ok = false; }
+    if (!el.value) { el.classList.add('error'); ok = false; }
     else el.classList.remove('error');
   });
   return ok;
@@ -712,9 +645,9 @@ function validateForm() {
 function getFormData(forceSave) {
   return {
     매체:       document.getElementById('f_매체').value,
-    캠페인:     document.getElementById('f_캠페인').value.trim(),
-    그룹:       document.getElementById('f_그룹').value.trim(),
-    소재이름:   document.getElementById('f_소재이름').value.trim(),
+    캠페인:     document.getElementById('f_캠페인').value,
+    그룹:       document.getElementById('f_그룹').value,
+    소재이름:   document.getElementById('f_소재이름').value,
     보종:       document.getElementById('f_보종').value,
     광고유형:   document.getElementById('f_광고유형').value,
     소재유형:   document.getElementById('f_소재유형').value,
@@ -723,17 +656,14 @@ function getFormData(forceSave) {
     소구상세:   document.getElementById('f_소구상세').value.trim(),
     이미지유형: document.getElementById('f_이미지유형').value,
     모델유형:   document.getElementById('f_모델유형').value,
-    fileData:   fileBase64,
-    fileName:   fileName,
-    mimeType:   fileMime,
-    forceSave:  !!forceSave
+    fileData: fileBase64, fileName, mimeType: fileMime,
+    forceSave: !!forceSave
   };
 }
 
 function submitForm(forceSave) {
   hideMessages();
-  if (!validateForm()) { showError('필수 항목(*)을 모두 입력해 주세요.'); return; }
-
+  if (!validateForm()) { showError('필수 항목(*)을 모두 선택해 주세요.'); return; }
   setSaving(true);
   google.script.run
     .withSuccessHandler(res => {
@@ -743,13 +673,11 @@ function submitForm(forceSave) {
         return;
       }
       if (res.error) { showError(res.message); return; }
-
       document.getElementById('displayCode').textContent = res.imageCode;
       document.getElementById('displayCode').classList.remove('empty');
       document.getElementById('displayUrl').textContent = res.imageUrl || '(파일 없음)';
       document.getElementById('displayUrl').classList.remove('empty');
       showSuccess('등록 완료! 이미지코드: ' + res.imageCode);
-
       if (isIndexing) { markDetectItemDone(detectIndex - 1); loadNextDetectItem(); }
       else setTimeout(resetForm, 2000);
     })
@@ -758,12 +686,12 @@ function submitForm(forceSave) {
 }
 
 function resetForm() {
-  REQUIRED_FIELDS.concat(['f_소구포인트','f_후킹방식','f_이미지유형','f_모델유형','f_소구상세']).forEach(id => {
+  // 모든 드롭다운 초기화
+  Object.values(DROPDOWN_MAP).forEach(id => {
     const el = document.getElementById(id);
-    if (el.tagName === 'SELECT') el.selectedIndex = 0;
-    else el.value = '';
-    el.classList.remove('error');
+    if (el) { el.selectedIndex = 0; el.classList.remove('error'); }
   });
+  document.getElementById('f_소구상세').value = '';
   fileBase64 = fileName = fileMime = null;
   document.getElementById('fileInput').value = '';
   document.getElementById('previewArea').classList.remove('show');
@@ -779,16 +707,18 @@ function resetForm() {
 // ─── 신규 소재 감지 ───────────────────────────────
 function runDetect() {
   const btn = document.getElementById('btnDetect');
-  const spin = document.getElementById('spinDetect');
-  btn.disabled = true; spin.classList.add('show');
+  btn.disabled = true;
+  document.getElementById('spinDetect').classList.add('show');
   google.script.run
     .withSuccessHandler(res => {
-      btn.disabled = false; spin.classList.remove('show');
+      btn.disabled = false;
+      document.getElementById('spinDetect').classList.remove('show');
       if (res.error) { showError(res.message); return; }
       renderDetectPanel(res);
     })
     .withFailureHandler(err => {
-      btn.disabled = false; spin.classList.remove('show');
+      btn.disabled = false;
+      document.getElementById('spinDetect').classList.remove('show');
       showError('감지 실패: ' + err.message);
     })
     .detectNewCreatives();
@@ -799,13 +729,11 @@ function renderDetectPanel(res) {
   document.getElementById('detectCount').textContent = res.count;
   document.getElementById('detectMsgText').textContent = res.message;
   document.getElementById('detectPanel').classList.add('show');
-
   const list = document.getElementById('detectList');
   list.innerHTML = '';
   detectItems.forEach((item, i) => {
     const div = document.createElement('div');
-    div.className = 'detect-item';
-    div.id = 'detect-item-' + i;
+    div.className = 'detect-item'; div.id = 'detect-item-' + i;
     div.innerHTML = `
       <div class="detect-item-info">
         <div class="media">${escHtml(item.매체)}</div>
@@ -832,33 +760,36 @@ function loadNextDetectItem() {
   }
   const item = detectItems[detectIndex++];
   resetForm();
-  setSelectValue('f_매체', item.매체);
-  setTextValue('f_캠페인',   item.캠페인);
-  setTextValue('f_그룹',     item.그룹);
-  setTextValue('f_소재이름', item.소재이름);
-
+  setSelectValue('f_매체',     item.매체);
+  setSelectValue('f_캠페인',   item.캠페인);
+  setSelectValue('f_그룹',     item.그룹);
+  setSelectValue('f_소재이름', item.소재이름);
   const badge = document.getElementById('badge-' + (detectIndex - 1));
   if (badge) { badge.textContent = '진행 중'; badge.style.cssText = 'background:#fef3c7;color:#92400e;'; }
   window.scrollTo({ top: 0, behavior: 'smooth' });
-  showSuccess(`(${detectIndex}/${detectItems.length}) 나머지 정보를 입력 후 저장하세요.`);
+  showSuccess(`(${detectIndex}/${detectItems.length}) 나머지 정보를 선택 후 저장하세요.`);
 }
 
 function markDetectItemDone(i) {
-  const item = document.getElementById('detect-item-' + i);
+  document.getElementById('detect-item-' + i)?.classList.add('done');
   const badge = document.getElementById('badge-' + i);
-  if (item) item.classList.add('done');
   if (badge) { badge.textContent = '완료'; badge.className = 'detect-badge done'; }
 }
 
 // ─── 유틸 ────────────────────────────────────────
 function setSelectValue(id, val) {
   const el = document.getElementById(id);
+  if (!el) return;
   for (let i = 0; i < el.options.length; i++) {
     if (el.options[i].value === val) { el.selectedIndex = i; return; }
   }
 }
-function setTextValue(id, val) { document.getElementById(id).value = val || ''; }
-function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 
 function setSaving(saving) {
   document.getElementById('btnSave').disabled = saving;
@@ -880,7 +811,6 @@ function hideMessages() {
   document.getElementById('msgSuccess').classList.remove('show');
   document.getElementById('msgError').classList.remove('show');
 }
-
 function showSettingsSuccess(msg) {
   document.getElementById('settingsMsgSuccessText').textContent = msg;
   document.getElementById('settingsMsgSuccess').classList.add('show');

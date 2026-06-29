@@ -20,23 +20,32 @@ function getSpreadsheet() {
 
 // --------------------------------------------------
 // 시트 초기화 (최초 1회 실행)
-// 설정 시트는 카테고리명만 생성 — 값은 UI에서 입력
+//
+// 설정 시트 구조 (세로형):
+//   1행: 카테고리명 (헤더)
+//   2행~: 각 카테고리의 값 목록 (열 단위)
+//
+//   예)
+//   A1:매체  B1:광고유형  C1:소재유형  ...
+//   A2:디멘드젠 B2:이미지 C2:브랜딩 ...
+//   A3:피맥스   B3:동영상 ...
 // --------------------------------------------------
 function initializeSheets() {
   const ss = getSpreadsheet();
 
-  // 설정 시트: A열에 카테고리명만 세팅 (값은 빈 칸)
   let settingsSheet = ss.getSheetByName(SETTINGS_SHEET_NAME);
   if (!settingsSheet) {
     settingsSheet = ss.insertSheet(SETTINGS_SHEET_NAME);
-    const categories = ['매체', '광고유형', '소재유형', '소구포인트', '후킹방식', '이미지유형', '모델유형', '보종'];
-    categories.forEach((name, i) => {
-      settingsSheet.getRange(i + 1, 1).setValue(name);
-    });
-    settingsSheet.getRange(1, 1, categories.length, 1).setFontWeight('bold');
+    const categories = [
+      '매체', '광고유형', '소재유형', '소구포인트', '후킹방식',
+      '이미지유형', '모델유형', '보종', '캠페인', '그룹', '소재이름'
+    ];
+    // 1행에 카테고리명을 헤더로 입력
+    settingsSheet.getRange(1, 1, 1, categories.length).setValues([categories]);
+    settingsSheet.getRange(1, 1, 1, categories.length).setFontWeight('bold');
+    settingsSheet.setFrozenRows(1);
   }
 
-  // 소재_마스터 시트
   let masterSheet = ss.getSheetByName(MASTER_SHEET_NAME);
   if (!masterSheet) {
     masterSheet = ss.insertSheet(MASTER_SHEET_NAME);
@@ -54,27 +63,35 @@ function initializeSheets() {
 }
 
 // --------------------------------------------------
-// 설정 읽기 → { 카테고리명: [값배열] }
+// 설정 읽기 (세로형 → { 카테고리명: [값배열] })
+// 1행 = 카테고리명(헤더), 2행~ = 값
 // --------------------------------------------------
 function getSettings() {
   const ss = getSpreadsheet();
   const sheet = ss.getSheetByName(SETTINGS_SHEET_NAME);
-  if (!sheet) return {};
+  if (!sheet || sheet.getLastRow() < 1) return {};
 
   const data = sheet.getDataRange().getValues();
+  const headers = data[0];
   const settings = {};
-  data.forEach(row => {
-    const key = row[0];
-    if (key) {
-      settings[key] = row.slice(1).filter(v => v !== '' && v !== null && v !== undefined);
+
+  headers.forEach((header, colIdx) => {
+    if (!header) return;
+    settings[header] = [];
+    for (let rowIdx = 1; rowIdx < data.length; rowIdx++) {
+      const val = data[rowIdx][colIdx];
+      if (val !== '' && val !== null && val !== undefined) {
+        settings[header].push(String(val));
+      }
     }
   });
+
   return settings;
 }
 
 // --------------------------------------------------
-// 설정 저장 — UI에서 편집한 결과를 시트에 덮어씀
-// settingsData: [ { name: '매체', values: ['디멘드젠', ...] }, ... ]
+// 설정 저장 (세로형으로 덮어씀)
+// settingsData: [{ name: '매체', values: ['디멘드젠', ...] }, ...]
 // --------------------------------------------------
 function saveSettings(settingsData) {
   try {
@@ -84,16 +101,23 @@ function saveSettings(settingsData) {
 
     sheet.clearContents();
 
-    settingsData.forEach((item, i) => {
-      if (!item.name) return;
-      const row = [item.name, ...item.values.filter(v => v !== '')];
-      sheet.getRange(i + 1, 1, 1, row.length).setValues([row]);
-    });
+    const validItems = settingsData.filter(item => item.name);
+    if (validItems.length === 0) return { success: true };
 
-    // 카테고리명(A열) 볼드
-    if (settingsData.length > 0) {
-      sheet.getRange(1, 1, settingsData.length, 1).setFontWeight('bold');
-    }
+    // 1행: 카테고리명 헤더
+    sheet.getRange(1, 1, 1, validItems.length)
+      .setValues([validItems.map(item => item.name)]);
+    sheet.getRange(1, 1, 1, validItems.length).setFontWeight('bold');
+    sheet.setFrozenRows(1);
+
+    // 2행~: 각 열에 값 세로로 입력
+    validItems.forEach((item, colIdx) => {
+      const vals = item.values.filter(v => v !== '');
+      if (vals.length > 0) {
+        sheet.getRange(2, colIdx + 1, vals.length, 1)
+          .setValues(vals.map(v => [v]));
+      }
+    });
 
     return { success: true };
   } catch (e) {
@@ -161,7 +185,7 @@ function uploadImageToDrive(base64Data, fileName, mimeType) {
 }
 
 // --------------------------------------------------
-// 소재 저장 (중복체크 → 업로드 → 코드생성 → 시트저장)
+// 소재 저장
 // --------------------------------------------------
 function saveCreative(data) {
   try {
@@ -189,7 +213,7 @@ function saveCreative(data) {
 }
 
 // --------------------------------------------------
-// 신규 소재 감지 (RAW vs 마스터 비교)
+// 신규 소재 감지
 // --------------------------------------------------
 function detectNewCreatives() {
   try {
