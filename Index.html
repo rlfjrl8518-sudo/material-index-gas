@@ -550,10 +550,11 @@
 
 <script>
 // ─── 전역 상태 ───────────────────────────────────
-let fileBase64     = null;
-let fileName       = null;
-let fileMime       = null;
-let fileHash       = null;
+let fileBase64        = null;
+let fileName          = null;
+let fileMime          = null;
+let fileHash          = null;
+let existingImageUrl  = '';
 let settings       = {};
 let settingsState  = [];
 let hierarchy      = [];   // [{ 매체, 캠페인, 그룹, 소재이름 }]
@@ -980,6 +981,7 @@ function selectImageCode(code, name, el) {
 
 function clearImageSelection() {
   selectedImageCodeValue = '';
+  existingImageUrl = '';
   document.querySelectorAll('.img-pick-item').forEach(i => i.classList.remove('selected'));
   document.getElementById('imgSelectedBar').classList.remove('show');
 }
@@ -1001,6 +1003,21 @@ function autoFillForm(data) {
   document.getElementById('f_소구상세').value = data.소구상세;
   document.getElementById('f_이미지유형').value = data.이미지유형;
   document.getElementById('f_모델유형').value = data.모델유형;
+
+  // 기존 이미지 URL 표시 및 미리보기
+  existingImageUrl = data.이미지URL || '';
+  const urlEl = document.getElementById('displayUrl');
+  urlEl.textContent = existingImageUrl || '(URL 없음)';
+  urlEl.classList.toggle('empty', !existingImageUrl);
+  if (existingImageUrl) {
+    const img = document.getElementById('previewImg');
+    const vid = document.getElementById('previewVideo');
+    img.src = driveThumbnail(existingImageUrl);
+    img.style.display = 'block';
+    vid.style.display = 'none';
+    document.getElementById('previewName').textContent = '기존 이미지';
+    document.getElementById('previewArea').classList.add('show');
+  }
 }
 
 // ─── 파일 업로드 ─────────────────────────────────
@@ -1068,6 +1085,7 @@ function getFormData(forceSave) {
     이미지유형: document.getElementById('f_이미지유형').value,
     모델유형:   document.getElementById('f_모델유형').value,
     fileData: fileBase64, fileName, mimeType: fileMime, fileHash,
+    existingImageUrl,
     selectedImageCode: document.getElementById('useExistingCode').checked
       ? selectedImageCodeValue : '',
     forceSave: !!forceSave
@@ -1112,6 +1130,7 @@ function resetForm() {
   REQUIRED_IDS.forEach(id => document.getElementById(id)?.classList.remove('error'));
 
   fileBase64 = fileName = fileMime = fileHash = null;
+  existingImageUrl = '';
   document.getElementById('fileInput').value = '';
   document.getElementById('useExistingCode').checked = false;
   toggleCodeMode(false);
