@@ -194,6 +194,35 @@ function getImageCodes() {
 }
 
 // --------------------------------------------------
+// 이미지코드로 소재 정보 조회 (기존 코드 선택 시 폼 자동 채우기)
+// --------------------------------------------------
+function getCreativeByImageCode(imageCode) {
+  const ss = getSpreadsheet();
+  const sheet = ss.getSheetByName(MASTER_SHEET_NAME);
+  if (!sheet || sheet.getLastRow() < 2) return null;
+
+  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 16).getValues();
+  const rows = data.filter(r => String(r[0]).trim() === imageCode);
+  if (!rows.length) return null;
+  const row = rows[rows.length - 1]; // 가장 최근 행
+
+  return {
+    매체:       String(row[2]  || ''),
+    캠페인:     String(row[3]  || ''),
+    그룹:       String(row[4]  || ''),
+    소재이름:   String(row[5]  || ''),
+    보종:       String(row[6]  || ''),
+    광고유형:   String(row[7]  || ''),
+    소재유형:   String(row[8]  || ''),
+    소구포인트: String(row[9]  || ''),
+    후킹방식:   String(row[10] || ''),
+    소구상세:   String(row[11] || ''),
+    이미지유형: String(row[12] || ''),
+    모델유형:   String(row[13] || '')
+  };
+}
+
+// --------------------------------------------------
 // 동일 이미지 파일 조회 (파일해시 기준)
 // 이미 등록된 이미지면 imageCode + imageUrl 반환, 없으면 null
 // --------------------------------------------------
