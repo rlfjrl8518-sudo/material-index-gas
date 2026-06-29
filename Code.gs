@@ -169,6 +169,30 @@ function saveHierarchy(rows) {
 }
 
 // --------------------------------------------------
+// 소재_마스터의 이미지코드 목록 반환 (선택 드롭다운용)
+// 중복 제거 후 최신순 정렬, 대표 소재이름 포함
+// --------------------------------------------------
+function getImageCodes() {
+  const ss = getSpreadsheet();
+  const sheet = ss.getSheetByName(MASTER_SHEET_NAME);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+
+  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 6).getValues();
+  // col: 0=이미지코드, 1=등록일자, 5=소재이름
+  const seen = new Map();
+  data.forEach(row => {
+    const code = String(row[0] || '').trim();
+    if (!code || seen.has(code)) return;
+    seen.set(code, {
+      code,
+      등록일자: row[1] ? String(row[1]).slice(0, 10) : '',
+      소재이름: String(row[5] || '')
+    });
+  });
+  return [...seen.values()].reverse(); // 최신 등록순
+}
+
+// --------------------------------------------------
 // 동일 이미지 파일 조회 (파일해시 기준)
 // 이미 등록된 이미지면 imageCode + imageUrl 반환, 없으면 null
 // --------------------------------------------------
@@ -253,18 +277,28 @@ function saveCreative(data) {
     if (!data.forceSave && checkDuplicate(data.매체, data.캠페인, data.그룹, data.소재이름))
       return { duplicate: true };
 
-    // 동일 이미지 파일이 이미 등록되어 있으면 코드·URL 재사용
-    const existing = checkExistingImage(data.fileHash);
+    // 이미지코드 결정 우선순위:
+    // 1) 사용자가 직접 선택한 코드
+    // 2) 동일 파일 해시로 기존 코드 자동 매칭
+    // 3) 신규 코드 생성
     let imageCode, imageUrl = '', reused = false;
 
-    if (existing) {
-      imageCode = existing.imageCode;
-      imageUrl  = existing.imageUrl;
+    if (data.selectedImageCode) {
+      imageCode = data.selectedImageCode;
       reused    = true;
     } else {
-      if (data.fileData) imageUrl = uploadImageToDrive(data.fileData, data.fileName, data.mimeType);
-      imageCode = generateImageCode();
+      const existing = checkExistingImage(data.fileHash);
+      if (existing) {
+        imageCode = existing.imageCode;
+        imageUrl  = existing.imageUrl;
+        reused    = true;
+      } else {
+        imageCode = generateImageCode();
+      }
     }
+
+    // 파일이 있으면 항상 Drive에 업로드 (코드 재사용이어도 새 파일은 별도 저장)
+    if (data.fileData) imageUrl = uploadImageToDrive(data.fileData, data.fileName, data.mimeType);
 
     const ss = getSpreadsheet();
     const sheet = ss.getSheetByName(MASTER_SHEET_NAME);

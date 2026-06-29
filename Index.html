@@ -276,13 +276,34 @@
       </div>
 
       <div class="card">
-        <div class="card-header">⚙️ 자동 생성</div>
+        <div class="card-header">
+          <span>⚙️ 이미지코드</span>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:400;cursor:pointer;">
+            <input type="checkbox" id="useExistingCode" onchange="toggleCodeMode(this.checked)">
+            기존 코드 선택
+          </label>
+        </div>
         <div class="card-body">
-          <div class="auto-field">
-            <label>이미지코드</label>
-            <div class="value empty" id="displayCode">저장 시 자동 생성</div>
+          <!-- 자동 생성 모드 -->
+          <div id="autoCodeArea">
+            <div class="auto-field">
+              <label>이미지코드</label>
+              <div class="value empty" id="displayCode">저장 시 자동 생성</div>
+            </div>
           </div>
-          <div class="auto-field">
+          <!-- 기존 코드 선택 모드 -->
+          <div id="selectCodeArea" style="display:none;">
+            <div class="form-group">
+              <label style="font-size:12px;font-weight:500;color:#374151;">기존 이미지코드 선택</label>
+              <select class="form-control" id="selectedImageCode" style="font-size:12px;">
+                <option value="">불러오는 중...</option>
+              </select>
+              <span style="font-size:11px;color:#6b7280;margin-top:3px;">
+                심의필 번호 갱신 등 동일 소재의 새 버전일 때 선택하세요.
+              </span>
+            </div>
+          </div>
+          <div class="auto-field" style="margin-top:8px;">
             <label>이미지URL</label>
             <div class="value empty" id="displayUrl" style="font-size:11px;">업로드 후 자동 생성</div>
           </div>
@@ -824,6 +845,32 @@ function saveHierarchyData() {
     .saveHierarchy(hierarchyState);
 }
 
+// ─── 이미지코드 모드 전환 ─────────────────────────
+function toggleCodeMode(useExisting) {
+  document.getElementById('autoCodeArea').style.display   = useExisting ? 'none'  : 'block';
+  document.getElementById('selectCodeArea').style.display = useExisting ? 'block' : 'none';
+  if (useExisting) loadExistingCodes();
+}
+
+function loadExistingCodes() {
+  const sel = document.getElementById('selectedImageCode');
+  sel.innerHTML = '<option value="">불러오는 중...</option>';
+  google.script.run
+    .withSuccessHandler(codes => {
+      sel.innerHTML = '<option value="">코드 선택</option>';
+      codes.forEach(c => {
+        const o = document.createElement('option');
+        o.value = c.code;
+        o.textContent = `${c.code}  |  ${c.소재이름}  (${c.등록일자})`;
+        sel.appendChild(o);
+      });
+    })
+    .withFailureHandler(() => {
+      sel.innerHTML = '<option value="">로드 실패 — 다시 시도</option>';
+    })
+    .getImageCodes();
+}
+
 // ─── 파일 업로드 ─────────────────────────────────
 function onDragOver(e) { e.preventDefault(); document.getElementById('uploadZone').classList.add('dragover'); }
 function onDragLeave()  { document.getElementById('uploadZone').classList.remove('dragover'); }
@@ -889,6 +936,8 @@ function getFormData(forceSave) {
     이미지유형: document.getElementById('f_이미지유형').value,
     모델유형:   document.getElementById('f_모델유형').value,
     fileData: fileBase64, fileName, mimeType: fileMime, fileHash,
+    selectedImageCode: document.getElementById('useExistingCode').checked
+      ? (document.getElementById('selectedImageCode').value || '') : '',
     forceSave: !!forceSave
   };
 }
@@ -932,6 +981,9 @@ function resetForm() {
 
   fileBase64 = fileName = fileMime = fileHash = null;
   document.getElementById('fileInput').value = '';
+  document.getElementById('useExistingCode').checked = false;
+  toggleCodeMode(false);
+  document.getElementById('selectedImageCode').innerHTML = '<option value="">코드 선택</option>';
   document.getElementById('previewArea').classList.remove('show');
   document.getElementById('previewImg').src = '';
   document.getElementById('previewVideo').src = '';
