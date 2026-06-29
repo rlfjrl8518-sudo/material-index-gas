@@ -177,8 +177,8 @@ function getImageCodes() {
   const sheet = ss.getSheetByName(MASTER_SHEET_NAME);
   if (!sheet || sheet.getLastRow() < 2) return [];
 
-  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 6).getValues();
-  // col: 0=이미지코드, 1=등록일자, 5=소재이름
+  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 15).getValues();
+  // col: 0=이미지코드, 1=등록일자, 5=소재이름, 14=이미지URL
   const seen = new Map();
   data.forEach(row => {
     const code = String(row[0] || '').trim();
@@ -186,7 +186,8 @@ function getImageCodes() {
     seen.set(code, {
       code,
       등록일자: row[1] ? String(row[1]).slice(0, 10) : '',
-      소재이름: String(row[5] || '')
+      소재이름: String(row[5] || ''),
+      imageUrl: String(row[14] || '')
     });
   });
   return [...seen.values()].reverse(); // 최신 등록순

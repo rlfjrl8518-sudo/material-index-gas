@@ -215,6 +215,49 @@
   .spinner.show { display: inline-block; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  /* 이미지 피커 */
+  .img-picker-wrap {
+    max-height: 280px; overflow-y: auto;
+    border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px;
+    background: #fafafa;
+  }
+  .img-picker-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px;
+  }
+  .img-pick-item {
+    border: 2px solid #e5e7eb; border-radius: 8px; overflow: hidden;
+    cursor: pointer; transition: border-color .15s, box-shadow .15s; background: #fff;
+  }
+  .img-pick-item:hover   { border-color: #4f6ef7; }
+  .img-pick-item.selected {
+    border-color: #4f6ef7;
+    box-shadow: 0 0 0 3px rgba(79,110,247,.25);
+  }
+  .img-pick-thumb {
+    width: 100%; aspect-ratio: 1; object-fit: cover;
+    background: #f3f4f6; display: block;
+  }
+  .img-pick-placeholder {
+    width: 100%; aspect-ratio: 1; display: flex; align-items: center;
+    justify-content: center; font-size: 26px; background: #f3f4f6;
+  }
+  .img-pick-info { padding: 4px 6px 5px; }
+  .img-pick-code {
+    font-size: 10px; font-weight: 700; color: #4f6ef7;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .img-pick-name {
+    font-size: 10px; color: #6b7280;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .img-pick-date { font-size: 9px; color: #9ca3af; }
+  .img-selected-bar {
+    display: none; margin-top: 8px; padding: 8px 10px;
+    background: #eff2ff; border: 1px solid #c7d2fe; border-radius: 6px;
+    font-size: 12px; color: #3730a3; align-items: center; gap: 8px;
+  }
+  .img-selected-bar.show { display: flex; }
+
   .divider { border: none; border-top: 1px solid #f3f4f6; margin: 16px 0; }
   .count-badge {
     background: #ef4444; color: #fff; border-radius: 10px;
@@ -293,14 +336,21 @@
           </div>
           <!-- 기존 코드 선택 모드 -->
           <div id="selectCodeArea" style="display:none;">
-            <div class="form-group">
-              <label style="font-size:12px;font-weight:500;color:#374151;">기존 이미지코드 선택</label>
-              <select class="form-control" id="selectedImageCode" style="font-size:12px;">
-                <option value="">불러오는 중...</option>
-              </select>
-              <span style="font-size:11px;color:#6b7280;margin-top:3px;">
-                심의필 번호 갱신 등 동일 소재의 새 버전일 때 선택하세요.
-              </span>
+            <p style="font-size:11px;color:#6b7280;margin-bottom:8px;">
+              이미지를 클릭해서 연결할 코드를 선택하세요.
+            </p>
+            <div class="img-picker-wrap">
+              <div class="img-picker-grid" id="imgPickerGrid">
+                <div style="grid-column:1/-1;text-align:center;padding:20px;color:#9ca3af;font-size:12px;">
+                  불러오는 중...
+                </div>
+              </div>
+            </div>
+            <div class="img-selected-bar" id="imgSelectedBar">
+              <span>✅</span>
+              <span id="imgSelectedText"></span>
+              <button class="btn btn-ghost btn-sm" style="margin-left:auto;"
+                      onclick="clearImageSelection()">선택 해제</button>
             </div>
           </div>
           <div class="auto-field" style="margin-top:8px;">
@@ -846,29 +896,68 @@ function saveHierarchyData() {
 }
 
 // ─── 이미지코드 모드 전환 ─────────────────────────
+let selectedImageCodeValue = '';
+
 function toggleCodeMode(useExisting) {
   document.getElementById('autoCodeArea').style.display   = useExisting ? 'none'  : 'block';
   document.getElementById('selectCodeArea').style.display = useExisting ? 'block' : 'none';
   if (useExisting) loadExistingCodes();
+  else clearImageSelection();
 }
 
 function loadExistingCodes() {
-  const sel = document.getElementById('selectedImageCode');
-  sel.innerHTML = '<option value="">불러오는 중...</option>';
+  const grid = document.getElementById('imgPickerGrid');
+  grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:#9ca3af;font-size:12px;">불러오는 중...</div>';
   google.script.run
-    .withSuccessHandler(codes => {
-      sel.innerHTML = '<option value="">코드 선택</option>';
-      codes.forEach(c => {
-        const o = document.createElement('option');
-        o.value = c.code;
-        o.textContent = `${c.code}  |  ${c.소재이름}  (${c.등록일자})`;
-        sel.appendChild(o);
-      });
-    })
+    .withSuccessHandler(renderImagePicker)
     .withFailureHandler(() => {
-      sel.innerHTML = '<option value="">로드 실패 — 다시 시도</option>';
+      grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:#ef4444;font-size:12px;">로드 실패 — 체크박스를 다시 클릭해 재시도</div>';
     })
     .getImageCodes();
+}
+
+function renderImagePicker(codes) {
+  const grid = document.getElementById('imgPickerGrid');
+  if (!codes.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:#9ca3af;font-size:12px;">등록된 소재가 없습니다.</div>';
+    return;
+  }
+  grid.innerHTML = '';
+  codes.forEach(c => {
+    const item = document.createElement('div');
+    item.className = 'img-pick-item';
+    item.dataset.code = c.code;
+    item.onclick = () => selectImageCode(c.code, c.소재이름, item);
+
+    const isVideo = c.imageUrl && (c.imageUrl.includes('video') || !c.imageUrl);
+    if (c.imageUrl && !isVideo) {
+      item.innerHTML = `<img class="img-pick-thumb" src="${c.imageUrl}" loading="lazy"
+        onerror="this.parentNode.querySelector('.img-pick-placeholder') && (this.style.display='none')">`;
+    } else {
+      item.innerHTML = `<div class="img-pick-placeholder">🎬</div>`;
+    }
+    item.innerHTML += `
+      <div class="img-pick-info">
+        <div class="img-pick-code">${escHtml(c.code)}</div>
+        <div class="img-pick-name">${escHtml(c.소재이름)}</div>
+        <div class="img-pick-date">${escHtml(c.등록일자)}</div>
+      </div>`;
+    grid.appendChild(item);
+  });
+}
+
+function selectImageCode(code, name, el) {
+  document.querySelectorAll('.img-pick-item').forEach(i => i.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedImageCodeValue = code;
+  document.getElementById('imgSelectedText').textContent = `${code}  |  ${name}`;
+  document.getElementById('imgSelectedBar').classList.add('show');
+}
+
+function clearImageSelection() {
+  selectedImageCodeValue = '';
+  document.querySelectorAll('.img-pick-item').forEach(i => i.classList.remove('selected'));
+  document.getElementById('imgSelectedBar').classList.remove('show');
 }
 
 // ─── 파일 업로드 ─────────────────────────────────
@@ -937,7 +1026,7 @@ function getFormData(forceSave) {
     모델유형:   document.getElementById('f_모델유형').value,
     fileData: fileBase64, fileName, mimeType: fileMime, fileHash,
     selectedImageCode: document.getElementById('useExistingCode').checked
-      ? (document.getElementById('selectedImageCode').value || '') : '',
+      ? selectedImageCodeValue : '',
     forceSave: !!forceSave
   };
 }
@@ -983,7 +1072,6 @@ function resetForm() {
   document.getElementById('fileInput').value = '';
   document.getElementById('useExistingCode').checked = false;
   toggleCodeMode(false);
-  document.getElementById('selectedImageCode').innerHTML = '<option value="">코드 선택</option>';
   document.getElementById('previewArea').classList.remove('show');
   document.getElementById('previewImg').src = '';
   document.getElementById('previewVideo').src = '';
