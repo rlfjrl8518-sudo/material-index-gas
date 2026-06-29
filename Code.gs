@@ -2,11 +2,12 @@
 // 소재 인덱싱 시스템 - Code.gs
 // ====================================================
 
-const SHEET_ID = '1S74kKyOO3ATqk12nmQR860VT5ms8s5FS33T3gF5kd7I';
-const MASTER_SHEET_NAME = '소재_마스터';
+const SHEET_ID           = '1S74kKyOO3ATqk12nmQR860VT5ms8s5FS33T3gF5kd7I';
+const MASTER_SHEET_NAME  = '소재_마스터';
 const SETTINGS_SHEET_NAME = '설정';
-const RAW_SHEET_NAME = '매체_RAW';
-const DETECT_SHEET_NAME = '신규소재감지';
+const HIERARCHY_SHEET_NAME = '매체_계층';
+const RAW_SHEET_NAME     = '매체_RAW';
+const DETECT_SHEET_NAME  = '신규소재감지';
 
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('Index')
@@ -21,31 +22,35 @@ function getSpreadsheet() {
 // --------------------------------------------------
 // 시트 초기화 (최초 1회 실행)
 //
-// 설정 시트 구조 (세로형):
-//   1행: 카테고리명 (헤더)
-//   2행~: 각 카테고리의 값 목록 (열 단위)
+// [설정 시트] 세로형 — 1행: 카테고리명, 2행~: 값
+//   광고유형 | 소재유형 | 소구포인트 | 후킹방식 | 이미지유형 | 모델유형 | 보종
 //
-//   예)
-//   A1:매체  B1:광고유형  C1:소재유형  ...
-//   A2:디멘드젠 B2:이미지 C2:브랜딩 ...
-//   A3:피맥스   B3:동영상 ...
+// [매체_계층 시트] — 매체/캠페인/그룹/소재이름 계층 정의
+//   매체 | 캠페인 | 그룹 | 소재이름  (행마다 1개 경로)
 // --------------------------------------------------
 function initializeSheets() {
   const ss = getSpreadsheet();
 
+  // 설정 시트 (기타 드롭다운 — 계층 항목 제외)
   let settingsSheet = ss.getSheetByName(SETTINGS_SHEET_NAME);
   if (!settingsSheet) {
     settingsSheet = ss.insertSheet(SETTINGS_SHEET_NAME);
-    const categories = [
-      '매체', '광고유형', '소재유형', '소구포인트', '후킹방식',
-      '이미지유형', '모델유형', '보종', '캠페인', '그룹', '소재이름'
-    ];
-    // 1행에 카테고리명을 헤더로 입력
+    const categories = ['광고유형', '소재유형', '소구포인트', '후킹방식', '이미지유형', '모델유형', '보종'];
     settingsSheet.getRange(1, 1, 1, categories.length).setValues([categories]);
     settingsSheet.getRange(1, 1, 1, categories.length).setFontWeight('bold');
     settingsSheet.setFrozenRows(1);
   }
 
+  // 매체_계층 시트
+  let hierarchySheet = ss.getSheetByName(HIERARCHY_SHEET_NAME);
+  if (!hierarchySheet) {
+    hierarchySheet = ss.insertSheet(HIERARCHY_SHEET_NAME);
+    hierarchySheet.getRange(1, 1, 1, 4).setValues([['매체', '캠페인', '그룹', '소재이름']]);
+    hierarchySheet.getRange(1, 1, 1, 4).setFontWeight('bold');
+    hierarchySheet.setFrozenRows(1);
+  }
+
+  // 소재_마스터 시트
   let masterSheet = ss.getSheetByName(MASTER_SHEET_NAME);
   if (!masterSheet) {
     masterSheet = ss.insertSheet(MASTER_SHEET_NAME);
@@ -56,15 +61,15 @@ function initializeSheets() {
     masterSheet.setFrozenRows(1);
   }
 
-  if (!ss.getSheetByName(RAW_SHEET_NAME)) ss.insertSheet(RAW_SHEET_NAME);
+  if (!ss.getSheetByName(RAW_SHEET_NAME))    ss.insertSheet(RAW_SHEET_NAME);
   if (!ss.getSheetByName(DETECT_SHEET_NAME)) ss.insertSheet(DETECT_SHEET_NAME);
 
   return { success: true, message: '시트 초기화 완료' };
 }
 
 // --------------------------------------------------
-// 설정 읽기 (세로형 → { 카테고리명: [값배열] })
-// 1행 = 카테고리명(헤더), 2행~ = 값
+// 기타 드롭다운 설정 읽기 (세로형)
+// 1행 = 카테고리명, 2행~ = 값
 // --------------------------------------------------
 function getSettings() {
   const ss = getSpreadsheet();
@@ -85,13 +90,11 @@ function getSettings() {
       }
     }
   });
-
   return settings;
 }
 
 // --------------------------------------------------
-// 설정 저장 (세로형으로 덮어씀)
-// settingsData: [{ name: '매체', values: ['디멘드젠', ...] }, ...]
+// 기타 드롭다운 설정 저장 (세로형으로 덮어씀)
 // --------------------------------------------------
 function saveSettings(settingsData) {
   try {
@@ -100,25 +103,65 @@ function saveSettings(settingsData) {
     if (!sheet) return { error: true, message: '설정 시트가 없습니다.' };
 
     sheet.clearContents();
+    const valid = settingsData.filter(item => item.name);
+    if (!valid.length) return { success: true };
 
-    const validItems = settingsData.filter(item => item.name);
-    if (validItems.length === 0) return { success: true };
-
-    // 1행: 카테고리명 헤더
-    sheet.getRange(1, 1, 1, validItems.length)
-      .setValues([validItems.map(item => item.name)]);
-    sheet.getRange(1, 1, 1, validItems.length).setFontWeight('bold');
+    sheet.getRange(1, 1, 1, valid.length).setValues([valid.map(i => i.name)]);
+    sheet.getRange(1, 1, 1, valid.length).setFontWeight('bold');
     sheet.setFrozenRows(1);
 
-    // 2행~: 각 열에 값 세로로 입력
-    validItems.forEach((item, colIdx) => {
+    valid.forEach((item, colIdx) => {
       const vals = item.values.filter(v => v !== '');
       if (vals.length > 0) {
-        sheet.getRange(2, colIdx + 1, vals.length, 1)
-          .setValues(vals.map(v => [v]));
+        sheet.getRange(2, colIdx + 1, vals.length, 1).setValues(vals.map(v => [v]));
       }
     });
+    return { success: true };
+  } catch (e) {
+    return { error: true, message: e.message };
+  }
+}
 
+// --------------------------------------------------
+// 매체 계층 읽기
+// 반환: [{ 매체, 캠페인, 그룹, 소재이름 }, ...]
+// --------------------------------------------------
+function getHierarchy() {
+  const ss = getSpreadsheet();
+  const sheet = ss.getSheetByName(HIERARCHY_SHEET_NAME);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+
+  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 4).getValues();
+  return data
+    .filter(r => r[0] || r[1] || r[2] || r[3])
+    .map(r => ({
+      매체:     String(r[0] || ''),
+      캠페인:   String(r[1] || ''),
+      그룹:     String(r[2] || ''),
+      소재이름: String(r[3] || '')
+    }));
+}
+
+// --------------------------------------------------
+// 매체 계층 저장
+// rows: [{ 매체, 캠페인, 그룹, 소재이름 }, ...]
+// --------------------------------------------------
+function saveHierarchy(rows) {
+  try {
+    const ss = getSpreadsheet();
+    let sheet = ss.getSheetByName(HIERARCHY_SHEET_NAME);
+    if (!sheet) sheet = ss.insertSheet(HIERARCHY_SHEET_NAME);
+
+    sheet.clearContents();
+    sheet.getRange(1, 1, 1, 4).setValues([['매체', '캠페인', '그룹', '소재이름']]);
+    sheet.getRange(1, 1, 1, 4).setFontWeight('bold');
+    sheet.setFrozenRows(1);
+
+    const valid = rows.filter(r => r.매체 || r.캠페인 || r.그룹 || r.소재이름);
+    if (valid.length > 0) {
+      sheet.getRange(2, 1, valid.length, 4)
+        .setValues(valid.map(r => [r.매체, r.캠페인, r.그룹, r.소재이름]));
+    }
     return { success: true };
   } catch (e) {
     return { error: true, message: e.message };
@@ -142,13 +185,11 @@ function checkDuplicate(매체, 캠페인, 그룹, 소재이름) {
 function generateImageCode() {
   const ss = getSpreadsheet();
   const sheet = ss.getSheetByName(MASTER_SHEET_NAME);
-
   const today = new Date();
   const dateStr = String(today.getFullYear()).slice(2)
     + String(today.getMonth() + 1).padStart(2, '0')
     + String(today.getDate()).padStart(2, '0');
   const prefix = 'IMG' + dateStr;
-
   let seq = 1;
   if (sheet && sheet.getLastRow() >= 2) {
     const codes = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat();

@@ -6,23 +6,17 @@
 <title>소재 인덱싱 시스템</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif;
-    background: #f0f2f5;
-    color: #1a1a2e;
-    min-height: 100vh;
+    background: #f0f2f5; color: #1a1a2e; min-height: 100vh;
   }
 
   .header {
-    background: #1a1a2e; color: #fff;
-    padding: 0 32px; height: 56px;
+    background: #1a1a2e; color: #fff; padding: 0 32px; height: 56px;
     display: flex; align-items: center; justify-content: space-between;
-    position: sticky; top: 0; z-index: 100;
-    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.25);
   }
   .header h1 { font-size: 16px; font-weight: 600; }
-  .header-actions { display: flex; gap: 8px; align-items: center; }
 
   .tab-nav {
     background: #fff; border-bottom: 1px solid #e5e7eb;
@@ -62,110 +56,128 @@
     max-width: 1100px; margin: 0 auto; padding: 28px 24px;
     display: grid; grid-template-columns: 320px 1fr; gap: 24px; align-items: start;
   }
-  .container-single { max-width: 900px; margin: 0 auto; padding: 28px 24px; }
+  .container-single { max-width: 960px; margin: 0 auto; padding: 28px 24px; }
 
-  .card { background: #fff; border-radius: 10px; border: 1px solid #e5e7eb; overflow: hidden; }
+  .card { background: #fff; border-radius: 10px; border: 1px solid #e5e7eb; overflow: hidden; margin-bottom: 16px; }
+  .card:last-child { margin-bottom: 0; }
   .card-header {
-    padding: 16px 20px; border-bottom: 1px solid #f3f4f6;
+    padding: 14px 20px; border-bottom: 1px solid #f3f4f6;
     font-size: 13px; font-weight: 600; color: #374151;
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
   }
   .card-body { padding: 20px; }
 
   .upload-zone {
-    border: 2px dashed #d1d5db; border-radius: 8px; padding: 32px 16px;
-    text-align: center; cursor: pointer; transition: all .2s;
-    background: #fafafa; position: relative;
+    border: 2px dashed #d1d5db; border-radius: 8px; padding: 28px 16px;
+    text-align: center; cursor: pointer; transition: all .2s; background: #fafafa; position: relative;
   }
   .upload-zone.dragover { border-color: #4f6ef7; background: #eff2ff; }
   .upload-zone:hover { border-color: #9ca3af; }
   .upload-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-  .upload-icon { font-size: 32px; margin-bottom: 8px; }
-  .upload-hint { font-size: 12px; color: #6b7280; margin-top: 4px; }
+  .upload-icon { font-size: 28px; margin-bottom: 6px; }
+  .upload-hint { font-size: 11px; color: #6b7280; margin-top: 3px; }
 
-  .preview-area { margin-top: 12px; display: none; }
+  .preview-area { margin-top: 10px; display: none; }
   .preview-area.show { display: block; }
   .preview-area img, .preview-area video {
     width: 100%; border-radius: 6px; border: 1px solid #e5e7eb;
-    max-height: 220px; object-fit: contain; background: #f9fafb;
+    max-height: 200px; object-fit: contain; background: #f9fafb;
   }
-  .preview-name { margin-top: 6px; font-size: 11px; color: #6b7280; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
+  .preview-name { margin-top: 5px; font-size: 11px; color: #6b7280; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
   .auto-field {
-    background: #f8faff; border: 1px solid #dbeafe;
-    border-radius: 6px; padding: 10px 12px; font-size: 12px; margin-bottom: 10px;
+    background: #f8faff; border: 1px solid #dbeafe; border-radius: 6px;
+    padding: 9px 11px; font-size: 12px; margin-bottom: 8px;
   }
   .auto-field label { font-size: 11px; color: #6b7280; display: block; margin-bottom: 2px; }
   .auto-field .value { font-weight: 600; color: #1d4ed8; word-break: break-all; }
   .auto-field .value.empty { color: #9ca3af; font-weight: 400; font-style: italic; }
 
-  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-  .form-group { display: flex; flex-direction: column; gap: 5px; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-group { display: flex; flex-direction: column; gap: 4px; }
   .form-group.full { grid-column: 1 / -1; }
   .form-group label { font-size: 12px; font-weight: 500; color: #374151; }
   .form-group label .req { color: #ef4444; margin-left: 2px; }
   .form-control {
-    padding: 9px 11px; border: 1px solid #d1d5db; border-radius: 6px;
+    padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px;
     font-size: 13px; color: #1a1a2e; background: #fff; transition: border-color .15s; width: 100%;
   }
   .form-control:focus { outline: none; border-color: #4f6ef7; box-shadow: 0 0 0 3px rgba(79,110,247,.1); }
+  .form-control:disabled { background: #f9fafb; color: #9ca3af; cursor: not-allowed; }
   .form-control.error { border-color: #ef4444; }
 
+  /* 계층 드롭다운 섹션 구분선 */
+  .cascade-section {
+    background: #f8f9ff; border: 1px solid #e0e7ff; border-radius: 8px;
+    padding: 14px; margin-bottom: 12px;
+  }
+  .cascade-section-label {
+    font-size: 11px; font-weight: 600; color: #6366f1; margin-bottom: 10px;
+    text-transform: uppercase; letter-spacing: .5px;
+  }
+
   .msg {
-    border-radius: 7px; padding: 11px 14px; font-size: 13px;
-    display: none; margin-bottom: 14px; align-items: flex-start; gap: 8px;
+    border-radius: 7px; padding: 10px 13px; font-size: 13px;
+    display: none; margin-bottom: 12px; align-items: flex-start; gap: 8px;
   }
   .msg.show { display: flex; }
   .msg-success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
   .msg-error   { background: #fff1f2; border: 1px solid #fecdd3; color: #991b1b; }
   .msg-info    { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
 
-  .detect-panel { display: none; margin-top: 24px; }
+  .detect-panel { display: none; margin-top: 16px; }
   .detect-panel.show { display: block; }
-  .detect-list { max-height: 280px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 6px; margin-top: 12px; }
+  .detect-list { max-height: 260px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 6px; margin-top: 10px; }
   .detect-item {
-    padding: 10px 14px; border-bottom: 1px solid #f3f4f6;
+    padding: 9px 13px; border-bottom: 1px solid #f3f4f6;
     font-size: 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px;
   }
   .detect-item:last-child { border-bottom: none; }
   .detect-item.done { opacity: .4; }
   .detect-item-info .media { font-weight: 600; color: #4f6ef7; }
-  .detect-item-info .name { color: #374151; margin-top: 2px; }
+  .detect-item-info .name  { color: #374151; margin-top: 2px; }
   .detect-badge {
     display: inline-block; padding: 2px 8px; border-radius: 12px;
-    font-size: 10px; font-weight: 600; background: #dbeafe; color: #1e40af;
+    font-size: 10px; font-weight: 600; background: #dbeafe; color: #1e40af; white-space: nowrap;
   }
   .detect-badge.done { background: #d1fae5; color: #065f46; }
 
-  /* ─── 설정 관리 ─── */
+  /* ── 설정 탭 ── */
   .settings-intro {
     background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
-    padding: 12px 16px; font-size: 13px; color: #92400e; margin-bottom: 20px;
-  }
-  .settings-intro code {
-    background: #fef3c7; padding: 1px 6px; border-radius: 4px; font-size: 12px;
+    padding: 11px 15px; font-size: 13px; color: #92400e; margin-bottom: 16px;
   }
 
-  /* 설정 그리드: 카테고리를 2열로 배치 */
-  .settings-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
-    margin-bottom: 16px;
+  /* 계층 테이블 */
+  .h-table-wrap { overflow-x: auto; }
+  .h-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 560px; }
+  .h-table th {
+    background: #f3f4f6; padding: 8px 10px; text-align: left;
+    font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb; white-space: nowrap;
   }
+  .h-table td { padding: 4px 5px; border-bottom: 1px solid #f3f4f6; }
+  .h-table tr:last-child td { border-bottom: none; }
+  .h-input {
+    width: 100%; padding: 5px 8px; border: 1px solid #e5e7eb;
+    border-radius: 5px; font-size: 12px; min-width: 90px;
+  }
+  .h-input:focus { outline: none; border-color: #4f6ef7; }
+
+  /* 기타 드롭다운 그리드 */
+  .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .category-block { border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
   .category-header {
-    background: #f9fafb; padding: 11px 14px;
+    background: #f9fafb; padding: 10px 13px;
     display: flex; align-items: center; gap: 8px;
   }
   .category-name-input {
     flex: 1; border: none; background: transparent;
-    font-size: 13px; font-weight: 600; color: #374151; outline: none; min-width: 60px;
+    font-size: 13px; font-weight: 600; color: #374151; outline: none;
   }
   .category-name-input:focus { color: #4f6ef7; }
-  .category-body { padding: 12px 14px; }
+  .category-body { padding: 11px 13px; }
 
-  .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; min-height: 26px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; min-height: 24px; }
   .chip {
     display: inline-flex; align-items: center; gap: 3px;
     background: #eff2ff; color: #3730a3; border: 1px solid #c7d2fe;
@@ -173,64 +185,65 @@
   }
   .chip-remove {
     cursor: pointer; color: #6366f1; font-size: 14px; line-height: 1;
-    background: none; border: none; padding: 0; margin-left: 1px;
+    background: none; border: none; padding: 0;
   }
   .chip-remove:hover { color: #ef4444; }
   .chip-empty { font-size: 12px; color: #9ca3af; font-style: italic; }
 
   .add-value-row { display: flex; gap: 5px; }
   .add-value-input {
-    flex: 1; padding: 5px 9px; border: 1px solid #d1d5db;
+    flex: 1; padding: 5px 8px; border: 1px solid #d1d5db;
     border-radius: 6px; font-size: 12px;
   }
   .add-value-input:focus { outline: none; border-color: #4f6ef7; }
 
   .add-category-row {
-    display: flex; gap: 8px; padding: 14px;
-    border: 2px dashed #d1d5db; border-radius: 8px; align-items: center;
-    margin-bottom: 16px;
+    display: flex; gap: 8px; padding: 12px 14px;
+    border: 2px dashed #d1d5db; border-radius: 8px;
+    align-items: center; margin-bottom: 14px;
   }
   .add-category-input {
-    flex: 1; padding: 8px 12px; border: 1px solid #d1d5db;
+    flex: 1; padding: 7px 11px; border: 1px solid #d1d5db;
     border-radius: 6px; font-size: 13px;
   }
   .add-category-input:focus { outline: none; border-color: #4f6ef7; }
 
   .spinner {
-    width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.4);
+    width: 15px; height: 15px; border: 2px solid rgba(255,255,255,.4);
     border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; display: none;
   }
   .spinner.show { display: inline-block; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  .divider { border: none; border-top: 1px solid #f3f4f6; margin: 18px 0; }
+  .divider { border: none; border-top: 1px solid #f3f4f6; margin: 16px 0; }
   .count-badge {
     background: #ef4444; color: #fff; border-radius: 10px;
     padding: 1px 7px; font-size: 11px; font-weight: 700;
   }
+  .section-title {
+    font-size: 13px; font-weight: 700; color: #1a1a2e; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 6px;
+  }
 
   @media (max-width: 768px) {
-    .container { grid-template-columns: 1fr; padding: 16px; }
+    .container { grid-template-columns: 1fr; padding: 14px; }
     .form-grid  { grid-template-columns: 1fr; }
     .settings-grid { grid-template-columns: 1fr; }
-    .tab-nav { padding: 0 16px; }
+    .tab-nav { padding: 0 14px; }
+    .container-single { padding: 16px; }
   }
 </style>
 </head>
 <body>
 
-<!-- ─── Header ─── -->
 <div class="header">
   <h1>📋 소재 인덱싱 시스템</h1>
-  <div class="header-actions">
-    <button class="btn btn-detect" id="btnDetect" onclick="runDetect()">
-      <span>🔍 신규 소재 감지</span>
-      <div class="spinner" id="spinDetect"></div>
-    </button>
-  </div>
+  <button class="btn btn-detect" id="btnDetect" onclick="runDetect()">
+    <span>🔍 신규 소재 감지</span>
+    <div class="spinner" id="spinDetect"></div>
+  </button>
 </div>
 
-<!-- ─── Tab Nav ─── -->
 <div class="tab-nav">
   <button class="tab-btn active" onclick="switchTab('register', this)">📝 소재 등록</button>
   <button class="tab-btn" onclick="switchTab('settings', this)">⚙️ 설정 관리</button>
@@ -240,9 +253,9 @@
 <div class="tab-panel active" id="panel-register">
   <div class="container">
 
-    <!-- 왼쪽: 파일 업로드 + 자동 생성 -->
+    <!-- 왼쪽 -->
     <div>
-      <div class="card" style="margin-bottom:16px;">
+      <div class="card">
         <div class="card-header">🖼 소재 파일</div>
         <div class="card-body">
           <div class="upload-zone" id="uploadZone"
@@ -251,8 +264,8 @@
                    accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime"
                    onchange="onFileSelected(event)">
             <div class="upload-icon">📁</div>
-            <div style="font-size:13px;color:#374151;font-weight:500;">파일을 드래그하거나 클릭해서 선택</div>
-            <div class="upload-hint">이미지: jpg, png, gif, webp · 동영상: mp4, mov</div>
+            <div style="font-size:13px;color:#374151;font-weight:500;">드래그하거나 클릭해서 선택</div>
+            <div class="upload-hint">jpg, png, gif, webp · mp4, mov</div>
           </div>
           <div class="preview-area" id="previewArea">
             <img id="previewImg" src="" alt="미리보기" style="display:none;">
@@ -263,7 +276,7 @@
       </div>
 
       <div class="card">
-        <div class="card-header">⚙️ 자동 생성 정보</div>
+        <div class="card-header">⚙️ 자동 생성</div>
         <div class="card-body">
           <div class="auto-field">
             <label>이미지코드</label>
@@ -277,7 +290,7 @@
       </div>
     </div>
 
-    <!-- 오른쪽: 입력 폼 -->
+    <!-- 오른쪽 -->
     <div>
       <div class="msg msg-success" id="msgSuccess"><span>✅</span><span id="msgSuccessText"></span></div>
       <div class="msg msg-error"   id="msgError">  <span>❌</span><span id="msgErrorText"></span></div>
@@ -285,31 +298,46 @@
       <div class="card">
         <div class="card-header">✏️ 소재 정보 입력</div>
         <div class="card-body">
-          <div class="form-grid">
 
-            <div class="form-group">
-              <label>매체 <span class="req">*</span></label>
-              <select class="form-control" id="f_매체"><option value="">선택</option></select>
+          <!-- 연쇄 드롭다운 섹션 -->
+          <div class="cascade-section">
+            <div class="cascade-section-label">🔗 매체 계층 선택</div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>매체 <span class="req">*</span></label>
+                <select class="form-control" id="f_매체" onchange="onMediaChange()">
+                  <option value="">선택</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label>캠페인 <span class="req">*</span></label>
+                <select class="form-control" id="f_캠페인" onchange="onCampaignChange()" disabled>
+                  <option value="">매체 선택 후</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label>그룹 <span class="req">*</span></label>
+                <select class="form-control" id="f_그룹" onchange="onGroupChange()" disabled>
+                  <option value="">캠페인 선택 후</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label>소재이름 <span class="req">*</span></label>
+                <select class="form-control" id="f_소재이름" disabled>
+                  <option value="">그룹 선택 후</option>
+                </select>
+              </div>
             </div>
+          </div>
 
+          <!-- 나머지 필드 -->
+          <div class="form-grid">
             <div class="form-group">
               <label>보종 <span class="req">*</span></label>
               <select class="form-control" id="f_보종"><option value="">선택</option></select>
-            </div>
-
-            <div class="form-group full">
-              <label>캠페인 <span class="req">*</span></label>
-              <select class="form-control" id="f_캠페인"><option value="">선택</option></select>
-            </div>
-
-            <div class="form-group full">
-              <label>그룹 <span class="req">*</span></label>
-              <select class="form-control" id="f_그룹"><option value="">선택</option></select>
-            </div>
-
-            <div class="form-group full">
-              <label>소재이름 <span class="req">*</span></label>
-              <select class="form-control" id="f_소재이름"><option value="">선택</option></select>
             </div>
 
             <div class="form-group">
@@ -346,7 +374,6 @@
               <label>소구상세</label>
               <input class="form-control" type="text" id="f_소구상세" placeholder="소구 내용 상세 입력">
             </div>
-
           </div>
 
           <hr class="divider">
@@ -359,7 +386,7 @@
         </div>
       </div>
 
-      <!-- 신규 소재 감지 결과 -->
+      <!-- 신규 감지 결과 -->
       <div class="detect-panel card" id="detectPanel">
         <div class="card-header">
           <span>🔍 신규 소재 감지 결과</span>
@@ -369,7 +396,7 @@
           <div class="msg msg-info show"><span>ℹ️</span><span id="detectMsgText"></span></div>
           <div class="detect-list" id="detectList"></div>
           <button class="btn btn-primary btn-lg" id="btnStartIndex"
-                  onclick="startIndexing()" style="margin-top:14px;display:none;">
+                  onclick="startIndexing()" style="margin-top:12px;display:none;">
             ▶ 인덱싱 시작
           </button>
         </div>
@@ -386,68 +413,113 @@
     <div class="msg msg-error"   id="settingsMsgError">  <span>❌</span><span id="settingsMsgErrorText"></span></div>
 
     <div class="settings-intro">
-      💡 각 카테고리 안에 값을 입력하고 <strong>Enter</strong> 또는 <strong>+ 추가</strong>를 누르세요.
-      변경 후 <strong>💾 설정 저장</strong>을 눌러야 반영됩니다.<br>
-      구글 시트 <code>설정</code> 탭에서도 직접 입력할 수 있습니다 (1행=카테고리명, 2행~=값, 세로로 입력).
+      💡 <strong>매체 계층</strong>: 매체→캠페인→그룹→소재이름 경로를 행으로 추가하세요.
+      &nbsp;|&nbsp; <strong>기타 드롭다운</strong>: 각 항목의 선택지를 추가·삭제합니다.
+      변경 후 각 섹션의 저장 버튼을 눌러야 반영됩니다.
     </div>
 
-    <!-- 새 카테고리 추가 -->
-    <div class="add-category-row">
-      <span style="font-size:13px;color:#6b7280;white-space:nowrap;">새 카테고리</span>
-      <input class="add-category-input" type="text" id="newCategoryName" placeholder="카테고리명 입력 (예: 시즌)">
-      <button class="btn btn-ghost btn-sm" onclick="addCategory()">+ 추가</button>
+    <!-- ── 매체 계층 ── -->
+    <div class="card">
+      <div class="card-header">
+        <span>🔗 매체 계층 구조 (매체 → 캠페인 → 그룹 → 소재이름)</span>
+        <button class="btn btn-ghost btn-sm" onclick="addHierarchyRow()">+ 행 추가</button>
+      </div>
+      <div class="card-body">
+        <p style="font-size:12px;color:#6b7280;margin-bottom:10px;">
+          한 행 = 하나의 경로입니다. 같은 캠페인의 그룹이 여러 개면 각각 행으로 추가하세요.
+        </p>
+        <div class="h-table-wrap">
+          <table class="h-table">
+            <thead>
+              <tr>
+                <th style="width:18%">매체</th>
+                <th style="width:25%">캠페인</th>
+                <th style="width:25%">그룹</th>
+                <th>소재이름</th>
+                <th style="width:50px"></th>
+              </tr>
+            </thead>
+            <tbody id="hierarchyBody"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+          <button class="btn btn-primary" id="btnSaveHierarchy" onclick="saveHierarchyData()">
+            <div class="spinner" id="spinHierarchy"></div>
+            <span id="btnSaveHierarchyText">💾 계층 저장</span>
+          </button>
+          <button class="btn btn-secondary" onclick="loadHierarchyPanel()">↺ 불러오기</button>
+        </div>
+      </div>
     </div>
 
-    <div class="settings-grid" id="categoryList"></div>
-
-    <div style="display:flex;gap:8px;">
-      <button class="btn btn-primary" id="btnSaveSettings" onclick="saveAllSettings()">
-        <div class="spinner" id="spinSettings"></div>
-        <span id="btnSaveSettingsText">💾 설정 저장</span>
-      </button>
-      <button class="btn btn-secondary" onclick="loadSettingsPanel()">↺ 다시 불러오기</button>
+    <!-- ── 기타 드롭다운 ── -->
+    <div class="card">
+      <div class="card-header">
+        <span>🏷 기타 드롭다운 (광고유형, 보종 등)</span>
+        <div style="display:flex;gap:6px;">
+          <input class="add-category-input" type="text" id="newCategoryName"
+                 placeholder="새 카테고리명" style="padding:5px 10px;font-size:12px;width:140px;">
+          <button class="btn btn-ghost btn-sm" onclick="addCategory()">+ 추가</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="settings-grid" id="categoryList"></div>
+        <div style="margin-top:14px;display:flex;gap:8px;">
+          <button class="btn btn-primary" id="btnSaveSettings" onclick="saveAllSettings()">
+            <div class="spinner" id="spinSettings"></div>
+            <span id="btnSaveSettingsText">💾 드롭다운 저장</span>
+          </button>
+          <button class="btn btn-secondary" onclick="loadSettingsPanel()">↺ 불러오기</button>
+        </div>
+      </div>
     </div>
 
   </div>
 </div>
 
 <script>
-// ─── 전역 상태 ────────────────────────────────────
-let fileBase64    = null;
-let fileName      = null;
-let fileMime      = null;
-let settings      = {};
-let settingsState = [];
-let detectItems   = [];
-let detectIndex   = 0;
-let isIndexing    = false;
+// ─── 전역 상태 ───────────────────────────────────
+let fileBase64     = null;
+let fileName       = null;
+let fileMime       = null;
+let settings       = {};
+let settingsState  = [];
+let hierarchy      = [];   // [{ 매체, 캠페인, 그룹, 소재이름 }]
+let hierarchyState = [];   // 설정 탭 편집용
+let detectItems    = [];
+let detectIndex    = 0;
+let isIndexing     = false;
 
-// 드롭다운 매핑 (설정 시트 카테고리명 → 폼 요소 ID)
+// 기타 드롭다운 맵 (계층 4개 제외)
 const DROPDOWN_MAP = {
-  '매체':       'f_매체',
   '광고유형':   'f_광고유형',
   '소재유형':   'f_소재유형',
   '소구포인트': 'f_소구포인트',
   '후킹방식':   'f_후킹방식',
   '이미지유형': 'f_이미지유형',
   '모델유형':   'f_모델유형',
-  '보종':       'f_보종',
-  '캠페인':     'f_캠페인',
-  '그룹':       'f_그룹',
-  '소재이름':   'f_소재이름'
+  '보종':       'f_보종'
 };
+// 계층 키 (설정 탭 chip 렌더에서 제외)
+const HIERARCHY_KEYS = new Set(['매체', '캠페인', '그룹', '소재이름']);
 
-// ─── 탭 전환 ──────────────────────────────────────
+// ─── 탭 전환 ─────────────────────────────────────
 function switchTab(tab, btn) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('panel-' + tab).classList.add('active');
   btn.classList.add('active');
-  if (tab === 'settings') loadSettingsPanel();
+  if (tab === 'settings') {
+    loadSettingsPanel();
+    loadHierarchyPanel();
+  }
 }
 
-// ─── 초기화 ───────────────────────────────────────
-document.addEventListener('DOMContentLoaded', loadSettings);
+// ─── 초기화 ──────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  loadSettings();
+  loadHierarchy();
+});
 
 function loadSettings() {
   google.script.run
@@ -460,25 +532,107 @@ function populateDropdowns(s) {
   Object.entries(DROPDOWN_MAP).forEach(([key, id]) => {
     const sel = document.getElementById(id);
     if (!sel) return;
-    const current = sel.value;
+    const cur = sel.value;
     sel.innerHTML = '<option value="">선택</option>';
     (s[key] || []).forEach(v => {
-      const opt = document.createElement('option');
-      opt.value = v; opt.textContent = v;
-      sel.appendChild(opt);
+      const o = document.createElement('option');
+      o.value = v; o.textContent = v;
+      sel.appendChild(o);
     });
-    // 기존 선택값 유지
-    if (current) sel.value = current;
+    if (cur) sel.value = cur;
   });
 }
 
-// ─── 설정 관리 탭 ─────────────────────────────────
+// ─── 계층 로드 ───────────────────────────────────
+function loadHierarchy() {
+  google.script.run
+    .withSuccessHandler(data => {
+      hierarchy = data;
+      // 매체 셀렉트 초기화
+      const mediaVals = [...new Set(data.map(r => r.매체).filter(Boolean))];
+      fillSelect('f_매체', mediaVals, '선택');
+      document.getElementById('f_캠페인').disabled = true;
+      document.getElementById('f_그룹').disabled = true;
+      document.getElementById('f_소재이름').disabled = true;
+    })
+    .withFailureHandler(() => {})
+    .getHierarchy();
+}
+
+// ─── 연쇄 드롭다운 ───────────────────────────────
+function onMediaChange() {
+  const 매체 = document.getElementById('f_매체').value;
+  resetCascade(['f_캠페인','f_그룹','f_소재이름']);
+
+  if (!매체) return;
+  const vals = unique(hierarchy.filter(r => r.매체 === 매체).map(r => r.캠페인).filter(Boolean));
+  fillSelect('f_캠페인', vals, '캠페인 선택');
+  document.getElementById('f_캠페인').disabled = false;
+}
+
+function onCampaignChange() {
+  const 매체   = document.getElementById('f_매체').value;
+  const 캠페인 = document.getElementById('f_캠페인').value;
+  resetCascade(['f_그룹','f_소재이름']);
+
+  if (!캠페인) return;
+  const vals = unique(
+    hierarchy.filter(r => r.매체 === 매체 && r.캠페인 === 캠페인).map(r => r.그룹).filter(Boolean)
+  );
+  fillSelect('f_그룹', vals, '그룹 선택');
+  document.getElementById('f_그룹').disabled = false;
+}
+
+function onGroupChange() {
+  const 매체   = document.getElementById('f_매체').value;
+  const 캠페인 = document.getElementById('f_캠페인').value;
+  const 그룹   = document.getElementById('f_그룹').value;
+  resetCascade(['f_소재이름']);
+
+  if (!그룹) return;
+  const vals = unique(
+    hierarchy.filter(r => r.매체 === 매체 && r.캠페인 === 캠페인 && r.그룹 === 그룹)
+             .map(r => r.소재이름).filter(Boolean)
+  );
+  fillSelect('f_소재이름', vals, '소재이름 선택');
+  document.getElementById('f_소재이름').disabled = false;
+}
+
+function fillSelect(id, values, placeholder) {
+  const sel = document.getElementById(id);
+  sel.innerHTML = `<option value="">${placeholder}</option>`;
+  values.forEach(v => {
+    const o = document.createElement('option');
+    o.value = v; o.textContent = v;
+    sel.appendChild(o);
+  });
+}
+
+function resetCascade(ids) {
+  const placeholders = {
+    'f_캠페인':   '매체 선택 후',
+    'f_그룹':     '캠페인 선택 후',
+    'f_소재이름': '그룹 선택 후'
+  };
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    el.innerHTML = `<option value="">${placeholders[id] || '선택'}</option>`;
+    el.disabled = true;
+    el.classList.remove('error');
+  });
+}
+
+function unique(arr) { return [...new Set(arr)]; }
+
+// ─── 설정 탭 — 기타 드롭다운 ─────────────────────
 function loadSettingsPanel() {
   hideSettingsMessages();
   google.script.run
     .withSuccessHandler(s => {
       settings = s;
-      settingsState = Object.entries(s).map(([name, values]) => ({ name, values: [...values] }));
+      settingsState = Object.entries(s)
+        .filter(([name]) => !HIERARCHY_KEYS.has(name))
+        .map(([name, values]) => ({ name, values: [...values] }));
       renderCategories();
     })
     .withFailureHandler(err => showSettingsError('불러오기 실패: ' + err.message))
@@ -500,8 +654,8 @@ function buildCategoryBlock(cat, ci) {
   header.className = 'category-header';
   header.innerHTML = `
     <input class="category-name-input" type="text" value="${escHtml(cat.name)}"
-           onchange="updateCategoryName(${ci}, this.value)" placeholder="카테고리명">
-    <span style="font-size:11px;color:#9ca3af;margin-left:auto;" id="badge-count-${ci}">${cat.values.length}개</span>
+           onchange="settingsState[${ci}].name = this.value.trim()" placeholder="카테고리명">
+    <span style="font-size:11px;color:#9ca3af;" id="badge-count-${ci}">${cat.values.length}개</span>
     <button class="btn btn-danger btn-sm" onclick="removeCategory(${ci})">삭제</button>`;
   block.appendChild(header);
 
@@ -509,8 +663,7 @@ function buildCategoryBlock(cat, ci) {
   body.className = 'category-body';
 
   const chips = document.createElement('div');
-  chips.className = 'chips';
-  chips.id = 'chips-' + ci;
+  chips.className = 'chips'; chips.id = 'chips-' + ci;
   renderChips(chips, cat.values, ci);
   body.appendChild(chips);
 
@@ -522,14 +675,13 @@ function buildCategoryBlock(cat, ci) {
     <button class="btn btn-ghost btn-sm" onclick="addValue(${ci})">+ 추가</button>`;
   body.appendChild(addRow);
   block.appendChild(body);
-
   return block;
 }
 
 function renderChips(container, values, ci) {
   container.innerHTML = '';
   if (!values.length) {
-    container.innerHTML = '<span class="chip-empty">값 없음 — 아래에서 추가하세요</span>';
+    container.innerHTML = '<span class="chip-empty">값 없음</span>';
     return;
   }
   values.forEach((v, vi) => {
@@ -540,8 +692,6 @@ function renderChips(container, values, ci) {
   });
 }
 
-function updateCategoryName(ci, val) { settingsState[ci].name = val.trim(); }
-
 function addValue(ci) {
   const input = document.getElementById('newVal-' + ci);
   const val = input.value.trim();
@@ -549,13 +699,13 @@ function addValue(ci) {
   settingsState[ci].values.push(val);
   input.value = '';
   renderChips(document.getElementById('chips-' + ci), settingsState[ci].values, ci);
-  updateBadgeCount(ci);
+  document.getElementById('badge-count-' + ci).textContent = settingsState[ci].values.length + '개';
 }
 
 function removeValue(ci, vi) {
   settingsState[ci].values.splice(vi, 1);
   renderChips(document.getElementById('chips-' + ci), settingsState[ci].values, ci);
-  updateBadgeCount(ci);
+  document.getElementById('badge-count-' + ci).textContent = settingsState[ci].values.length + '개';
 }
 
 function removeCategory(ci) {
@@ -567,7 +717,7 @@ function removeCategory(ci) {
 function addCategory() {
   const input = document.getElementById('newCategoryName');
   const name = input.value.trim();
-  if (!name) { alert('카테고리명을 입력해 주세요.'); return; }
+  if (!name) { alert('카테고리명을 입력하세요.'); return; }
   settingsState.push({ name, values: [] });
   input.value = '';
   renderCategories();
@@ -575,22 +725,16 @@ function addCategory() {
     ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function updateBadgeCount(ci) {
-  const el = document.getElementById('badge-count-' + ci);
-  if (el) el.textContent = settingsState[ci].values.length + '개';
-}
-
 function saveAllSettings() {
   if (settingsState.some(c => !c.name.trim())) {
-    showSettingsError('카테고리명이 비어 있는 항목이 있습니다.');
-    return;
+    showSettingsError('카테고리명이 비어 있는 항목이 있습니다.'); return;
   }
   setSavingSettings(true);
   google.script.run
     .withSuccessHandler(res => {
       setSavingSettings(false);
       if (res.error) { showSettingsError(res.message); return; }
-      showSettingsSuccess('저장 완료! 등록 탭 드롭다운이 업데이트됩니다.');
+      showSettingsSuccess('드롭다운 저장 완료!');
       loadSettings();
     })
     .withFailureHandler(err => { setSavingSettings(false); showSettingsError('저장 실패: ' + err.message); })
@@ -600,10 +744,86 @@ function saveAllSettings() {
 function setSavingSettings(saving) {
   document.getElementById('btnSaveSettings').disabled = saving;
   document.getElementById('spinSettings').classList.toggle('show', saving);
-  document.getElementById('btnSaveSettingsText').textContent = saving ? '저장 중...' : '💾 설정 저장';
+  document.getElementById('btnSaveSettingsText').textContent = saving ? '저장 중...' : '💾 드롭다운 저장';
 }
 
-// ─── 파일 업로드 ──────────────────────────────────
+// ─── 설정 탭 — 계층 관리 ─────────────────────────
+function loadHierarchyPanel() {
+  google.script.run
+    .withSuccessHandler(data => {
+      hierarchyState = data.map(r => ({ ...r }));
+      renderHierarchyTable();
+    })
+    .withFailureHandler(() => {})
+    .getHierarchy();
+}
+
+function renderHierarchyTable() {
+  const tbody = document.getElementById('hierarchyBody');
+  tbody.innerHTML = '';
+  hierarchyState.forEach((row, i) => tbody.appendChild(buildHierarchyRow(row, i)));
+  if (!hierarchyState.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:16px;color:#9ca3af;font-size:12px;">행이 없습니다. 위 [+ 행 추가] 버튼으로 추가하세요.</td></tr>';
+  }
+}
+
+function buildHierarchyRow(row, i) {
+  const tr = document.createElement('tr');
+  tr.id = 'hrow-' + i;
+  ['매체','캠페인','그룹','소재이름'].forEach(key => {
+    const td = document.createElement('td');
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.className = 'h-input';
+    inp.value = row[key] || '';
+    inp.placeholder = key;
+    inp.oninput = () => { hierarchyState[i][key] = inp.value; };
+    td.appendChild(inp);
+    tr.appendChild(td);
+  });
+  const tdDel = document.createElement('td');
+  tdDel.innerHTML = `<button class="btn btn-danger btn-sm" onclick="removeHierarchyRow(${i})">삭제</button>`;
+  tr.appendChild(tdDel);
+  return tr;
+}
+
+function addHierarchyRow() {
+  hierarchyState.push({ 매체: '', 캠페인: '', 그룹: '', 소재이름: '' });
+  renderHierarchyTable();
+  document.querySelector('#hierarchyBody tr:last-child')
+    ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  // 마지막 행 첫 번째 input 포커스
+  document.querySelector('#hierarchyBody tr:last-child .h-input')?.focus();
+}
+
+function removeHierarchyRow(i) {
+  hierarchyState.splice(i, 1);
+  renderHierarchyTable();
+}
+
+function saveHierarchyData() {
+  document.getElementById('btnSaveHierarchy').disabled = true;
+  document.getElementById('spinHierarchy').classList.add('show');
+  document.getElementById('btnSaveHierarchyText').textContent = '저장 중...';
+
+  google.script.run
+    .withSuccessHandler(res => {
+      document.getElementById('btnSaveHierarchy').disabled = false;
+      document.getElementById('spinHierarchy').classList.remove('show');
+      document.getElementById('btnSaveHierarchyText').textContent = '💾 계층 저장';
+      if (res.error) { showSettingsError(res.message); return; }
+      showSettingsSuccess('계층 구조 저장 완료! 등록 탭 드롭다운이 업데이트됩니다.');
+      loadHierarchy(); // 등록 탭 연쇄 드롭다운 갱신
+    })
+    .withFailureHandler(err => {
+      document.getElementById('btnSaveHierarchy').disabled = false;
+      document.getElementById('spinHierarchy').classList.remove('show');
+      document.getElementById('btnSaveHierarchyText').textContent = '💾 계층 저장';
+      showSettingsError('저장 실패: ' + err.message);
+    })
+    .saveHierarchy(hierarchyState);
+}
+
+// ─── 파일 업로드 ─────────────────────────────────
 function onDragOver(e) { e.preventDefault(); document.getElementById('uploadZone').classList.add('dragover'); }
 function onDragLeave()  { document.getElementById('uploadZone').classList.remove('dragover'); }
 function onDrop(e) { e.preventDefault(); onDragLeave(); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); }
@@ -629,12 +849,12 @@ function handleFile(file) {
   reader.readAsDataURL(file);
 }
 
-// ─── 폼 저장 ──────────────────────────────────────
-const REQUIRED_SELECT_IDS = ['f_매체','f_캠페인','f_그룹','f_소재이름','f_보종','f_광고유형','f_소재유형'];
+// ─── 폼 저장 ─────────────────────────────────────
+const REQUIRED_IDS = ['f_매체','f_캠페인','f_그룹','f_소재이름','f_보종','f_광고유형','f_소재유형'];
 
 function validateForm() {
   let ok = true;
-  REQUIRED_SELECT_IDS.forEach(id => {
+  REQUIRED_IDS.forEach(id => {
     const el = document.getElementById(id);
     if (!el.value) { el.classList.add('error'); ok = false; }
     else el.classList.remove('error');
@@ -686,12 +906,17 @@ function submitForm(forceSave) {
 }
 
 function resetForm() {
-  // 모든 드롭다운 초기화
+  // 계층 드롭다운 리셋
+  document.getElementById('f_매체').value = '';
+  resetCascade(['f_캠페인','f_그룹','f_소재이름']);
+  // 기타 드롭다운 리셋
   Object.values(DROPDOWN_MAP).forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.selectedIndex = 0; el.classList.remove('error'); }
   });
   document.getElementById('f_소구상세').value = '';
+  REQUIRED_IDS.forEach(id => document.getElementById(id)?.classList.remove('error'));
+
   fileBase64 = fileName = fileMime = null;
   document.getElementById('fileInput').value = '';
   document.getElementById('previewArea').classList.remove('show');
@@ -704,21 +929,19 @@ function resetForm() {
   hideMessages();
 }
 
-// ─── 신규 소재 감지 ───────────────────────────────
+// ─── 신규 소재 감지 ──────────────────────────────
 function runDetect() {
   const btn = document.getElementById('btnDetect');
   btn.disabled = true;
   document.getElementById('spinDetect').classList.add('show');
   google.script.run
     .withSuccessHandler(res => {
-      btn.disabled = false;
-      document.getElementById('spinDetect').classList.remove('show');
+      btn.disabled = false; document.getElementById('spinDetect').classList.remove('show');
       if (res.error) { showError(res.message); return; }
       renderDetectPanel(res);
     })
     .withFailureHandler(err => {
-      btn.disabled = false;
-      document.getElementById('spinDetect').classList.remove('show');
+      btn.disabled = false; document.getElementById('spinDetect').classList.remove('show');
       showError('감지 실패: ' + err.message);
     })
     .detectNewCreatives();
@@ -760,10 +983,25 @@ function loadNextDetectItem() {
   }
   const item = detectItems[detectIndex++];
   resetForm();
-  setSelectValue('f_매체',     item.매체);
-  setSelectValue('f_캠페인',   item.캠페인);
-  setSelectValue('f_그룹',     item.그룹);
-  setSelectValue('f_소재이름', item.소재이름);
+
+  // 매체 선택 후 연쇄 드롭다운 자동 설정
+  const mediaSel = document.getElementById('f_매체');
+  mediaSel.value = item.매체;
+  onMediaChange();
+
+  // 약간의 딜레이 후 캠페인/그룹/소재이름 설정 (DOM 업데이트 후)
+  setTimeout(() => {
+    document.getElementById('f_캠페인').value = item.캠페인;
+    onCampaignChange();
+    setTimeout(() => {
+      document.getElementById('f_그룹').value = item.그룹;
+      onGroupChange();
+      setTimeout(() => {
+        document.getElementById('f_소재이름').value = item.소재이름;
+      }, 50);
+    }, 50);
+  }, 50);
+
   const badge = document.getElementById('badge-' + (detectIndex - 1));
   if (badge) { badge.textContent = '진행 중'; badge.style.cssText = 'background:#fef3c7;color:#92400e;'; }
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -777,14 +1015,6 @@ function markDetectItemDone(i) {
 }
 
 // ─── 유틸 ────────────────────────────────────────
-function setSelectValue(id, val) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  for (let i = 0; i < el.options.length; i++) {
-    if (el.options[i].value === val) { el.selectedIndex = i; return; }
-  }
-}
-
 function escHtml(s) {
   return String(s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;')
