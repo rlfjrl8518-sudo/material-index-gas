@@ -482,6 +482,7 @@
 let fileBase64     = null;
 let fileName       = null;
 let fileMime       = null;
+let fileHash       = null;
 let settings       = {};
 let settingsState  = [];
 let hierarchy      = [];   // [{ 매체, 캠페인, 그룹, 소재이름 }]
@@ -829,10 +830,21 @@ function onDragLeave()  { document.getElementById('uploadZone').classList.remove
 function onDrop(e) { e.preventDefault(); onDragLeave(); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); }
 function onFileSelected(e) { if (e.target.files[0]) handleFile(e.target.files[0]); }
 
-function handleFile(file) {
+async function handleFile(file) {
   const allowed = ['image/jpeg','image/png','image/gif','image/webp','video/mp4','video/quicktime'];
   if (!allowed.includes(file.type)) { showError('지원하지 않는 파일 형식입니다.'); return; }
-  fileName = file.name; fileMime = file.type;
+  fileName = file.name; fileMime = file.type; fileHash = null;
+
+  // SHA-256 해시 계산 (동일 이미지 판별용)
+  try {
+    const buffer = await file.arrayBuffer();
+    const hashBuf = await crypto.subtle.digest('SHA-256', buffer);
+    fileHash = Array.from(new Uint8Array(hashBuf))
+      .map(b => b.toString(16).padStart(2, '0')).join('');
+  } catch (e) {
+    fileHash = null; // 해시 실패 시 무시 — 신규로 처리
+  }
+
   const reader = new FileReader();
   reader.onload = ev => {
     fileBase64 = ev.target.result.split(',')[1];
@@ -876,7 +888,7 @@ function getFormData(forceSave) {
     소구상세:   document.getElementById('f_소구상세').value.trim(),
     이미지유형: document.getElementById('f_이미지유형').value,
     모델유형:   document.getElementById('f_모델유형').value,
-    fileData: fileBase64, fileName, mimeType: fileMime,
+    fileData: fileBase64, fileName, mimeType: fileMime, fileHash,
     forceSave: !!forceSave
   };
 }
@@ -897,7 +909,8 @@ function submitForm(forceSave) {
       document.getElementById('displayCode').classList.remove('empty');
       document.getElementById('displayUrl').textContent = res.imageUrl || '(파일 없음)';
       document.getElementById('displayUrl').classList.remove('empty');
-      showSuccess('등록 완료! 이미지코드: ' + res.imageCode);
+      const reuseMsg = res.reused ? ' (동일 이미지 — 기존 코드 재사용)' : '';
+      showSuccess('등록 완료! 이미지코드: ' + res.imageCode + reuseMsg);
       if (isIndexing) { markDetectItemDone(detectIndex - 1); loadNextDetectItem(); }
       else setTimeout(resetForm, 2000);
     })
@@ -917,7 +930,7 @@ function resetForm() {
   document.getElementById('f_소구상세').value = '';
   REQUIRED_IDS.forEach(id => document.getElementById(id)?.classList.remove('error'));
 
-  fileBase64 = fileName = fileMime = null;
+  fileBase64 = fileName = fileMime = fileHash = null;
   document.getElementById('fileInput').value = '';
   document.getElementById('previewArea').classList.remove('show');
   document.getElementById('previewImg').src = '';

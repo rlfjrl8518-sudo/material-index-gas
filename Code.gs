@@ -55,7 +55,7 @@ function initializeSheets() {
   if (!masterSheet) {
     masterSheet = ss.insertSheet(MASTER_SHEET_NAME);
     const headers = [['이미지코드', '등록일자', '매체', '캠페인', '그룹', '소재이름', '보종',
-      '광고유형', '소재유형', '소구포인트', '후킹방식', '소구상세', '이미지유형', '모델유형', '이미지URL']];
+      '광고유형', '소재유형', '소구포인트', '후킹방식', '소구상세', '이미지유형', '모델유형', '이미지URL', '파일해시']];
     masterSheet.getRange(1, 1, 1, headers[0].length).setValues(headers);
     masterSheet.getRange(1, 1, 1, headers[0].length).setFontWeight('bold');
     masterSheet.setFrozenRows(1);
@@ -169,6 +169,26 @@ function saveHierarchy(rows) {
 }
 
 // --------------------------------------------------
+// 동일 이미지 파일 조회 (파일해시 기준)
+// 이미 등록된 이미지면 imageCode + imageUrl 반환, 없으면 null
+// --------------------------------------------------
+function checkExistingImage(fileHash) {
+  if (!fileHash) return null;
+  const ss = getSpreadsheet();
+  const sheet = ss.getSheetByName(MASTER_SHEET_NAME);
+  if (!sheet || sheet.getLastRow() < 2) return null;
+
+  const lastCol = sheet.getLastColumn();
+  if (lastCol < 16) return null; // 파일해시 열 없음
+
+  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 16).getValues();
+  const found = data.find(row => row[15] && row[15] === fileHash);
+  if (!found) return null;
+
+  return { imageCode: String(found[0]), imageUrl: String(found[14]) };
+}
+
+// --------------------------------------------------
 // 중복 체크 (매체+캠페인+그룹+소재이름 조합)
 // --------------------------------------------------
 function checkDuplicate(매체, 캠페인, 그룹, 소재이름) {
@@ -233,10 +253,19 @@ function saveCreative(data) {
     if (!data.forceSave && checkDuplicate(data.매체, data.캠페인, data.그룹, data.소재이름))
       return { duplicate: true };
 
-    let imageUrl = '';
-    if (data.fileData) imageUrl = uploadImageToDrive(data.fileData, data.fileName, data.mimeType);
+    // 동일 이미지 파일이 이미 등록되어 있으면 코드·URL 재사용
+    const existing = checkExistingImage(data.fileHash);
+    let imageCode, imageUrl = '', reused = false;
 
-    const imageCode = generateImageCode();
+    if (existing) {
+      imageCode = existing.imageCode;
+      imageUrl  = existing.imageUrl;
+      reused    = true;
+    } else {
+      if (data.fileData) imageUrl = uploadImageToDrive(data.fileData, data.fileName, data.mimeType);
+      imageCode = generateImageCode();
+    }
+
     const ss = getSpreadsheet();
     const sheet = ss.getSheetByName(MASTER_SHEET_NAME);
     const dateStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
@@ -244,10 +273,11 @@ function saveCreative(data) {
     sheet.appendRow([
       imageCode, dateStr, data.매체, data.캠페인, data.그룹, data.소재이름,
       data.보종, data.광고유형, data.소재유형, data.소구포인트,
-      data.후킹방식, data.소구상세, data.이미지유형, data.모델유형, imageUrl
+      data.후킹방식, data.소구상세, data.이미지유형, data.모델유형,
+      imageUrl, data.fileHash || ''
     ]);
 
-    return { success: true, imageCode, imageUrl };
+    return { success: true, imageCode, imageUrl, reused };
   } catch (e) {
     return { error: true, message: e.message };
   }
