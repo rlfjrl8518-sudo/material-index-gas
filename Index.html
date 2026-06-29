@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>소재 인덱싱 시스템</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif;
+    background: #f0f2f5;
+    color: #1a1a2e;
+    min-height: 100vh;
+  }
+
+  /* ─── Header ─── */
+  .header {
+    background: #1a1a2e;
+    color: #fff;
+    padding: 0 32px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+  }
+  .header h1 { font-size: 16px; font-weight: 600; letter-spacing: -.3px; }
+  .header-actions { display: flex; gap: 8px; align-items: center; }
+
+  /* ─── Tab Navigation ─── */
+  .tab-nav {
+    background: #fff;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    padding: 0 32px;
+  }
+  .tab-btn {
+    padding: 14px 20px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #6b7280;
+    cursor: pointer;
+    border: none;
+    background: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all .15s;
+  }
+  .tab-btn.active { color: #4f6ef7; border-bottom-color: #4f6ef7; }
+  .tab-btn:hover:not(.active) { color: #374151; }
+
+  /* ─── Buttons ─── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 16px; border-radius: 6px; font-size: 13px;
+    font-weight: 500; cursor: pointer; border: none; transition: all .15s;
+  }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-primary  { background: #4f6ef7; color: #fff; }
+  .btn-primary:hover:not(:disabled)  { background: #3b5beb; }
+  .btn-secondary { background: #fff; color: #374151; border: 1px solid #d1d5db; }
+  .btn-secondary:hover:not(:disabled) { background: #f9fafb; }
+  .btn-detect   { background: #0ea5e9; color: #fff; }
+  .btn-detect:hover:not(:disabled)   { background: #0284c7; }
+  .btn-danger   { background: #ef4444; color: #fff; }
+  .btn-danger:hover:not(:disabled)   { background: #dc2626; }
+  .btn-ghost    { background: transparent; color: #6b7280; border: 1px solid #e5e7eb; }
+  .btn-ghost:hover:not(:disabled)    { background: #f9fafb; }
+  .btn-sm       { padding: 5px 10px; font-size: 12px; }
+  .btn-lg       { padding: 11px 24px; font-size: 14px; width: 100%; justify-content: center; }
+
+  /* ─── Tab Panels ─── */
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ─── Layout ─── */
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 28px 24px;
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+  .container-single {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 28px 24px;
+  }
+
+  /* ─── Card ─── */
+  .card {
+    background: #fff;
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+    overflow: hidden;
+  }
+  .card-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid #f3f4f6;
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .card-body { padding: 20px; }
+
+  /* ─── Upload Zone ─── */
+  .upload-zone {
+    border: 2px dashed #d1d5db;
+    border-radius: 8px;
+    padding: 32px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all .2s;
+    background: #fafafa;
+    position: relative;
+  }
+  .upload-zone.dragover { border-color: #4f6ef7; background: #eff2ff; }
+  .upload-zone:hover { border-color: #9ca3af; }
+  .upload-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .upload-icon { font-size: 32px; margin-bottom: 8px; }
+  .upload-hint { font-size: 12px; color: #6b7280; margin-top: 4px; }
+
+  /* ─── Preview ─── */
+  .preview-area { margin-top: 12px; display: none; }
+  .preview-area.show { display: block; }
+  .preview-area img, .preview-area video {
+    width: 100%; border-radius: 6px;
+    border: 1px solid #e5e7eb;
+    max-height: 220px; object-fit: contain;
+    background: #f9fafb;
+  }
+  .preview-name { margin-top: 6px; font-size: 11px; color: #6b7280; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
+
+  /* ─── Auto Fields ─── */
+  .auto-field {
+    background: #f8faff; border: 1px solid #dbeafe;
+    border-radius: 6px; padding: 10px 12px;
+    font-size: 12px; color: #374151; margin-bottom: 10px;
+  }
+  .auto-field label { font-size: 11px; color: #6b7280; display: block; margin-bottom: 2px; }
+  .auto-field .value { font-weight: 600; color: #1d4ed8; word-break: break-all; }
+  .auto-field .value.empty { color: #9ca3af; font-weight: 400; font-style: italic; }
+
+  /* ─── Form ─── */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .form-group { display: flex; flex-direction: column; gap: 5px; }
+  .form-group.full { grid-column: 1 / -1; }
+  .form-group label { font-size: 12px; font-weight: 500; color: #374151; }
+  .form-group label .req { color: #ef4444; margin-left: 2px; }
+  .form-control {
+    padding: 9px 11px; border: 1px solid #d1d5db;
+    border-radius: 6px; font-size: 13px; color: #1a1a2e;
+    background: #fff; transition: border-color .15s; width: 100%;
+  }
+  .form-control:focus { outline: none; border-color: #4f6ef7; box-shadow: 0 0 0 3px rgba(79,110,247,.1); }
+  .form-control.error { border-color: #ef4444; }
+
+  /* ─── Status Messages ─── */
+  .msg {
+    border-radius: 7px; padding: 11px 14px; font-size: 13px;
+    display: none; margin-bottom: 14px; align-items: flex-start; gap: 8px;
+  }
+  .msg.show { display: flex; }
+  .msg-success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+  .msg-error   { background: #fff1f2; border: 1px solid #fecdd3; color: #991b1b; }
+  .msg-info    { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+
+  /* ─── Detect Panel ─── */
+  .detect-panel { display: none; margin-top: 24px; }
+  .detect-panel.show { display: block; }
+  .detect-list { max-height: 280px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 6px; margin-top: 12px; }
+  .detect-item {
+    padding: 10px 14px; border-bottom: 1px solid #f3f4f6;
+    font-size: 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  }
+  .detect-item:last-child { border-bottom: none; }
+  .detect-item.done { opacity: .4; }
+  .detect-item-info .media { font-weight: 600; color: #4f6ef7; }
+  .detect-item-info .name { color: #374151; margin-top: 2px; }
+  .detect-badge {
+    display: inline-block; padding: 2px 8px; border-radius: 12px;
+    font-size: 10px; font-weight: 600; background: #dbeafe; color: #1e40af;
+  }
+  .detect-badge.done { background: #d1fae5; color: #065f46; }
+
+  /* ─── Settings Panel ─── */
+  .settings-intro {
+    background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
+    padding: 12px 16px; font-size: 13px; color: #92400e; margin-bottom: 20px;
+  }
+  .category-block {
+    border: 1px solid #e5e7eb; border-radius: 8px;
+    margin-bottom: 14px; overflow: hidden;
+  }
+  .category-header {
+    background: #f9fafb; padding: 12px 16px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .category-name-input {
+    flex: 1; border: none; background: transparent;
+    font-size: 13px; font-weight: 600; color: #374151;
+    outline: none; min-width: 80px;
+  }
+  .category-name-input:focus { color: #4f6ef7; }
+  .category-body { padding: 14px 16px; }
+
+  /* 값 칩 */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; min-height: 28px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: #eff2ff; color: #3730a3;
+    border: 1px solid #c7d2fe; border-radius: 20px;
+    padding: 3px 10px; font-size: 12px;
+  }
+  .chip-remove {
+    cursor: pointer; color: #6366f1; font-size: 14px; line-height: 1;
+    background: none; border: none; padding: 0; margin-left: 2px;
+  }
+  .chip-remove:hover { color: #ef4444; }
+  .chip-empty { font-size: 12px; color: #9ca3af; font-style: italic; }
+
+  /* 값 추가 인풋 */
+  .add-value-row { display: flex; gap: 6px; }
+  .add-value-input {
+    flex: 1; padding: 6px 10px; border: 1px solid #d1d5db;
+    border-radius: 6px; font-size: 12px;
+  }
+  .add-value-input:focus { outline: none; border-color: #4f6ef7; }
+
+  /* 새 카테고리 추가 */
+  .add-category-row {
+    display: flex; gap: 8px; margin-top: 4px; padding: 16px;
+    border: 2px dashed #d1d5db; border-radius: 8px;
+    align-items: center;
+  }
+  .add-category-input {
+    flex: 1; padding: 8px 12px; border: 1px solid #d1d5db;
+    border-radius: 6px; font-size: 13px;
+  }
+  .add-category-input:focus { outline: none; border-color: #4f6ef7; }
+
+  /* ─── Spinner ─── */
+  .spinner {
+    width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.4);
+    border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; display: none;
+  }
+  .spinner.show { display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ─── Misc ─── */
+  .divider { border: none; border-top: 1px solid #f3f4f6; margin: 18px 0; }
+  .count-badge {
+    background: #ef4444; color: #fff; border-radius: 10px;
+    padding: 1px 7px; font-size: 11px; font-weight: 700;
+  }
+
+  @media (max-width: 768px) {
+    .container { grid-template-columns: 1fr; padding: 16px; }
+    .form-grid { grid-template-columns: 1fr; }
+    .tab-nav { padding: 0 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ─── Header ─── -->
+<div class="header">
+  <h1>📋 소재 인덱싱 시스템</h1>
+  <div class="header-actions">
+    <button class="btn btn-detect" id="btnDetect" onclick="runDetect()">
+      <span>🔍 신규 소재 감지</span>
+      <div class="spinner" id="spinDetect"></div>
+    </button>
+  </div>
+</div>
+
+<!-- ─── Tab Nav ─── -->
+<div class="tab-nav">
+  <button class="tab-btn active" onclick="switchTab('register', this)">📝 소재 등록</button>
+  <button class="tab-btn" onclick="switchTab('settings', this)">⚙️ 설정 관리</button>
+</div>
+
+<!-- ════════════════════════════════════════
+     TAB 1: 소재 등록
+════════════════════════════════════════ -->
+<div class="tab-panel active" id="panel-register">
+  <div class="container">
+
+    <!-- ── 왼쪽: 파일 업로드 + 자동 생성 필드 ── -->
+    <div>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-header">🖼 소재 파일</div>
+        <div class="card-body">
+          <div class="upload-zone" id="uploadZone"
+               ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+            <input type="file" id="fileInput"
+                   accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime"
+                   onchange="onFileSelected(event)">
+            <div class="upload-icon">📁</div>
+            <div style="font-size:13px;color:#374151;font-weight:500;">파일을 드래그하거나 클릭해서 선택</div>
+            <div class="upload-hint">이미지: jpg, png, gif, webp · 동영상: mp4, mov</div>
+          </div>
+          <div class="preview-area" id="previewArea">
+            <img id="previewImg" src="" alt="미리보기" style="display:none;">
+            <video id="previewVideo" controls style="display:none;"></video>
+            <div class="preview-name" id="previewName"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">⚙️ 자동 생성 정보</div>
+        <div class="card-body">
+          <div class="auto-field">
+            <label>이미지코드</label>
+            <div class="value empty" id="displayCode">저장 시 자동 생성</div>
+          </div>
+          <div class="auto-field">
+            <label>이미지URL</label>
+            <div class="value empty" id="displayUrl" style="font-size:11px;">업로드 후 자동 생성</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 오른쪽: 입력 폼 ── -->
+    <div>
+      <div class="msg msg-success" id="msgSuccess"><span>✅</span><span id="msgSuccessText"></span></div>
+      <div class="msg msg-error"   id="msgError">  <span>❌</span><span id="msgErrorText"></span></div>
+
+      <div class="card">
+        <div class="card-header">✏️ 소재 정보 입력</div>
+        <div class="card-body">
+          <div class="form-grid" id="formGrid">
+
+            <div class="form-group">
+              <label>매체 <span class="req">*</span></label>
+              <select class="form-control" id="f_매체" required><option value="">선택</option></select>
+            </div>
+
+            <div class="form-group">
+              <label>보종 <span class="req">*</span></label>
+              <select class="form-control" id="f_보종" required><option value="">선택</option></select>
+            </div>
+
+            <div class="form-group full">
+              <label>캠페인 <span class="req">*</span></label>
+              <input class="form-control" type="text" id="f_캠페인" placeholder="캠페인명 입력">
+            </div>
+
+            <div class="form-group full">
+              <label>그룹 <span class="req">*</span></label>
+              <input class="form-control" type="text" id="f_그룹" placeholder="광고그룹명 입력">
+            </div>
+
+            <div class="form-group full">
+              <label>소재이름 <span class="req">*</span></label>
+              <input class="form-control" type="text" id="f_소재이름" placeholder="소재명 입력">
+            </div>
+
+            <div class="form-group">
+              <label>광고유형 <span class="req">*</span></label>
+              <select class="form-control" id="f_광고유형" required><option value="">선택</option></select>
+            </div>
+
+            <div class="form-group">
+              <label>소재유형 <span class="req">*</span></label>
+              <select class="form-control" id="f_소재유형" required><option value="">선택</option></select>
+            </div>
+
+            <div class="form-group">
+              <label>소구포인트</label>
+              <select class="form-control" id="f_소구포인트"><option value="">선택</option></select>
+            </div>
+
+            <div class="form-group">
+              <label>후킹방식</label>
+              <select class="form-control" id="f_후킹방식"><option value="">선택</option></select>
+            </div>
+
+            <div class="form-group">
+              <label>이미지유형</label>
+              <select class="form-control" id="f_이미지유형"><option value="">선택</option></select>
+            </div>
+
+            <div class="form-group">
+              <label>모델유형</label>
+              <select class="form-control" id="f_모델유형"><option value="">선택</option></select>
+            </div>
+
+            <div class="form-group full">
+              <label>소구상세</label>
+              <input class="form-control" type="text" id="f_소구상세" placeholder="소구 내용 상세 입력">
+            </div>
+
+          </div>
+
+          <hr class="divider">
+
+          <button class="btn btn-primary btn-lg" id="btnSave" onclick="submitForm()">
+            <div class="spinner" id="spinSave"></div>
+            <span id="btnSaveText">💾 저장</span>
+          </button>
+          <button class="btn btn-secondary btn-lg" onclick="resetForm()" style="margin-top:8px;">초기화</button>
+        </div>
+      </div>
+
+      <!-- 신규 소재 감지 결과 패널 -->
+      <div class="detect-panel card" id="detectPanel">
+        <div class="card-header">
+          <span>🔍 신규 소재 감지 결과</span>
+          <span class="count-badge" id="detectCount">0</span>
+        </div>
+        <div class="card-body">
+          <div class="msg msg-info show"><span>ℹ️</span><span id="detectMsgText"></span></div>
+          <div class="detect-list" id="detectList"></div>
+          <button class="btn btn-primary btn-lg" id="btnStartIndex"
+                  onclick="startIndexing()" style="margin-top:14px;display:none;">
+            ▶ 인덱싱 시작
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     TAB 2: 설정 관리
+════════════════════════════════════════ -->
+<div class="tab-panel" id="panel-settings">
+  <div class="container-single">
+
+    <div class="msg msg-success" id="settingsMsgSuccess"><span>✅</span><span id="settingsMsgSuccessText"></span></div>
+    <div class="msg msg-error"   id="settingsMsgError">  <span>❌</span><span id="settingsMsgErrorText"></span></div>
+
+    <div class="settings-intro">
+      💡 각 항목의 드롭다운 값을 자유롭게 추가·삭제·수정할 수 있습니다.
+      카테고리명도 변경 가능하며, 새 카테고리를 추가하거나 삭제할 수도 있습니다.
+      변경 후 반드시 <strong>저장</strong>을 눌러야 반영됩니다.
+    </div>
+
+    <div id="categoryList"></div>
+
+    <!-- 새 카테고리 추가 -->
+    <div class="add-category-row">
+      <span style="font-size:13px;color:#6b7280;white-space:nowrap;">새 카테고리</span>
+      <input class="add-category-input" type="text" id="newCategoryName" placeholder="카테고리명 입력 (예: 시즌)">
+      <button class="btn btn-ghost btn-sm" onclick="addCategory()">+ 추가</button>
+    </div>
+
+    <div style="margin-top:20px;display:flex;gap:8px;">
+      <button class="btn btn-primary" id="btnSaveSettings" onclick="saveAllSettings()">
+        <div class="spinner" id="spinSettings"></div>
+        <span id="btnSaveSettingsText">💾 설정 저장</span>
+      </button>
+      <button class="btn btn-secondary" onclick="loadSettingsPanel()">↺ 다시 불러오기</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ─── 전역 상태 ────────────────────────────────────
+let fileBase64   = null;
+let fileName     = null;
+let fileMime     = null;
+let settings     = {};        // { 카테고리명: [값...] }
+let settingsState = [];       // [{ name, values[] }, ...]  (설정 탭 편집 상태)
+let detectItems  = [];
+let detectIndex  = 0;
+let isIndexing   = false;
+
+// ─── 탭 전환 ──────────────────────────────────────
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + tab).classList.add('active');
+  btn.classList.add('active');
+
+  if (tab === 'settings') loadSettingsPanel();
+}
+
+// ─── 초기화 ───────────────────────────────────────
+document.addEventListener('DOMContentLoaded', loadSettings);
+
+function loadSettings() {
+  google.script.run
+    .withSuccessHandler(s => {
+      settings = s;
+      populateDropdowns(s);
+    })
+    .withFailureHandler(err => showError('설정 로드 실패: ' + err.message))
+    .getSettings();
+}
+
+function populateDropdowns(s) {
+  const map = {
+    '매체': 'f_매체', '광고유형': 'f_광고유형', '소재유형': 'f_소재유형',
+    '소구포인트': 'f_소구포인트', '후킹방식': 'f_후킹방식',
+    '이미지유형': 'f_이미지유형', '모델유형': 'f_모델유형', '보종': 'f_보종'
+  };
+  Object.entries(map).forEach(([key, id]) => {
+    const sel = document.getElementById(id);
+    if (!sel || !s[key]) return;
+    sel.innerHTML = '<option value="">선택</option>';
+    s[key].forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v; opt.textContent = v;
+      sel.appendChild(opt);
+    });
+  });
+}
+
+// ─── 설정 관리 탭 렌더 ────────────────────────────
+function loadSettingsPanel() {
+  hideSettingsMessages();
+  google.script.run
+    .withSuccessHandler(s => {
+      settings = s;
+      settingsState = Object.entries(s).map(([name, values]) => ({ name, values: [...values] }));
+      renderCategories();
+    })
+    .withFailureHandler(err => showSettingsError('불러오기 실패: ' + err.message))
+    .getSettings();
+}
+
+function renderCategories() {
+  const list = document.getElementById('categoryList');
+  list.innerHTML = '';
+  settingsState.forEach((cat, ci) => {
+    list.appendChild(buildCategoryBlock(cat, ci));
+  });
+}
+
+function buildCategoryBlock(cat, ci) {
+  const block = document.createElement('div');
+  block.className = 'category-block';
+  block.id = 'cat-block-' + ci;
+
+  const header = document.createElement('div');
+  header.className = 'category-header';
+  header.innerHTML = `
+    <input class="category-name-input" type="text"
+           value="${escHtml(cat.name)}"
+           onchange="updateCategoryName(${ci}, this.value)"
+           placeholder="카테고리명">
+    <span style="font-size:12px;color:#9ca3af;margin-left:auto;">${cat.values.length}개 항목</span>
+    <button class="btn btn-danger btn-sm" onclick="removeCategory(${ci})">삭제</button>
+  `;
+  block.appendChild(header);
+
+  const body = document.createElement('div');
+  body.className = 'category-body';
+
+  const chips = document.createElement('div');
+  chips.className = 'chips';
+  chips.id = 'chips-' + ci;
+  renderChips(chips, cat.values, ci);
+  body.appendChild(chips);
+
+  const addRow = document.createElement('div');
+  addRow.className = 'add-value-row';
+  addRow.innerHTML = `
+    <input class="add-value-input" type="text" id="newVal-${ci}" placeholder="값 입력 후 Enter 또는 추가 클릭"
+           onkeydown="if(event.key==='Enter'){event.preventDefault();addValue(${ci});}">
+    <button class="btn btn-ghost btn-sm" onclick="addValue(${ci})">+ 추가</button>
+  `;
+  body.appendChild(addRow);
+  block.appendChild(body);
+
+  return block;
+}
+
+function renderChips(container, values, ci) {
+  container.innerHTML = '';
+  if (values.length === 0) {
+    container.innerHTML = '<span class="chip-empty">값이 없습니다. 아래에서 추가하세요.</span>';
+    return;
+  }
+  values.forEach((v, vi) => {
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.innerHTML = `${escHtml(v)}<button class="chip-remove" onclick="removeValue(${ci},${vi})" title="삭제">×</button>`;
+    container.appendChild(chip);
+  });
+}
+
+function updateCategoryName(ci, val) { settingsState[ci].name = val.trim(); }
+
+function addValue(ci) {
+  const input = document.getElementById('newVal-' + ci);
+  const val = input.value.trim();
+  if (!val) return;
+  settingsState[ci].values.push(val);
+  input.value = '';
+  renderChips(document.getElementById('chips-' + ci), settingsState[ci].values, ci);
+  updateCountBadge(ci);
+}
+
+function removeValue(ci, vi) {
+  settingsState[ci].values.splice(vi, 1);
+  renderChips(document.getElementById('chips-' + ci), settingsState[ci].values, ci);
+  updateCountBadge(ci);
+}
+
+function removeCategory(ci) {
+  if (!confirm(`"${settingsState[ci].name}" 카테고리를 삭제하시겠습니까?`)) return;
+  settingsState.splice(ci, 1);
+  renderCategories();
+}
+
+function addCategory() {
+  const input = document.getElementById('newCategoryName');
+  const name = input.value.trim();
+  if (!name) { alert('카테고리명을 입력해 주세요.'); return; }
+  settingsState.push({ name, values: [] });
+  input.value = '';
+  renderCategories();
+  const last = document.querySelector('#categoryList .category-block:last-child');
+  if (last) last.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function updateCountBadge(ci) {
+  const block = document.getElementById('cat-block-' + ci);
+  if (!block) return;
+  const badge = block.querySelector('.category-header span');
+  if (badge) badge.textContent = settingsState[ci].values.length + '개 항목';
+}
+
+function saveAllSettings() {
+  const invalid = settingsState.some(c => !c.name.trim());
+  if (invalid) { showSettingsError('카테고리명이 비어 있는 항목이 있습니다.'); return; }
+
+  setSavingSettings(true);
+  google.script.run
+    .withSuccessHandler(res => {
+      setSavingSettings(false);
+      if (res.error) { showSettingsError(res.message); return; }
+      showSettingsSuccess('설정이 저장되었습니다. 등록 탭의 드롭다운이 업데이트됩니다.');
+      loadSettings();
+    })
+    .withFailureHandler(err => {
+      setSavingSettings(false);
+      showSettingsError('저장 실패: ' + err.message);
+    })
+    .saveSettings(settingsState);
+}
+
+function setSavingSettings(saving) {
+  document.getElementById('btnSaveSettings').disabled = saving;
+  document.getElementById('spinSettings').classList.toggle('show', saving);
+  document.getElementById('btnSaveSettingsText').textContent = saving ? '저장 중...' : '💾 설정 저장';
+}
+
+// ─── 파일 업로드 ──────────────────────────────────
+function onDragOver(e) { e.preventDefault(); document.getElementById('uploadZone').classList.add('dragover'); }
+function onDragLeave()  { document.getElementById('uploadZone').classList.remove('dragover'); }
+function onDrop(e) {
+  e.preventDefault(); onDragLeave();
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+}
+function onFileSelected(e) { if (e.target.files[0]) handleFile(e.target.files[0]); }
+
+function handleFile(file) {
+  const allowed = ['image/jpeg','image/png','image/gif','image/webp','video/mp4','video/quicktime'];
+  if (!allowed.includes(file.type)) { showError('지원하지 않는 파일 형식입니다.'); return; }
+
+  fileName = file.name;
+  fileMime = file.type;
+
+  const reader = new FileReader();
+  reader.onload = ev => {
+    fileBase64 = ev.target.result.split(',')[1];
+    const previewArea = document.getElementById('previewArea');
+    const img = document.getElementById('previewImg');
+    const vid = document.getElementById('previewVideo');
+    previewArea.classList.add('show');
+    if (file.type.startsWith('image/')) {
+      img.src = ev.target.result; img.style.display = 'block'; vid.style.display = 'none';
+    } else {
+      vid.src = ev.target.result; vid.style.display = 'block'; img.style.display = 'none';
+    }
+    document.getElementById('previewName').textContent = file.name;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ─── 폼 저장 ──────────────────────────────────────
+const REQUIRED_FIELDS = ['f_매체','f_캠페인','f_그룹','f_소재이름','f_보종','f_광고유형','f_소재유형'];
+
+function validateForm() {
+  let ok = true;
+  REQUIRED_FIELDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el.value.trim()) { el.classList.add('error'); ok = false; }
+    else el.classList.remove('error');
+  });
+  return ok;
+}
+
+function getFormData(forceSave) {
+  return {
+    매체:       document.getElementById('f_매체').value,
+    캠페인:     document.getElementById('f_캠페인').value.trim(),
+    그룹:       document.getElementById('f_그룹').value.trim(),
+    소재이름:   document.getElementById('f_소재이름').value.trim(),
+    보종:       document.getElementById('f_보종').value,
+    광고유형:   document.getElementById('f_광고유형').value,
+    소재유형:   document.getElementById('f_소재유형').value,
+    소구포인트: document.getElementById('f_소구포인트').value,
+    후킹방식:   document.getElementById('f_후킹방식').value,
+    소구상세:   document.getElementById('f_소구상세').value.trim(),
+    이미지유형: document.getElementById('f_이미지유형').value,
+    모델유형:   document.getElementById('f_모델유형').value,
+    fileData:   fileBase64,
+    fileName:   fileName,
+    mimeType:   fileMime,
+    forceSave:  !!forceSave
+  };
+}
+
+function submitForm(forceSave) {
+  hideMessages();
+  if (!validateForm()) { showError('필수 항목(*)을 모두 입력해 주세요.'); return; }
+
+  setSaving(true);
+  google.script.run
+    .withSuccessHandler(res => {
+      setSaving(false);
+      if (res.duplicate) {
+        if (confirm('이미 등록된 소재입니다. 그래도 등록하시겠습니까?')) submitForm(true);
+        return;
+      }
+      if (res.error) { showError(res.message); return; }
+
+      document.getElementById('displayCode').textContent = res.imageCode;
+      document.getElementById('displayCode').classList.remove('empty');
+      document.getElementById('displayUrl').textContent = res.imageUrl || '(파일 없음)';
+      document.getElementById('displayUrl').classList.remove('empty');
+      showSuccess('등록 완료! 이미지코드: ' + res.imageCode);
+
+      if (isIndexing) { markDetectItemDone(detectIndex - 1); loadNextDetectItem(); }
+      else setTimeout(resetForm, 2000);
+    })
+    .withFailureHandler(err => { setSaving(false); showError('저장 실패: ' + err.message); })
+    .saveCreative(getFormData(forceSave));
+}
+
+function resetForm() {
+  REQUIRED_FIELDS.concat(['f_소구포인트','f_후킹방식','f_이미지유형','f_모델유형','f_소구상세']).forEach(id => {
+    const el = document.getElementById(id);
+    if (el.tagName === 'SELECT') el.selectedIndex = 0;
+    else el.value = '';
+    el.classList.remove('error');
+  });
+  fileBase64 = fileName = fileMime = null;
+  document.getElementById('fileInput').value = '';
+  document.getElementById('previewArea').classList.remove('show');
+  document.getElementById('previewImg').src = '';
+  document.getElementById('previewVideo').src = '';
+  document.getElementById('displayCode').textContent = '저장 시 자동 생성';
+  document.getElementById('displayCode').classList.add('empty');
+  document.getElementById('displayUrl').textContent = '업로드 후 자동 생성';
+  document.getElementById('displayUrl').classList.add('empty');
+  hideMessages();
+}
+
+// ─── 신규 소재 감지 ───────────────────────────────
+function runDetect() {
+  const btn = document.getElementById('btnDetect');
+  const spin = document.getElementById('spinDetect');
+  btn.disabled = true; spin.classList.add('show');
+  google.script.run
+    .withSuccessHandler(res => {
+      btn.disabled = false; spin.classList.remove('show');
+      if (res.error) { showError(res.message); return; }
+      renderDetectPanel(res);
+    })
+    .withFailureHandler(err => {
+      btn.disabled = false; spin.classList.remove('show');
+      showError('감지 실패: ' + err.message);
+    })
+    .detectNewCreatives();
+}
+
+function renderDetectPanel(res) {
+  detectItems = res.items || []; detectIndex = 0; isIndexing = false;
+  document.getElementById('detectCount').textContent = res.count;
+  document.getElementById('detectMsgText').textContent = res.message;
+  document.getElementById('detectPanel').classList.add('show');
+
+  const list = document.getElementById('detectList');
+  list.innerHTML = '';
+  detectItems.forEach((item, i) => {
+    const div = document.createElement('div');
+    div.className = 'detect-item';
+    div.id = 'detect-item-' + i;
+    div.innerHTML = `
+      <div class="detect-item-info">
+        <div class="media">${escHtml(item.매체)}</div>
+        <div class="name">${escHtml(item.캠페인)} / ${escHtml(item.그룹)} / ${escHtml(item.소재이름)}</div>
+      </div>
+      <span class="detect-badge" id="badge-${i}">대기</span>`;
+    list.appendChild(div);
+  });
+  document.getElementById('btnStartIndex').style.display = detectItems.length ? 'flex' : 'none';
+}
+
+function startIndexing() {
+  if (!detectItems.length) return;
+  isIndexing = true; detectIndex = 0;
+  document.getElementById('btnStartIndex').style.display = 'none';
+  loadNextDetectItem();
+}
+
+function loadNextDetectItem() {
+  if (detectIndex >= detectItems.length) {
+    isIndexing = false;
+    showSuccess(`인덱싱 완료! 총 ${detectItems.length}건 등록되었습니다.`);
+    return;
+  }
+  const item = detectItems[detectIndex++];
+  resetForm();
+  setSelectValue('f_매체', item.매체);
+  setTextValue('f_캠페인',   item.캠페인);
+  setTextValue('f_그룹',     item.그룹);
+  setTextValue('f_소재이름', item.소재이름);
+
+  const badge = document.getElementById('badge-' + (detectIndex - 1));
+  if (badge) { badge.textContent = '진행 중'; badge.style.cssText = 'background:#fef3c7;color:#92400e;'; }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  showSuccess(`(${detectIndex}/${detectItems.length}) 나머지 정보를 입력 후 저장하세요.`);
+}
+
+function markDetectItemDone(i) {
+  const item = document.getElementById('detect-item-' + i);
+  const badge = document.getElementById('badge-' + i);
+  if (item) item.classList.add('done');
+  if (badge) { badge.textContent = '완료'; badge.className = 'detect-badge done'; }
+}
+
+// ─── 유틸 ────────────────────────────────────────
+function setSelectValue(id, val) {
+  const el = document.getElementById(id);
+  for (let i = 0; i < el.options.length; i++) {
+    if (el.options[i].value === val) { el.selectedIndex = i; return; }
+  }
+}
+function setTextValue(id, val) { document.getElementById(id).value = val || ''; }
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function setSaving(saving) {
+  document.getElementById('btnSave').disabled = saving;
+  document.getElementById('spinSave').classList.toggle('show', saving);
+  document.getElementById('btnSaveText').textContent = saving ? '저장 중...' : '💾 저장';
+}
+
+function showSuccess(msg) {
+  document.getElementById('msgSuccessText').textContent = msg;
+  document.getElementById('msgSuccess').classList.add('show');
+  document.getElementById('msgError').classList.remove('show');
+}
+function showError(msg) {
+  document.getElementById('msgErrorText').textContent = msg;
+  document.getElementById('msgError').classList.add('show');
+  document.getElementById('msgSuccess').classList.remove('show');
+}
+function hideMessages() {
+  document.getElementById('msgSuccess').classList.remove('show');
+  document.getElementById('msgError').classList.remove('show');
+}
+
+function showSettingsSuccess(msg) {
+  document.getElementById('settingsMsgSuccessText').textContent = msg;
+  document.getElementById('settingsMsgSuccess').classList.add('show');
+  document.getElementById('settingsMsgError').classList.remove('show');
+}
+function showSettingsError(msg) {
+  document.getElementById('settingsMsgErrorText').textContent = msg;
+  document.getElementById('settingsMsgError').classList.add('show');
+  document.getElementById('settingsMsgSuccess').classList.remove('show');
+}
+function hideSettingsMessages() {
+  document.getElementById('settingsMsgSuccess').classList.remove('show');
+  document.getElementById('settingsMsgError').classList.remove('show');
+}
+</script>
+</body>
+</html>
