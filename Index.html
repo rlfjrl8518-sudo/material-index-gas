@@ -569,25 +569,6 @@
   </div>
 </div>
 
-<!-- ════ 이미지 선택 모달 ════ -->
-<div class="modal-overlay" id="imgModalOverlay" onclick="onModalOverlayClick(event)">
-  <div class="modal" id="imgModal">
-    <div class="modal-header">
-      <span class="modal-title">🖼 이미지 선택</span>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <input type="text" class="modal-search" id="imgSearch"
-               placeholder="코드 또는 소재명 검색..." oninput="filterImagePicker()">
-        <button class="btn btn-ghost btn-sm" onclick="closeImageModal()">✕ 닫기</button>
-      </div>
-    </div>
-    <div class="modal-body">
-      <div class="img-picker-grid" id="imgPickerGrid">
-        <div class="modal-empty">불러오는 중...</div>
-      </div>
-    </div>
-  </div>
-</div>
-
 <script>
 // ─── 전역 상태 ───────────────────────────────────
 let fileBase64        = null;
@@ -948,13 +929,38 @@ function toggleCodeMode(useExisting) {
 }
 
 // ─── 이미지 선택 모달 ────────────────────────────
+function ensureModal() {
+  if (document.getElementById('imgModalOverlay')) return;
+  const overlay = document.createElement('div');
+  overlay.id = 'imgModalOverlay';
+  overlay.className = 'modal-overlay';
+  overlay.onclick = onModalOverlayClick;
+  overlay.innerHTML =
+    '<div class="modal" id="imgModal">' +
+      '<div class="modal-header">' +
+        '<span class="modal-title">🖼 이미지 선택</span>' +
+        '<div style="display:flex;align-items:center;gap:10px;">' +
+          '<input type="text" class="modal-search" id="imgSearch" placeholder="코드 또는 소재명 검색..." oninput="filterImagePicker()">' +
+          '<button class="btn btn-ghost btn-sm" onclick="closeImageModal()">✕ 닫기</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="modal-body">' +
+        '<div class="img-picker-grid" id="imgPickerGrid">' +
+          '<div class="modal-empty">불러오는 중...</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+}
+
 function openImageModal() {
+  ensureModal();
   document.getElementById('imgModalOverlay').classList.add('open');
   document.getElementById('imgSearch').value = '';
   if (!imageCodesLoaded) {
     loadExistingCodes();
   } else {
-    filterImagePicker(); // 검색어 초기화 후 전체 표시
+    filterImagePicker();
   }
 }
 
