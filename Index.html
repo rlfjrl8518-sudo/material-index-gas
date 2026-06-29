@@ -916,6 +916,12 @@ function loadExistingCodes() {
     .getImageCodes();
 }
 
+function driveThumbnail(url) {
+  if (!url) return '';
+  const m = url.match(/[?&]id=([^&]+)/);
+  return m ? 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w200' : url;
+}
+
 function renderImagePicker(codes) {
   const grid = document.getElementById('imgPickerGrid');
   if (!codes.length) {
@@ -929,19 +935,33 @@ function renderImagePicker(codes) {
     item.dataset.code = c.code;
     item.onclick = () => selectImageCode(c.code, c.소재이름, item);
 
-    const isVideo = c.imageUrl && (c.imageUrl.includes('video') || !c.imageUrl);
-    if (c.imageUrl && !isVideo) {
-      item.innerHTML = `<img class="img-pick-thumb" src="${c.imageUrl}" loading="lazy"
-        onerror="this.parentNode.querySelector('.img-pick-placeholder') && (this.style.display='none')">`;
+    const isVideo = !c.imageUrl || c.imageUrl.includes('video');
+    const thumbUrl = driveThumbnail(c.imageUrl);
+    if (thumbUrl && !isVideo) {
+      const img = document.createElement('img');
+      img.className = 'img-pick-thumb';
+      img.src = thumbUrl;
+      img.loading = 'lazy';
+      img.onerror = function() {
+        const ph = document.createElement('div');
+        ph.className = 'img-pick-placeholder';
+        ph.textContent = '🖼';
+        this.replaceWith(ph);
+      };
+      item.appendChild(img);
     } else {
-      item.innerHTML = `<div class="img-pick-placeholder">🎬</div>`;
+      const ph = document.createElement('div');
+      ph.className = 'img-pick-placeholder';
+      ph.textContent = isVideo ? '🎬' : '🖼';
+      item.appendChild(ph);
     }
-    item.innerHTML += `
-      <div class="img-pick-info">
-        <div class="img-pick-code">${escHtml(c.code)}</div>
-        <div class="img-pick-name">${escHtml(c.소재이름)}</div>
-        <div class="img-pick-date">${escHtml(c.등록일자)}</div>
-      </div>`;
+    const info = document.createElement('div');
+    info.className = 'img-pick-info';
+    info.innerHTML = `
+      <div class="img-pick-code">${escHtml(c.code)}</div>
+      <div class="img-pick-name">${escHtml(c.소재이름)}</div>
+      <div class="img-pick-date">${escHtml(c.등록일자)}</div>`;
+    item.appendChild(info);
     grid.appendChild(item);
   });
 }
@@ -952,12 +972,35 @@ function selectImageCode(code, name, el) {
   selectedImageCodeValue = code;
   document.getElementById('imgSelectedText').textContent = `${code}  |  ${name}`;
   document.getElementById('imgSelectedBar').classList.add('show');
+  google.script.run
+    .withSuccessHandler(autoFillForm)
+    .withFailureHandler(() => {})
+    .getCreativeByImageCode(code);
 }
 
 function clearImageSelection() {
   selectedImageCodeValue = '';
   document.querySelectorAll('.img-pick-item').forEach(i => i.classList.remove('selected'));
   document.getElementById('imgSelectedBar').classList.remove('show');
+}
+
+function autoFillForm(data) {
+  if (!data) return;
+  document.getElementById('f_매체').value = data.매체;
+  onMediaChange();
+  document.getElementById('f_캠페인').value = data.캠페인;
+  onCampaignChange();
+  document.getElementById('f_그룹').value = data.그룹;
+  onGroupChange();
+  document.getElementById('f_소재이름').value = data.소재이름;
+  document.getElementById('f_보종').value = data.보종;
+  document.getElementById('f_광고유형').value = data.광고유형;
+  document.getElementById('f_소재유형').value = data.소재유형;
+  document.getElementById('f_소구포인트').value = data.소구포인트;
+  document.getElementById('f_후킹방식').value = data.후킹방식;
+  document.getElementById('f_소구상세').value = data.소구상세;
+  document.getElementById('f_이미지유형').value = data.이미지유형;
+  document.getElementById('f_모델유형').value = data.모델유형;
 }
 
 // ─── 파일 업로드 ─────────────────────────────────
