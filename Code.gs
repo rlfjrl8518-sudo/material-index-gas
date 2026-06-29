@@ -12,7 +12,8 @@ const DETECT_SHEET_NAME  = '신규소재감지';
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('Index')
     .setTitle('소재 인덱싱 시스템')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+    .setSandboxMode(HtmlService.SandboxMode.IFRAME);
 }
 
 function getSpreadsheet() {
