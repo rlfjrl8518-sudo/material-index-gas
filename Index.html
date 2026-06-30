@@ -2408,7 +2408,33 @@ function ensureModal() {
 
   var controls = document.createElement('div');
 
-  controls.style.cssText = 'display:flex;align-items:center;gap:10px;';
+  controls.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+
+
+
+  // 보종 필터
+  var filterBoJong = document.createElement('select');
+
+  filterBoJong.id = 'imgFilterBoJong';
+
+  filterBoJong.style.cssText = 'padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;color:#374151;background:#fff;';
+
+  filterBoJong.innerHTML = '<option value="">보종 전체</option>';
+
+  filterBoJong.addEventListener('change', filterImagePicker);
+
+
+
+  // 매체 필터
+  var filterMedia = document.createElement('select');
+
+  filterMedia.id = 'imgFilterMedia';
+
+  filterMedia.style.cssText = 'padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;color:#374151;background:#fff;';
+
+  filterMedia.innerHTML = '<option value="">매체 전체</option>';
+
+  filterMedia.addEventListener('change', filterImagePicker);
 
 
 
@@ -2435,6 +2461,10 @@ function ensureModal() {
   closeBtn.addEventListener('click', closeImageModal);
 
 
+
+  controls.appendChild(filterBoJong);
+
+  controls.appendChild(filterMedia);
 
   controls.appendChild(searchInput);
 
@@ -2541,7 +2571,30 @@ function loadExistingCodes() {
 
       imageCodesLoaded = true;
 
-      renderImagePicker(codes);
+      // 필터 드롭다운 옵션 동적 생성
+      const boJongVals = [...new Set(codes.map(c => c.보종).filter(Boolean))].sort();
+
+      const mediaVals  = [...new Set(codes.map(c => c.매체).filter(Boolean))].sort();
+
+      const bjSel = document.getElementById('imgFilterBoJong');
+
+      const mdSel = document.getElementById('imgFilterMedia');
+
+      if (bjSel) {
+
+        bjSel.innerHTML = '<option value="">보종 전체</option>' +
+          boJongVals.map(v => `<option value="${escHtml(v)}">${escHtml(v)}</option>`).join('');
+
+      }
+
+      if (mdSel) {
+
+        mdSel.innerHTML = '<option value="">매체 전체</option>' +
+          mediaVals.map(v => `<option value="${escHtml(v)}">${escHtml(v)}</option>`).join('');
+
+      }
+
+      filterImagePicker();
 
     })
 
@@ -2559,15 +2612,23 @@ function loadExistingCodes() {
 
 function filterImagePicker() {
 
-  const q = document.getElementById('imgSearch').value.trim().toLowerCase();
+  const q      = document.getElementById('imgSearch').value.trim().toLowerCase();
 
-  const filtered = q
+  const boJong = document.getElementById('imgFilterBoJong')?.value || '';
 
-    ? allImageCodes.filter(c =>
+  const media  = document.getElementById('imgFilterMedia')?.value  || '';
 
-        c.code.toLowerCase().includes(q) || c.소재이름.toLowerCase().includes(q))
+  const filtered = allImageCodes.filter(c => {
 
-    : allImageCodes;
+    if (boJong && c.보종  !== boJong) return false;
+
+    if (media  && c.매체  !== media)  return false;
+
+    if (q && !c.code.toLowerCase().includes(q) && !c.소재이름.toLowerCase().includes(q)) return false;
+
+    return true;
+
+  });
 
   renderImagePicker(filtered);
 
@@ -2669,11 +2730,15 @@ function renderImagePicker(codes) {
 
     info.className = 'img-pick-info';
 
+    const tags = [c.보종, c.소재유형].filter(Boolean).map(t => `<span style="background:#eff2ff;color:#4f6ef7;border-radius:4px;padding:1px 5px;font-size:10px;">${escHtml(t)}</span>`).join(' ');
+
     info.innerHTML = '<div class="img-pick-code">' + escHtml(c.code) + '</div>'
 
       + '<div class="img-pick-name">' + escHtml(c.소재이름) + '</div>'
 
-      + '<div class="img-pick-date">' + escHtml(c.등록일자) + '</div>';
+      + (tags ? '<div style="margin-top:3px;display:flex;gap:3px;flex-wrap:wrap;">' + tags + '</div>' : '')
+
+      + '<div class="img-pick-date">' + escHtml(c.매체) + ' · ' + escHtml(c.등록일자) + '</div>';
 
     item.appendChild(info);
 
