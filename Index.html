@@ -168,6 +168,28 @@
 
   }
 
+  .preview-area iframe {
+
+    width: 100%; aspect-ratio: 16/9; border-radius: 6px;
+
+    border: 1px solid #e5e7eb; background: #000;
+
+  }
+
+  .preview-video-ph {
+
+    width: 100%; padding: 28px 16px; border-radius: 6px;
+
+    border: 1px solid #e5e7eb; background: #f9fafb;
+
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+
+    font-size: 12px; color: #6b7280; text-align: center;
+
+  }
+
+  .preview-video-ph .vid-icon { font-size: 28px; }
+
   .preview-name { margin-top: 5px; font-size: 11px; color: #6b7280; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
 
@@ -2743,8 +2765,10 @@ function autoFillForm(data) {
 
     if (isVid) {
 
-      // Drive preview URL (/preview) → iframe으로 재생
-      iframe.src = existingImageUrl;
+      // fileId 추출 후 /preview URL로 정규화 (구 uc?export=view URL도 변환)
+      const fileId = (existingImageUrl.match(/\/d\/([^/?]+)/) || existingImageUrl.match(/[?&]id=([^&]+)/) || [])[1];
+
+      iframe.src = fileId ? 'https://drive.google.com/file/d/' + fileId + '/preview' : existingImageUrl;
 
       iframe.style.display = 'block';
 
@@ -2820,29 +2844,53 @@ async function handleFile(file) {
 
   document.getElementById('previewArea').classList.add('show');
 
-  document.getElementById('previewName').textContent = file.name;
-
   if (file.type.startsWith('image/')) {
 
-    // 이미지: ObjectURL로 즉시 표시 (GAS CSP img-src blob: 허용)
+    // 이미지: ObjectURL로 즉시 표시
     if (window._previewObjectUrl) URL.revokeObjectURL(window._previewObjectUrl);
 
     const objectUrl = URL.createObjectURL(file);
 
     window._previewObjectUrl = objectUrl;
 
-    img.src = objectUrl; img.style.display = 'block'; vid.style.display = 'none';
+    img.src = objectUrl; img.style.display = 'block';
+
+    vid.style.display = 'none';
+
+    document.getElementById('previewIframe').style.display = 'none';
+
+    const ph = document.getElementById('previewVideoPh');
+
+    if (ph) ph.style.display = 'none';
+
+    document.getElementById('previewName').textContent = file.name;
 
   } else {
 
-    // 동영상: FileReader data URL 사용 (GAS CSP media-src blob: 차단됨)
-    img.style.display = 'none'; vid.style.display = 'block';
+    // 동영상: GAS CSP가 blob/data URL을 차단 → 파일명 placeholder 표시
+    img.style.display = 'none'; vid.style.display = 'none';
 
-    const reader = new FileReader();
+    document.getElementById('previewIframe').style.display = 'none';
 
-    reader.onload = ev => { vid.src = ev.target.result; };
+    let ph = document.getElementById('previewVideoPh');
 
-    reader.readAsDataURL(file);
+    if (!ph) {
+
+      ph = document.createElement('div');
+
+      ph.id = 'previewVideoPh';
+
+      ph.className = 'preview-video-ph';
+
+      document.getElementById('previewArea').insertBefore(ph, document.getElementById('previewName'));
+
+    }
+
+    ph.style.display = 'flex';
+
+    ph.innerHTML = '<span class="vid-icon">▶</span><span>' + escHtml(file.name) + '</span><span style="font-size:11px;color:#9ca3af;">업로드 후 Drive에서 재생 가능</span>';
+
+    document.getElementById('previewName').textContent = '';
 
   }
 
@@ -3094,6 +3142,10 @@ function resetForm() {
   document.getElementById('previewIframe').src = '';
 
   document.getElementById('previewIframe').style.display = 'none';
+
+  const ph = document.getElementById('previewVideoPh');
+
+  if (ph) ph.style.display = 'none';
 
   document.getElementById('displayCode').textContent = '저장 시 자동 생성';
 
