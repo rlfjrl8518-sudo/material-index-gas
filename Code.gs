@@ -437,6 +437,67 @@ function _generateDGPMCode(매체, sheet) {
 }
 
 // --------------------------------------------------
+// 소재_마스터 기존 DG/PM 소재 → DG_PM_광고단위 재구성
+// 소재_마스터의 DG/PM 행을 (매체,캠페인,그룹,소재이름) 기준으로 그룹핑하여
+// DG_PM_광고단위 시트를 완전히 재작성
+// --------------------------------------------------
+function rebuildDGPMUnits() {
+  try {
+    const ss = getSpreadsheet();
+    const masterSheet = ss.getSheetByName(MASTER_SHEET_NAME);
+    if (!masterSheet || masterSheet.getLastRow() < 2)
+      return { success: true, count: 0, message: '소재_마스터에 데이터가 없습니다.' };
+
+    // 소재_마스터 전체 읽기 (이미지코드, 등록일자, 매체, 캠페인, 그룹, 소재이름)
+    const data = masterSheet.getRange(2, 1, masterSheet.getLastRow() - 1, 6).getValues();
+
+    // DG/PM 행만 필터, 등록일자 오름차순 유지
+    const dgpmRows = data.filter(r => DGPM_MEDIA.includes(String(r[2])));
+
+    // (매체, 캠페인, 그룹, 소재이름) 기준으로 그룹핑 (등록 순서 유지)
+    const orderMap = [];   // 삽입 순서 키 목록
+    const groupMap = {};   // key → { 매체, 캠페인, 그룹, 소재이름, codes[], firstDate }
+
+    dgpmRows.forEach(r => {
+      const [imgCode, regDate, 매체, 캠페인, 그룹, 소재이름] = r;
+      const key = [매체, 캠페인, 그룹, 소재이름].join('\x00');
+      if (!groupMap[key]) {
+        groupMap[key] = { 매체, 캠페인, 그룹, 소재이름, codes: [], firstDate: regDate };
+        orderMap.push(key);
+      }
+      if (imgCode && !groupMap[key].codes.includes(String(imgCode)))
+        groupMap[key].codes.push(String(imgCode));
+    });
+
+    // DG_PM_광고단위 시트 초기화 후 재작성
+    let dgpmSheet = ss.getSheetByName(DGPM_SHEET_NAME);
+    if (!dgpmSheet) {
+      dgpmSheet = ss.insertSheet(DGPM_SHEET_NAME);
+    } else {
+      dgpmSheet.clearContents();
+    }
+    const headers = ['광고단위코드', '매체', '캠페인', '그룹', '소재이름', '이미지코드목록', '등록일시', '최근수정일시'];
+    dgpmSheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+    dgpmSheet.setFrozenRows(1);
+
+    if (!orderMap.length) return { success: true, count: 0, message: 'DG/PM 소재가 없습니다.' };
+
+    const now = new Date();
+    const rows = orderMap.map(key => {
+      const g = groupMap[key];
+      const unitCode = _generateDGPMCode(g.매체, dgpmSheet);
+      // 코드 생성 후 시트에 임시 기록 (다음 generateDGPMCode가 중복 피하도록)
+      dgpmSheet.appendRow([unitCode, g.매체, g.캠페인, g.그룹, g.소재이름,
+        g.codes.join(','), g.firstDate || now, now]);
+    });
+
+    return { success: true, count: orderMap.length, message: `광고단위 ${orderMap.length}개 재구성 완료` };
+  } catch (e) {
+    return { error: true, message: e.message };
+  }
+}
+
+// --------------------------------------------------
 // DG/PM 광고단위 목록 반환 (분석/조회용)
 // --------------------------------------------------
 function getDGPMList(매체필터) {
