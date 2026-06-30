@@ -324,12 +324,55 @@ function uploadImageToDrive(base64Data, fileName, mimeType) {
 }
 
 // --------------------------------------------------
-// 소재 저장
+// 소재_마스터에서 같은 (이미지코드 + 매체/캠페인/그룹/소재이름) 행 찾기
+// 반환: 시트 행번호(1-based), 없으면 -1
+// --------------------------------------------------
+function _findMasterRowToUpdate(imageCode, 매체, 캠페인, 그룹, 소재이름) {
+  if (!imageCode) return -1;
+  const ss = getSpreadsheet();
+  const sheet = ss.getSheetByName(MASTER_SHEET_NAME);
+  if (!sheet || sheet.getLastRow() < 2) return -1;
+
+  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 6).getValues();
+  for (let i = 0; i < data.length; i++) {
+    const [code, , m, c, g, n] = data[i];
+    if (String(code) === imageCode && m === 매체 && c === 캠페인 && g === 그룹 && n === 소재이름)
+      return i + 2; // 헤더(1행) + 데이터 오프셋
+  }
+  return -1;
+}
+
+// --------------------------------------------------
+// 소재_마스터 기존 행 덮어쓰기 (이미지코드·등록일자 유지)
+// --------------------------------------------------
+function _updateMasterRow(rowIndex, data, imageCode, imageUrl) {
+  const ss = getSpreadsheet();
+  const sheet = ss.getSheetByName(MASTER_SHEET_NAME);
+  // 등록일자는 최초 등록일 유지, 수정일자 별도 컬럼 없으므로 그대로 둠
+  const origDate = sheet.getRange(rowIndex, 2).getValue();
+  const dateStr  = origDate
+    ? Utilities.formatDate(new Date(origDate), Session.getScriptTimeZone(), 'yyyy-MM-dd')
+    : Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+  sheet.getRange(rowIndex, 1, 1, 16).setValues([[
+    imageCode, dateStr, data.매체, data.캠페인, data.그룹, data.소재이름,
+    data.보종, data.광고유형, data.소재유형, data.소구포인트,
+    data.후킹방식, data.소구상세, data.이미지유형, data.모델유형,
+    imageUrl, data.fileHash || ''
+  ]]);
+}
+
+// --------------------------------------------------
+// 소재 저장 (수정 판단 포함)
+//
+// UPDATE 조건: 같은 이미지코드 + 같은 (매체, 캠페인, 그룹, 소재이름)
+//   → 속성(유형·소구 등)만 바꾼 수정으로 판단, 기존 행 덮어씀
+//
+// INSERT 조건: 위 조건 불일치 (새 이미지 or 같은 이미지를 다른 지면에 등록)
 // --------------------------------------------------
 function saveCreative(data) {
   try {
-    if (!data.forceSave && checkDuplicate(data.매체, data.캠페인, data.그룹, data.소재이름))
-      return { duplicate: true };
+    const isDGPM = DGPM_MEDIA.includes(data.매체);
 
     // 이미지코드 결정 우선순위:
     // 1) 사용자가 직접 선택한 코드
@@ -358,6 +401,21 @@ function saveCreative(data) {
       imageUrl = data.existingImageUrl;
     }
 
+    // ── UPDATE 판단 ──
+    // 같은 이미지코드 + 같은 (매체, 캠페인, 그룹, 소재이름) 행이 있으면 수정
+    const updateRow = _findMasterRowToUpdate(imageCode, data.매체, data.캠페인, data.그룹, data.소재이름);
+    if (updateRow !== -1) {
+      _updateMasterRow(updateRow, data, imageCode, imageUrl);
+      let 광고단위코드 = null;
+      if (isDGPM) 광고단위코드 = _updateDGPMUnit(data, imageCode);
+      return { success: true, imageCode, imageUrl, reused, updated: true, 광고단위코드 };
+    }
+
+    // ── INSERT 판단 ──
+    // 비DG/PM: 같은 (매체, 캠페인, 그룹, 소재이름)에 다른 이미지 존재 → 중복 경고
+    if (!isDGPM && !data.forceSave && checkDuplicate(data.매체, data.캠페인, data.그룹, data.소재이름))
+      return { duplicate: true };
+
     const ss = getSpreadsheet();
     let sheet = ss.getSheetByName(MASTER_SHEET_NAME);
     if (!sheet) {
@@ -376,13 +434,10 @@ function saveCreative(data) {
       imageUrl, data.fileHash || ''
     ]);
 
-    // DG/PM: 광고단위 시트에 자동 등록/업데이트
     let 광고단위코드 = null;
-    if (DGPM_MEDIA.includes(data.매체)) {
-      광고단위코드 = _updateDGPMUnit(data, imageCode);
-    }
+    if (isDGPM) 광고단위코드 = _updateDGPMUnit(data, imageCode);
 
-    return { success: true, imageCode, imageUrl, reused, 광고단위코드 };
+    return { success: true, imageCode, imageUrl, reused, updated: false, 광고단위코드 };
   } catch (e) {
     return { error: true, message: e.message };
   }

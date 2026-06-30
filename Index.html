@@ -2903,11 +2903,13 @@ function submitForm(forceSave) {
 
       document.getElementById('displayUrl').classList.remove('empty');
 
-      const reuseMsg = res.reused ? ' (동일 이미지 - 기존 코드 재사용)' : '';
+      const reuseMsg = res.reused ? ' (기존 코드 재사용)' : '';
 
       const unitMsg = res.광고단위코드 ? ' | 광고단위: ' + res.광고단위코드 : '';
 
-      showSuccess('등록 완료! 이미지코드: ' + res.imageCode + unitMsg + reuseMsg);
+      const action = res.updated ? '수정 완료' : '등록 완료';
+
+      showSuccess(action + '! 이미지코드: ' + res.imageCode + unitMsg + reuseMsg);
 
       if (isIndexing) { markDetectItemDone(detectIndex - 1); loadNextDetectItem(); }
 
