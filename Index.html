@@ -2505,15 +2505,7 @@ function openImageModal() {
 
   document.getElementById('imgSearch').value = '';
 
-  if (!imageCodesLoaded) {
-
-    loadExistingCodes();
-
-  } else {
-
-    filterImagePicker();
-
-  }
+  loadExistingCodes(); // 항상 새로 읽기 (시트 수정 반영)
 
 }
 
