@@ -1078,6 +1078,24 @@
 
     </div>
 
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+
+      <div style="font-size:12px;color:#6b7280;">
+
+        📋 생성된 시트: 소재_마스터 / 설정 / 매체_계층 / 매체_RAW / 신규소재감지 / <strong>디멘드젠_마스터</strong> / <strong>피맥스_마스터</strong>
+
+      </div>
+
+      <button class="btn btn-ghost btn-sm" id="btnInitSheets" onclick="runInitSheets()">
+
+        <div class="spinner" id="spinInitSheets"></div>
+
+        <span id="btnInitSheetsText">🗂 시트 초기화</span>
+
+      </button>
+
+    </div>
+
 
 
     <!-- -- 매체 계층 -- -->
@@ -1560,6 +1578,8 @@ function switchTab(tab, btn) {
 // --- 초기화 --------------------------------------
 
 document.addEventListener('DOMContentLoaded', () => {
+
+  google.script.run.initializeSheets(); // 시트 없으면 자동 생성
 
   loadSettings();
 
@@ -3156,6 +3176,44 @@ function hideSettingsMessages() {
   document.getElementById('settingsMsgSuccess').classList.remove('show');
 
   document.getElementById('settingsMsgError').classList.remove('show');
+
+}
+
+function runInitSheets() {
+
+  document.getElementById('btnInitSheets').disabled = true;
+
+  document.getElementById('spinInitSheets').classList.add('show');
+
+  document.getElementById('btnInitSheetsText').textContent = '초기화 중...';
+
+  google.script.run
+
+    .withSuccessHandler(function(res) {
+
+      document.getElementById('btnInitSheets').disabled = false;
+
+      document.getElementById('spinInitSheets').classList.remove('show');
+
+      document.getElementById('btnInitSheetsText').textContent = '🗂 시트 초기화';
+
+      showSettingsSuccess(res.message || '시트 초기화 완료!');
+
+    })
+
+    .withFailureHandler(function(e) {
+
+      document.getElementById('btnInitSheets').disabled = false;
+
+      document.getElementById('spinInitSheets').classList.remove('show');
+
+      document.getElementById('btnInitSheetsText').textContent = '🗂 시트 초기화';
+
+      showSettingsError('초기화 실패: ' + e.message);
+
+    })
+
+    .initializeSheets();
 
 }
 
