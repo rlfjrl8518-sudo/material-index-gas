@@ -13,6 +13,15 @@ const DGPM_SHEET_NAME    = 'DG_PM_광고단위';
 // 광고 단위에 여러 이미지가 포함되는 매체 (1:N 구조)
 const DGPM_MEDIA = ['디멘드젠', '피맥스'];
 
+// DG_PM_광고단위 시트 헤더 (순서 고정)
+const DGPM_HEADERS = [
+  '광고단위코드', '매체', '캠페인', '그룹', '소재이름',
+  '보종', '소재유형', '소구포인트', '후킹방식', '소구상세',
+  '이미지유형목록', '모델유형목록',
+  '이미지수', '이미지코드목록',
+  '등록일시', '최근수정일시'
+];
+
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('Index')
     .setTitle('소재 인덱싱 시스템')
@@ -72,8 +81,7 @@ function initializeSheets() {
   // DG_PM_광고단위 시트
   if (!ss.getSheetByName(DGPM_SHEET_NAME)) {
     const dgpmSheet = ss.insertSheet(DGPM_SHEET_NAME);
-    const dgpmHeaders = ['광고단위코드', '매체', '캠페인', '그룹', '소재이름', '이미지코드목록', '등록일시', '최근수정일시'];
-    dgpmSheet.getRange(1, 1, 1, dgpmHeaders.length).setValues([dgpmHeaders]).setFontWeight('bold');
+    dgpmSheet.getRange(1, 1, 1, DGPM_HEADERS.length).setValues([DGPM_HEADERS]).setFontWeight('bold');
     dgpmSheet.setFrozenRows(1);
   }
 
@@ -385,38 +393,77 @@ function saveCreative(data) {
 // 동일 (매체, 캠페인, 그룹, 소재이름)이면 이미지코드목록에 추가,
 // 없으면 새 광고단위 행 생성. 광고단위코드 반환.
 // --------------------------------------------------
+// C = 열 인덱스 (0-based), DGPM_HEADERS 순서와 동기화
+const DGPM_COL = {};
+DGPM_HEADERS.forEach((h, i) => { DGPM_COL[h] = i; });
+
 function _updateDGPMUnit(data, imageCode) {
   const ss = getSpreadsheet();
   let sheet = ss.getSheetByName(DGPM_SHEET_NAME);
   if (!sheet) {
     sheet = ss.insertSheet(DGPM_SHEET_NAME);
-    const headers = ['광고단위코드', '매체', '캠페인', '그룹', '소재이름', '이미지코드목록', '등록일시', '최근수정일시'];
-    sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+    sheet.getRange(1, 1, 1, DGPM_HEADERS.length).setValues([DGPM_HEADERS]).setFontWeight('bold');
     sheet.setFrozenRows(1);
   }
 
   const now = new Date();
+  const totalCols = DGPM_HEADERS.length;
+
   if (sheet.getLastRow() >= 2) {
-    const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 6).getValues();
+    const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, totalCols).getValues();
     for (let i = 0; i < rows.length; i++) {
-      const [code, 매체, 캠페인, 그룹, 소재이름, 이미지목록] = rows[i];
-      if (매체 === data.매체 && 캠페인 === data.캠페인 && 그룹 === data.그룹 && 소재이름 === data.소재이름) {
-        // 기존 광고단위 → 이미지코드 추가
-        const codes = 이미지목록 ? String(이미지목록).split(',').map(s => s.trim()).filter(Boolean) : [];
-        if (!codes.includes(imageCode)) {
-          codes.push(imageCode);
-          sheet.getRange(i + 2, 6).setValue(codes.join(','));
-          sheet.getRange(i + 2, 8).setValue(now);
-        }
-        return String(code);
+      const row = rows[i];
+      if (row[DGPM_COL['매체']]    === data.매체    &&
+          row[DGPM_COL['캠페인']]  === data.캠페인  &&
+          row[DGPM_COL['그룹']]    === data.그룹    &&
+          row[DGPM_COL['소재이름']] === data.소재이름) {
+
+        // 이미지코드 추가
+        const codes = _splitList(row[DGPM_COL['이미지코드목록']]);
+        if (!codes.includes(imageCode)) codes.push(imageCode);
+
+        // 이미지유형, 모델유형 목록 갱신 (새 이미지 값 추가)
+        const imgTypes  = _splitList(row[DGPM_COL['이미지유형목록']]);
+        const modelTypes = _splitList(row[DGPM_COL['모델유형목록']]);
+        if (data.이미지유형 && !imgTypes.includes(data.이미지유형))   imgTypes.push(data.이미지유형);
+        if (data.모델유형   && !modelTypes.includes(data.모델유형))   modelTypes.push(data.모델유형);
+
+        const rowNum = i + 2;
+        sheet.getRange(rowNum, DGPM_COL['이미지유형목록'] + 1).setValue(imgTypes.join(','));
+        sheet.getRange(rowNum, DGPM_COL['모델유형목록']   + 1).setValue(modelTypes.join(','));
+        sheet.getRange(rowNum, DGPM_COL['이미지수']       + 1).setValue(codes.length);
+        sheet.getRange(rowNum, DGPM_COL['이미지코드목록'] + 1).setValue(codes.join(','));
+        sheet.getRange(rowNum, DGPM_COL['최근수정일시']   + 1).setValue(now);
+        return String(row[DGPM_COL['광고단위코드']]);
       }
     }
   }
 
-  // 신규 광고단위 생성
+  // 신규 광고단위 생성 — 공통 속성은 첫 이미지 기준
   const unitCode = _generateDGPMCode(data.매체, sheet);
-  sheet.appendRow([unitCode, data.매체, data.캠페인, data.그룹, data.소재이름, imageCode, now, now]);
+  const newRow = new Array(totalCols).fill('');
+  newRow[DGPM_COL['광고단위코드']]   = unitCode;
+  newRow[DGPM_COL['매체']]           = data.매체;
+  newRow[DGPM_COL['캠페인']]         = data.캠페인;
+  newRow[DGPM_COL['그룹']]           = data.그룹;
+  newRow[DGPM_COL['소재이름']]       = data.소재이름;
+  newRow[DGPM_COL['보종']]           = data.보종        || '';
+  newRow[DGPM_COL['소재유형']]       = data.소재유형    || '';
+  newRow[DGPM_COL['소구포인트']]     = data.소구포인트  || '';
+  newRow[DGPM_COL['후킹방식']]       = data.후킹방식    || '';
+  newRow[DGPM_COL['소구상세']]       = data.소구상세    || '';
+  newRow[DGPM_COL['이미지유형목록']] = data.이미지유형  || '';
+  newRow[DGPM_COL['모델유형목록']]   = data.모델유형    || '';
+  newRow[DGPM_COL['이미지수']]       = 1;
+  newRow[DGPM_COL['이미지코드목록']] = imageCode;
+  newRow[DGPM_COL['등록일시']]       = now;
+  newRow[DGPM_COL['최근수정일시']]   = now;
+  sheet.appendRow(newRow);
   return unitCode;
+}
+
+function _splitList(val) {
+  return val ? String(val).split(',').map(s => s.trim()).filter(Boolean) : [];
 }
 
 function _generateDGPMCode(매체, sheet) {
@@ -448,25 +495,47 @@ function rebuildDGPMUnits() {
     if (!masterSheet || masterSheet.getLastRow() < 2)
       return { success: true, count: 0, message: '소재_마스터에 데이터가 없습니다.' };
 
-    // 소재_마스터 전체 읽기 (이미지코드, 등록일자, 매체, 캠페인, 그룹, 소재이름)
-    const data = masterSheet.getRange(2, 1, masterSheet.getLastRow() - 1, 6).getValues();
+    // 소재_마스터 전체 읽기 (모든 열)
+    // 열: 0=이미지코드, 1=등록일자, 2=매체, 3=캠페인, 4=그룹, 5=소재이름,
+    //     6=보종, 7=광고유형, 8=소재유형, 9=소구포인트, 10=후킹방식,
+    //     11=소구상세, 12=이미지유형, 13=모델유형, 14=이미지URL, 15=파일해시
+    const data = masterSheet.getRange(2, 1, masterSheet.getLastRow() - 1, 16).getValues();
 
-    // DG/PM 행만 필터, 등록일자 오름차순 유지
+    // DG/PM 행만 필터
     const dgpmRows = data.filter(r => DGPM_MEDIA.includes(String(r[2])));
 
-    // (매체, 캠페인, 그룹, 소재이름) 기준으로 그룹핑 (등록 순서 유지)
-    const orderMap = [];   // 삽입 순서 키 목록
-    const groupMap = {};   // key → { 매체, 캠페인, 그룹, 소재이름, codes[], firstDate }
+    // (매체, 캠페인, 그룹, 소재이름) 기준 그룹핑
+    const orderMap = [];
+    const groupMap = {};
 
     dgpmRows.forEach(r => {
-      const [imgCode, regDate, 매체, 캠페인, 그룹, 소재이름] = r;
+      const [imgCode, regDate, 매체, 캠페인, 그룹, 소재이름,
+             보종, , 소재유형, 소구포인트, 후킹방식, 소구상세, 이미지유형, 모델유형] = r;
       const key = [매체, 캠페인, 그룹, 소재이름].join('\x00');
+
       if (!groupMap[key]) {
-        groupMap[key] = { 매체, 캠페인, 그룹, 소재이름, codes: [], firstDate: regDate };
+        groupMap[key] = {
+          매체, 캠페인, 그룹, 소재이름,
+          // 공통 속성: 첫 번째 이미지 기준
+          보종: String(보종 || ''),
+          소재유형: String(소재유형 || ''),
+          소구포인트: String(소구포인트 || ''),
+          후킹방식: String(후킹방식 || ''),
+          소구상세: String(소구상세 || ''),
+          // 이미지별 속성: 고유값 수집
+          imgTypes: [],
+          modelTypes: [],
+          codes: [],
+          firstDate: regDate
+        };
         orderMap.push(key);
       }
-      if (imgCode && !groupMap[key].codes.includes(String(imgCode)))
-        groupMap[key].codes.push(String(imgCode));
+      const g = groupMap[key];
+      if (imgCode && !g.codes.includes(String(imgCode))) g.codes.push(String(imgCode));
+      const it = String(이미지유형 || '');
+      const mt = String(모델유형   || '');
+      if (it && !g.imgTypes.includes(it))   g.imgTypes.push(it);
+      if (mt && !g.modelTypes.includes(mt)) g.modelTypes.push(mt);
     });
 
     // DG_PM_광고단위 시트 초기화 후 재작성
@@ -476,22 +545,36 @@ function rebuildDGPMUnits() {
     } else {
       dgpmSheet.clearContents();
     }
-    const headers = ['광고단위코드', '매체', '캠페인', '그룹', '소재이름', '이미지코드목록', '등록일시', '최근수정일시'];
-    dgpmSheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+    dgpmSheet.getRange(1, 1, 1, DGPM_HEADERS.length).setValues([DGPM_HEADERS]).setFontWeight('bold');
     dgpmSheet.setFrozenRows(1);
 
     if (!orderMap.length) return { success: true, count: 0, message: 'DG/PM 소재가 없습니다.' };
 
     const now = new Date();
-    const rows = orderMap.map(key => {
+    orderMap.forEach(key => {
       const g = groupMap[key];
       const unitCode = _generateDGPMCode(g.매체, dgpmSheet);
-      // 코드 생성 후 시트에 임시 기록 (다음 generateDGPMCode가 중복 피하도록)
-      dgpmSheet.appendRow([unitCode, g.매체, g.캠페인, g.그룹, g.소재이름,
-        g.codes.join(','), g.firstDate || now, now]);
+      const newRow = new Array(DGPM_HEADERS.length).fill('');
+      newRow[DGPM_COL['광고단위코드']]   = unitCode;
+      newRow[DGPM_COL['매체']]           = g.매체;
+      newRow[DGPM_COL['캠페인']]         = g.캠페인;
+      newRow[DGPM_COL['그룹']]           = g.그룹;
+      newRow[DGPM_COL['소재이름']]       = g.소재이름;
+      newRow[DGPM_COL['보종']]           = g.보종;
+      newRow[DGPM_COL['소재유형']]       = g.소재유형;
+      newRow[DGPM_COL['소구포인트']]     = g.소구포인트;
+      newRow[DGPM_COL['후킹방식']]       = g.후킹방식;
+      newRow[DGPM_COL['소구상세']]       = g.소구상세;
+      newRow[DGPM_COL['이미지유형목록']] = g.imgTypes.join(',');
+      newRow[DGPM_COL['모델유형목록']]   = g.modelTypes.join(',');
+      newRow[DGPM_COL['이미지수']]       = g.codes.length;
+      newRow[DGPM_COL['이미지코드목록']] = g.codes.join(',');
+      newRow[DGPM_COL['등록일시']]       = g.firstDate || now;
+      newRow[DGPM_COL['최근수정일시']]   = now;
+      dgpmSheet.appendRow(newRow);
     });
 
-    return { success: true, count: orderMap.length, message: `광고단위 ${orderMap.length}개 재구성 완료` };
+    return { success: true, count: orderMap.length, message: `광고단위 ${orderMap.length}개 재구성 완료 (소재 속성 포함)` };
   } catch (e) {
     return { error: true, message: e.message };
   }
