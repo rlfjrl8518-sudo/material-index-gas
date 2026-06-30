@@ -857,22 +857,3 @@ function detectNewCreatives() {
   }
 }
 
-
-// --------------------------------------------------
-// 시트 연결 상태 확인 (테스트용 — 확인 후 삭제 가능)
-// --------------------------------------------------
-function testSheetNames() {
-  const ss = getSpreadsheet();
-  const targets = [
-    MASTER_SHEET_NAME,
-    HIERARCHY_SHEET_NAME,
-    DGPM_SHEET_NAME,
-    SETTINGS_SHEET_NAME
-  ];
-  const results = targets.map(name => ({
-    시트명: name,
-    존재여부: ss.getSheetByName(name) ? '✅ 연결됨' : '❌ 없음'
-  }));
-  Logger.log(JSON.stringify(results, null, 2));
-  return results;
-}
