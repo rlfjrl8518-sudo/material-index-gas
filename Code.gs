@@ -668,6 +668,39 @@ function rebuildDGPMUnits() {
 }
 
 // --------------------------------------------------
+// 기존 영상 URL 일괄 변환
+// uc?export=view → /file/d/ID/preview (VID 코드 행만)
+// --------------------------------------------------
+function migrateVideoUrls() {
+  try {
+    const ss = getSpreadsheet();
+    const sheet = ss.getSheetByName(MASTER_SHEET_NAME);
+    if (!sheet || sheet.getLastRow() < 2) return { success: true, message: '변환할 데이터 없음' };
+
+    const lastRow = sheet.getLastRow();
+    const codes = sheet.getRange(2, 1,  lastRow - 1, 1).getValues();
+    const urls  = sheet.getRange(2, 15, lastRow - 1, 1).getValues();
+    let updated = 0;
+
+    for (let i = 0; i < codes.length; i++) {
+      const code = String(codes[i][0] || '');
+      const url  = String(urls[i][0]  || '');
+      if (!code.startsWith('VID')) continue;          // VID 코드만
+      if (url.includes('/file/d/'))  continue;         // 이미 /preview 형식
+      const m = url.match(/[?&]id=([^&]+)/);
+      if (!m) continue;
+      sheet.getRange(i + 2, 15).setValue(
+        'https://drive.google.com/file/d/' + m[1] + '/preview'
+      );
+      updated++;
+    }
+    return { success: true, message: updated + '개 영상 URL 변환 완료' };
+  } catch (e) {
+    return { error: true, message: e.message };
+  }
+}
+
+// --------------------------------------------------
 // DG/PM 광고단위 목록 반환 (분석/조회용)
 // --------------------------------------------------
 function getDGPMList(매체필터) {

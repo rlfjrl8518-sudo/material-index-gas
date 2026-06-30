@@ -1204,6 +1204,22 @@
           </button>
         </div>
       </div>
+
+      <div class="card" style="margin-top:14px;">
+        <div class="card-header">영상 URL 일괄 변환</div>
+        <div class="card-body">
+          <p style="font-size:12px;color:#6b7280;margin-bottom:12px;">
+            기존 등록된 영상(VID)의 URL을 Drive 재생 가능한 형식으로 일괄 변환합니다.<br>
+            최초 1회 실행하면 됩니다.
+          </p>
+          <div id="migrateMsg" class="msg" style="margin-bottom:10px;"></div>
+          <button class="btn btn-secondary" id="btnMigrateVideo" onclick="runMigrateVideoUrls()">
+            <div class="spinner" id="spinMigrate"></div>
+            <span id="btnMigrateText">🎬 영상 URL 변환 실행</span>
+          </button>
+        </div>
+      </div>
+      </div>
     </div>
 
   </div>
@@ -1810,6 +1826,30 @@ function runRebuildDGPM() {
       msg.className = 'msg msg-error show'; msg.innerHTML = '❌ 실패: ' + e.message;
     })
     .rebuildDGPMUnits();
+}
+
+function runMigrateVideoUrls() {
+  const btn  = document.getElementById('btnMigrateVideo');
+  const spin = document.getElementById('spinMigrate');
+  const txt  = document.getElementById('btnMigrateText');
+  const msg  = document.getElementById('migrateMsg');
+
+  btn.disabled = true; spin.classList.add('show'); txt.textContent = '변환 중...'; msg.className = 'msg';
+
+  google.script.run
+    .withSuccessHandler(res => {
+      btn.disabled = false; spin.classList.remove('show'); txt.textContent = '🎬 영상 URL 변환 실행';
+      if (res.error) {
+        msg.className = 'msg msg-error show'; msg.innerHTML = '❌ ' + res.message;
+      } else {
+        msg.className = 'msg msg-success show'; msg.innerHTML = '✅ ' + res.message;
+      }
+    })
+    .withFailureHandler(e => {
+      btn.disabled = false; spin.classList.remove('show'); txt.textContent = '🎬 영상 URL 변환 실행';
+      msg.className = 'msg msg-error show'; msg.innerHTML = '❌ 실패: ' + e.message;
+    })
+    .migrateVideoUrls();
 }
 
 function setSavingSettings(saving) {
