@@ -3068,22 +3068,38 @@ async function submitForm(forceSave) {
 
     const data = getFormData(forceSave);
 
-    // 새 파일이 있으면 Drive에 직접 업로드
+    // 새 파일이 있으면: 해시 체크 먼저 → 기존 파일이면 업로드 스킵
     if (window._pendingFile) {
 
-      setSavingLabel('업로드 중...');
+      setSavingLabel('확인 중...');
 
-      const { token, folderId } = await gasRun('getUploadToken');
+      const existingByHash = fileHash ? await gasRun('checkExistingImage', fileHash) : null;
 
-      const fileId = await uploadToDriveDirect(window._pendingFile, token, folderId);
+      if (existingByHash) {
 
-      data.directUploadUrl = await gasRun('setFilePublic', fileId);
+        // 동일 파일 이미 등록됨 → Drive 업로드 스킵, 기존 URL 재사용
+        data.existingImageUrl = existingByHash.imageUrl;
 
-      data.mimeType = window._pendingFile.type; // 코드 생성에 필요
+        data.mimeType = window._pendingFile.type;
 
-      // 직접 업로드 완료 → fileData는 전송하지 않음
+        delete data.fileData;
 
-      delete data.fileData;
+      } else {
+
+        // 신규 파일 → Drive 직접 업로드
+        setSavingLabel('업로드 중...');
+
+        const { token, folderId } = await gasRun('getUploadToken');
+
+        const fileId = await uploadToDriveDirect(window._pendingFile, token, folderId);
+
+        data.directUploadUrl = await gasRun('setFilePublic', fileId);
+
+        data.mimeType = window._pendingFile.type;
+
+        delete data.fileData;
+
+      }
 
       setSavingLabel('저장 중...');
 
