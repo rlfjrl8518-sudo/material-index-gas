@@ -298,18 +298,55 @@
 
 
 
-  /* 계층 테이블 */
+  /* 계층 아코디언 */
+
+  .media-section {
+    border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; margin-bottom: 8px;
+  }
+
+  .media-section-header {
+    display: flex; align-items: center; gap: 8px;
+    background: #f9fafb; padding: 10px 14px; cursor: pointer;
+    user-select: none; transition: background .15s;
+  }
+
+  .media-section-header:hover { background: #f0f2f5; }
+
+  .media-toggle {
+    font-size: 11px; color: #6b7280; transition: transform .2s; flex-shrink: 0;
+  }
+
+  .media-section.open .media-toggle { transform: rotate(90deg); }
+
+  .media-name-input {
+    flex: 1; font-size: 13px; font-weight: 600; color: #1a1a2e;
+    border: none; background: transparent; outline: none; cursor: text; min-width: 80px;
+  }
+
+  .media-name-input:focus {
+    background: #fff; border-radius: 4px; padding: 1px 6px; outline: 1px solid #4f6ef7;
+  }
+
+  .media-row-count {
+    font-size: 11px; color: #9ca3af; background: #e5e7eb;
+    padding: 2px 7px; border-radius: 10px; flex-shrink: 0;
+  }
+
+  .media-section-body {
+    display: none; border-top: 1px solid #e5e7eb;
+  }
+
+  .media-section.open .media-section-body { display: block; }
+
+  .media-section-body-inner { padding: 10px 14px; }
 
   .h-table-wrap { overflow-x: auto; }
 
-  .h-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 560px; }
+  .h-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 400px; }
 
   .h-table th {
-
-    background: #f3f4f6; padding: 8px 10px; text-align: left;
-
+    background: #f3f4f6; padding: 7px 10px; text-align: left;
     font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb; white-space: nowrap;
-
   }
 
   .h-table td { padding: 4px 5px; border-bottom: 1px solid #f3f4f6; }
@@ -317,14 +354,20 @@
   .h-table tr:last-child td { border-bottom: none; }
 
   .h-input {
-
     width: 100%; padding: 5px 8px; border: 1px solid #e5e7eb;
-
-    border-radius: 5px; font-size: 12px; min-width: 90px;
-
+    border-radius: 5px; font-size: 12px; min-width: 80px;
   }
 
   .h-input:focus { outline: none; border-color: #4f6ef7; }
+
+  .media-add-row {
+    display: flex; gap: 8px; margin-top: 8px; padding-top: 10px; border-top: 1px dashed #e5e7eb;
+  }
+
+  .new-media-bar {
+    display: flex; gap: 8px; align-items: center; margin-top: 12px; padding-top: 12px;
+    border-top: 2px dashed #e5e7eb;
+  }
 
 
 
@@ -1031,47 +1074,24 @@
 
         <span>🔗 매체 계층 구조 (매체 → 캠페인 → 그룹 → 소재이름)</span>
 
-        <button class="btn btn-ghost btn-sm" onclick="addHierarchyRow()">+ 행 추가</button>
-
       </div>
 
       <div class="card-body">
 
-        <p style="font-size:12px;color:#6b7280;margin-bottom:10px;">
+        <p style="font-size:12px;color:#6b7280;margin-bottom:12px;">
 
-          한 행 = 하나의 경로입니다. 같은 캠페인의 그룹이 여러 개면 각각 행으로 추가하세요.
+          매체별로 접기/펼치기가 가능합니다. 한 행 = 하나의 캠페인→그룹→소재이름 경로입니다.
 
         </p>
 
-        <div class="h-table-wrap">
+        <div id="hierarchyAccordion"></div>
 
-          <table class="h-table">
-
-            <thead>
-
-              <tr>
-
-                <th style="width:18%">매체</th>
-
-                <th style="width:25%">캠페인</th>
-
-                <th style="width:25%">그룹</th>
-
-                <th>소재이름</th>
-
-                <th style="width:50px"></th>
-
-              </tr>
-
-            </thead>
-
-            <tbody id="hierarchyBody"></tbody>
-
-          </table>
-
+        <div class="new-media-bar">
+          <input class="form-control" type="text" id="newMediaName" placeholder="새 매체명 (예: 카카오)" style="max-width:200px;">
+          <button class="btn btn-ghost btn-sm" onclick="addMediaSection()">+ 매체 추가</button>
         </div>
 
-        <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+        <div style="margin-top:16px;display:flex;gap:8px;align-items:center;">
 
           <button class="btn btn-primary" id="btnSaveHierarchy" onclick="saveHierarchyData()">
 
@@ -1713,7 +1733,7 @@ function setSavingSettings(saving) {
 
 
 
-// --- 설정 탭 - 계층 관리 -------------------------
+// --- 설정 탭 - 계층 관리 (아코디언) -------------------------
 
 function loadHierarchyPanel() {
 
@@ -1723,7 +1743,7 @@ function loadHierarchyPanel() {
 
       hierarchyState = data.map(r => ({ ...r }));
 
-      renderHierarchyTable();
+      renderHierarchyAccordion();
 
     })
 
@@ -1733,91 +1753,228 @@ function loadHierarchyPanel() {
 
 }
 
+// 매체별로 묶어서 아코디언 렌더링
+function renderHierarchyAccordion() {
 
+  const container = document.getElementById('hierarchyAccordion');
 
-function renderHierarchyTable() {
+  // 열려있던 매체 섹션 기억
+  const openSections = new Set(
+    [...container.querySelectorAll('.media-section.open')].map(el => el.dataset.media)
+  );
 
-  const tbody = document.getElementById('hierarchyBody');
+  container.innerHTML = '';
 
-  tbody.innerHTML = '';
+  // 매체 순서 유지하며 그룹핑
+  const mediaOrder = [];
+  const groups = {};
+  hierarchyState.forEach(row => {
+    const m = row.매체 || '(미분류)';
+    if (!groups[m]) { groups[m] = []; mediaOrder.push(m); }
+    groups[m].push(row);
+  });
+  // 중복 제거 (같은 매체가 여러 번 나오면 처음 등장 순서 유지)
+  const uniqueOrder = [...new Set(mediaOrder)];
 
-  hierarchyState.forEach((row, i) => tbody.appendChild(buildHierarchyRow(row, i)));
-
-  if (!hierarchyState.length) {
-
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:16px;color:#9ca3af;font-size:12px;">행이 없습니다. 위 [+ 행 추가] 버튼으로 추가하세요.</td></tr>';
-
+  if (!uniqueOrder.length) {
+    container.innerHTML = '<p style="text-align:center;padding:20px;color:#9ca3af;font-size:12px;">매체가 없습니다. 아래 [+ 매체 추가] 버튼으로 추가하세요.</p>';
+    return;
   }
+
+  uniqueOrder.forEach(media => {
+    const rows = groups[media];
+    const isOpen = openSections.size === 0 || openSections.has(media); // 처음 로드 시 전부 펼침
+    container.appendChild(buildMediaSection(media, rows, isOpen));
+  });
 
 }
 
+function buildMediaSection(media, rows, isOpen) {
 
+  const section = document.createElement('div');
+  section.className = 'media-section' + (isOpen ? ' open' : '');
+  section.dataset.media = media;
 
-function buildHierarchyRow(row, i) {
+  // ── 헤더 ──
+  const header = document.createElement('div');
+  header.className = 'media-section-header';
+  header.onclick = (e) => {
+    if (e.target.classList.contains('media-name-input')) return;
+    section.classList.toggle('open');
+  };
+
+  const toggle = document.createElement('span');
+  toggle.className = 'media-toggle'; toggle.textContent = '▶';
+
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text'; nameInput.className = 'media-name-input';
+  nameInput.value = media === '(미분류)' ? '' : media;
+  nameInput.placeholder = '매체명';
+  nameInput.onclick = (e) => e.stopPropagation();
+  nameInput.onchange = () => {
+    const oldName = section.dataset.media;
+    const newName = nameInput.value.trim() || '(미분류)';
+    section.dataset.media = newName;
+    // hierarchyState에서 해당 매체 행 일괄 수정
+    hierarchyState.forEach(r => { if (r.매체 === oldName || (oldName === '(미분류)' && !r.매체)) r.매체 = newName === '(미분류)' ? '' : newName; });
+    badge.textContent = rows.length + '개';
+  };
+
+  const badge = document.createElement('span');
+  badge.className = 'media-row-count'; badge.textContent = rows.length + '개';
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'btn btn-ghost btn-sm';
+  addBtn.textContent = '+ 행 추가';
+  addBtn.onclick = (e) => { e.stopPropagation(); addRowToMedia(media, section); };
+
+  const delMediaBtn = document.createElement('button');
+  delMediaBtn.className = 'btn btn-danger btn-sm';
+  delMediaBtn.textContent = '매체 삭제';
+  delMediaBtn.style.cssText = 'padding:3px 8px;font-size:11px;';
+  delMediaBtn.onclick = (e) => {
+    e.stopPropagation();
+    const m = section.dataset.media;
+    if (!confirm((m === '(미분류)' ? '미분류' : m) + ' 매체와 하위 행 전체를 삭제하시겠습니까?')) return;
+    hierarchyState = hierarchyState.filter(r => {
+      const rm = r.매체 || '(미분류)';
+      return rm !== m;
+    });
+    renderHierarchyAccordion();
+  };
+
+  header.appendChild(toggle);
+  header.appendChild(nameInput);
+  header.appendChild(badge);
+  header.appendChild(addBtn);
+  header.appendChild(delMediaBtn);
+
+  // ── 바디 ──
+  const body = document.createElement('div');
+  body.className = 'media-section-body';
+
+  const inner = document.createElement('div');
+  inner.className = 'media-section-body-inner';
+
+  // 테이블 (매체 열 제외)
+  const wrap = document.createElement('div');
+  wrap.className = 'h-table-wrap';
+
+  const table = document.createElement('table');
+  table.className = 'h-table';
+  table.innerHTML = '<thead><tr><th style="width:32%">캠페인</th><th style="width:32%">그룹</th><th>소재이름</th><th style="width:46px"></th></tr></thead>';
+
+  const tbody = document.createElement('tbody');
+  tbody.dataset.media = media;
+
+  rows.forEach((row) => tbody.appendChild(buildMediaRow(row, tbody)));
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:12px;color:#9ca3af;font-size:12px;">행이 없습니다. [+ 행 추가]를 눌러 추가하세요.</td></tr>';
+  }
+
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+  inner.appendChild(wrap);
+  body.appendChild(inner);
+
+  section.appendChild(header);
+  section.appendChild(body);
+
+  return section;
+
+}
+
+function buildMediaRow(row, tbody) {
 
   const tr = document.createElement('tr');
 
-  tr.id = 'hrow-' + i;
-
-  ['매체','캠페인','그룹','소재이름'].forEach(key => {
-
+  ['캠페인', '그룹', '소재이름'].forEach(key => {
     const td = document.createElement('td');
-
     const inp = document.createElement('input');
-
     inp.type = 'text'; inp.className = 'h-input';
-
     inp.value = row[key] || '';
-
     inp.placeholder = key;
-
-    inp.oninput = () => { hierarchyState[i][key] = inp.value; };
-
+    inp.oninput = () => { row[key] = inp.value; };
     td.appendChild(inp);
-
     tr.appendChild(td);
-
   });
 
   const tdDel = document.createElement('td');
-
-  tdDel.innerHTML = `<button class="btn btn-danger btn-sm" onclick="removeHierarchyRow(${i})">삭제</button>`;
-
+  const delBtn = document.createElement('button');
+  delBtn.className = 'btn btn-danger btn-sm';
+  delBtn.style.cssText = 'padding:3px 8px;font-size:11px;';
+  delBtn.textContent = '삭제';
+  delBtn.onclick = () => {
+    const idx = hierarchyState.indexOf(row);
+    if (idx !== -1) hierarchyState.splice(idx, 1);
+    tr.remove();
+    // 행이 비면 빈 안내 표시
+    if (!tbody.children.length) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:12px;color:#9ca3af;font-size:12px;">행이 없습니다. [+ 행 추가]를 눌러 추가하세요.</td></tr>';
+    }
+    // 배지 카운트 갱신
+    const sec = tbody.closest('.media-section');
+    if (sec) {
+      const m = sec.dataset.media;
+      const cnt = hierarchyState.filter(r => (r.매체 || '(미분류)') === m).length;
+      const badge = sec.querySelector('.media-row-count');
+      if (badge) badge.textContent = cnt + '개';
+    }
+  };
+  tdDel.appendChild(delBtn);
   tr.appendChild(tdDel);
 
   return tr;
 
 }
 
+function addRowToMedia(media, section) {
 
+  const newRow = { 매체: media === '(미분류)' ? '' : media, 캠페인: '', 그룹: '', 소재이름: '' };
+  hierarchyState.push(newRow);
 
-function addHierarchyRow() {
+  const tbody = section.querySelector('tbody');
+  // 빈 안내 행 제거
+  if (tbody.querySelector('td[colspan]')) tbody.innerHTML = '';
 
-  hierarchyState.push({ 매체: '', 캠페인: '', 그룹: '', 소재이름: '' });
+  const tr = buildMediaRow(newRow, tbody);
+  tbody.appendChild(tr);
 
-  renderHierarchyTable();
+  // 배지 갱신
+  const m = section.dataset.media;
+  const cnt = hierarchyState.filter(r => (r.매체 || '(미분류)') === m).length;
+  const badge = section.querySelector('.media-row-count');
+  if (badge) badge.textContent = cnt + '개';
 
-  document.querySelector('#hierarchyBody tr:last-child')
-
-    ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-
-  // 마지막 행 첫 번째 input 포커스
-
-  document.querySelector('#hierarchyBody tr:last-child .h-input')?.focus();
-
-}
-
-
-
-function removeHierarchyRow(i) {
-
-  hierarchyState.splice(i, 1);
-
-  renderHierarchyTable();
+  // 새 행 첫 input 포커스
+  tr.querySelector('.h-input')?.focus();
+  tr.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
 }
 
+function addMediaSection() {
 
+  const input = document.getElementById('newMediaName');
+  const name = input.value.trim();
+  if (!name) { input.focus(); return; }
+
+  // 이미 존재하는 매체면 해당 섹션 열기
+  const existing = document.querySelector(`.media-section[data-media="${CSS.escape(name)}"]`);
+  if (existing) {
+    existing.classList.add('open');
+    existing.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    input.value = '';
+    return;
+  }
+
+  // 새 섹션 생성 (행 없이)
+  const section = buildMediaSection(name, [], true);
+  document.getElementById('hierarchyAccordion').appendChild(section);
+  section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  input.value = '';
+
+}
 
 function saveHierarchyData() {
 
