@@ -198,19 +198,13 @@ function getImageCodes() {
   const sheet = ss.getSheetByName(MASTER_SHEET_NAME);
   if (!sheet || sheet.getLastRow() < 2) return [];
 
-  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 16).getValues();
-  // col: 0=이미지코드, 1=등록일자, 2=매체, 5=소재이름, 6=보종, 8=소재유형, 14=이미지URL, 15=파일해시
-  const seenCode = new Map(); // 코드 기준 중복 제거
-  const seenHash = new Set(); // 파일해시 기준 중복 제거
+  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 15).getValues();
+  // col: 0=이미지코드, 1=등록일자, 2=매체, 5=소재이름, 6=보종, 8=소재유형, 14=이미지URL
+  const seen = new Map();
   data.forEach(row => {
     const code = String(row[0] || '').trim();
-    const hash = String(row[15] || '').trim();
-    if (!code) return;
-    if (seenCode.has(code)) return;       // 같은 코드 중복 제거
-    if (hash && seenHash.has(hash)) return; // 같은 파일 중복 제거
-    seenCode.set(code, true);
-    if (hash) seenHash.add(hash);
-    seenCode.set(code, {
+    if (!code || seen.has(code)) return;
+    seen.set(code, {
       code,
       등록일자: row[1] ? String(row[1]).slice(0, 10) : '',
       매체:     String(row[2] || ''),
@@ -220,7 +214,7 @@ function getImageCodes() {
       imageUrl: String(row[14] || '')
     });
   });
-  return [...seenCode.values()].filter(v => typeof v === 'object').reverse();
+  return [...seen.values()].reverse();
 }
 
 // --------------------------------------------------
