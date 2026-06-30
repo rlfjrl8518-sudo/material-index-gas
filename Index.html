@@ -2810,28 +2810,37 @@ async function handleFile(file) {
 
 
 
-  // ObjectURL로 즉시 미리보기 (FileReader 불필요, 속도 향상)
-  const objectUrl = URL.createObjectURL(file);
-
-  window._previewObjectUrl = objectUrl;
-
   const img = document.getElementById('previewImg');
 
   const vid = document.getElementById('previewVideo');
 
   document.getElementById('previewArea').classList.add('show');
 
+  document.getElementById('previewName').textContent = file.name;
+
   if (file.type.startsWith('image/')) {
+
+    // 이미지: ObjectURL로 즉시 표시 (GAS CSP img-src blob: 허용)
+    if (window._previewObjectUrl) URL.revokeObjectURL(window._previewObjectUrl);
+
+    const objectUrl = URL.createObjectURL(file);
+
+    window._previewObjectUrl = objectUrl;
 
     img.src = objectUrl; img.style.display = 'block'; vid.style.display = 'none';
 
   } else {
 
-    vid.src = objectUrl; vid.style.display = 'block'; img.style.display = 'none';
+    // 동영상: FileReader data URL 사용 (GAS CSP media-src blob: 차단됨)
+    img.style.display = 'none'; vid.style.display = 'block';
+
+    const reader = new FileReader();
+
+    reader.onload = ev => { vid.src = ev.target.result; };
+
+    reader.readAsDataURL(file);
 
   }
-
-  document.getElementById('previewName').textContent = file.name;
 
 }
 
