@@ -13,13 +13,16 @@ const DGPM_SHEET_NAME    = 'DG_PM_광고단위';
 // 광고 단위에 여러 이미지가 포함되는 매체 (1:N 구조)
 const DGPM_MEDIA = ['디멘드젠', '피맥스'];
 
-// DG_PM_광고단위 시트 헤더 (순서 고정)
+// DG_PM_광고단위 시트 헤더 (소재_마스터 컬럼 순서 기준)
 const DGPM_HEADERS = [
-  '광고단위코드', '매체', '캠페인', '그룹', '소재이름',
-  '보종', '소재유형', '소구포인트', '후킹방식', '소구상세',
+  '광고단위코드',
+  '등록일시', '최근수정일시',
+  '매체', '캠페인', '그룹', '소재이름',
+  '보종', '광고유형',
+  '소재유형', '소구포인트', '후킹방식', '소구상세',
   '이미지유형목록', '모델유형목록',
   '이미지수', '이미지코드목록',
-  '등록일시', '최근수정일시'
+  '번들URL'
 ];
 
 function doGet() {
@@ -540,7 +543,11 @@ function _updateDGPMUnit(data, imageCode) {
         sheet.getRange(rowNum, DGPM_COL['이미지수']       + 1).setValue(codes.length);
         sheet.getRange(rowNum, DGPM_COL['이미지코드목록'] + 1).setValue(codes.join(','));
         sheet.getRange(rowNum, DGPM_COL['최근수정일시']   + 1).setValue(now);
-        return String(row[DGPM_COL['광고단위코드']]);
+        const unitCode = String(row[DGPM_COL['광고단위코드']]);
+        if (!row[DGPM_COL['번들URL']]) {
+          sheet.getRange(rowNum, DGPM_COL['번들URL'] + 1).setValue(_getBundleUrl(unitCode));
+        }
+        return unitCode;
       }
     }
   }
@@ -549,11 +556,14 @@ function _updateDGPMUnit(data, imageCode) {
   const unitCode = _generateDGPMCode(data.매체, sheet);
   const newRow = new Array(totalCols).fill('');
   newRow[DGPM_COL['광고단위코드']]   = unitCode;
+  newRow[DGPM_COL['등록일시']]       = now;
+  newRow[DGPM_COL['최근수정일시']]   = now;
   newRow[DGPM_COL['매체']]           = data.매체;
   newRow[DGPM_COL['캠페인']]         = data.캠페인;
   newRow[DGPM_COL['그룹']]           = data.그룹;
   newRow[DGPM_COL['소재이름']]       = data.소재이름;
   newRow[DGPM_COL['보종']]           = data.보종        || '';
+  newRow[DGPM_COL['광고유형']]       = data.광고유형    || '';
   newRow[DGPM_COL['소재유형']]       = data.소재유형    || '';
   newRow[DGPM_COL['소구포인트']]     = data.소구포인트  || '';
   newRow[DGPM_COL['후킹방식']]       = data.후킹방식    || '';
@@ -562,14 +572,22 @@ function _updateDGPMUnit(data, imageCode) {
   newRow[DGPM_COL['모델유형목록']]   = data.모델유형    || '';
   newRow[DGPM_COL['이미지수']]       = 1;
   newRow[DGPM_COL['이미지코드목록']] = imageCode;
-  newRow[DGPM_COL['등록일시']]       = now;
-  newRow[DGPM_COL['최근수정일시']]   = now;
+  newRow[DGPM_COL['번들URL']]        = _getBundleUrl(unitCode);
   sheet.appendRow(newRow);
   return unitCode;
 }
 
 function _splitList(val) {
   return val ? String(val).split(',').map(s => s.trim()).filter(Boolean) : [];
+}
+
+function _getBundleUrl(unitCode) {
+  try {
+    const url = ScriptApp.getService().getUrl();
+    return url ? url + '?unit=' + encodeURIComponent(unitCode) : '';
+  } catch(e) {
+    return '';
+  }
 }
 
 function _generateDGPMCode(매체, sheet) {
@@ -616,7 +634,7 @@ function rebuildDGPMUnits() {
 
     dgpmRows.forEach(r => {
       const [imgCode, regDate, 매체, 캠페인, 그룹, 소재이름,
-             보종, , 소재유형, 소구포인트, 후킹방식, 소구상세, 이미지유형, 모델유형] = r;
+             보종, 광고유형, 소재유형, 소구포인트, 후킹방식, 소구상세, 이미지유형, 모델유형] = r;
       const key = [매체, 캠페인, 그룹, 소재이름].join('\x00');
 
       if (!groupMap[key]) {
@@ -624,6 +642,7 @@ function rebuildDGPMUnits() {
           매체, 캠페인, 그룹, 소재이름,
           // 공통 속성: 첫 번째 이미지 기준
           보종: String(보종 || ''),
+          광고유형: String(광고유형 || ''),
           소재유형: String(소재유형 || ''),
           소구포인트: String(소구포인트 || ''),
           후킹방식: String(후킹방식 || ''),
@@ -662,11 +681,14 @@ function rebuildDGPMUnits() {
       const unitCode = _generateDGPMCode(g.매체, dgpmSheet);
       const newRow = new Array(DGPM_HEADERS.length).fill('');
       newRow[DGPM_COL['광고단위코드']]   = unitCode;
+      newRow[DGPM_COL['등록일시']]       = g.firstDate || now;
+      newRow[DGPM_COL['최근수정일시']]   = now;
       newRow[DGPM_COL['매체']]           = g.매체;
       newRow[DGPM_COL['캠페인']]         = g.캠페인;
       newRow[DGPM_COL['그룹']]           = g.그룹;
       newRow[DGPM_COL['소재이름']]       = g.소재이름;
       newRow[DGPM_COL['보종']]           = g.보종;
+      newRow[DGPM_COL['광고유형']]       = g.광고유형;
       newRow[DGPM_COL['소재유형']]       = g.소재유형;
       newRow[DGPM_COL['소구포인트']]     = g.소구포인트;
       newRow[DGPM_COL['후킹방식']]       = g.후킹방식;
@@ -675,8 +697,7 @@ function rebuildDGPMUnits() {
       newRow[DGPM_COL['모델유형목록']]   = g.modelTypes.join(',');
       newRow[DGPM_COL['이미지수']]       = g.codes.length;
       newRow[DGPM_COL['이미지코드목록']] = g.codes.join(',');
-      newRow[DGPM_COL['등록일시']]       = g.firstDate || now;
-      newRow[DGPM_COL['최근수정일시']]   = now;
+      newRow[DGPM_COL['번들URL']]        = _getBundleUrl(unitCode);
       dgpmSheet.appendRow(newRow);
     });
 
@@ -727,19 +748,24 @@ function getDGPMList(매체필터) {
   const sheet = ss.getSheetByName(DGPM_SHEET_NAME);
   if (!sheet || sheet.getLastRow() < 2) return [];
 
-  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 8).getValues();
+  const totalCols = DGPM_HEADERS.length;
+  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, totalCols).getValues();
   return data
-    .filter(r => r[0] && (!매체필터 || r[1] === 매체필터))
+    .filter(r => r[DGPM_COL['광고단위코드']] && (!매체필터 || r[DGPM_COL['매체']] === 매체필터))
     .map(r => ({
-      광고단위코드:   String(r[0]),
-      매체:           String(r[1]),
-      캠페인:         String(r[2]),
-      그룹:           String(r[3]),
-      소재이름:       String(r[4]),
-      이미지코드목록: String(r[5]),
-      이미지수:       r[5] ? String(r[5]).split(',').filter(Boolean).length : 0,
-      등록일시:       r[6] ? Utilities.formatDate(new Date(r[6]), 'Asia/Seoul', 'yyyy-MM-dd') : '',
-      최근수정일시:   r[7] ? Utilities.formatDate(new Date(r[7]), 'Asia/Seoul', 'yyyy-MM-dd') : ''
+      광고단위코드:   String(r[DGPM_COL['광고단위코드']]),
+      매체:           String(r[DGPM_COL['매체']]),
+      캠페인:         String(r[DGPM_COL['캠페인']]),
+      그룹:           String(r[DGPM_COL['그룹']]),
+      소재이름:       String(r[DGPM_COL['소재이름']]),
+      보종:           String(r[DGPM_COL['보종']]),
+      광고유형:       String(r[DGPM_COL['광고유형']]),
+      소재유형:       String(r[DGPM_COL['소재유형']]),
+      이미지코드목록: String(r[DGPM_COL['이미지코드목록']]),
+      이미지수:       r[DGPM_COL['이미지수']] || 0,
+      번들URL:        String(r[DGPM_COL['번들URL']] || ''),
+      등록일시:       r[DGPM_COL['등록일시']] ? Utilities.formatDate(new Date(r[DGPM_COL['등록일시']]), 'Asia/Seoul', 'yyyy-MM-dd') : '',
+      최근수정일시:   r[DGPM_COL['최근수정일시']] ? Utilities.formatDate(new Date(r[DGPM_COL['최근수정일시']]), 'Asia/Seoul', 'yyyy-MM-dd') : ''
     }));
 }
 
