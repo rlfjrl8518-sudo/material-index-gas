@@ -334,6 +334,10 @@ function getUploadToken() {
 function setFilePublic(fileId) {
   const file = DriveApp.getFileById(fileId);
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  // 동영상: Drive 내장 플레이어 URL (uc?export=view는 동영상 스트리밍 불가)
+  if (file.getMimeType().startsWith('video/')) {
+    return 'https://drive.google.com/file/d/' + fileId + '/preview';
+  }
   return 'https://drive.google.com/uc?export=view&id=' + fileId;
 }
 

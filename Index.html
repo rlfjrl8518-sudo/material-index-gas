@@ -788,7 +788,10 @@
 
             <img id="previewImg" src="" alt="미리보기" style="display:none;">
 
-            <video id="previewVideo" controls style="display:none;"></video>
+            <video id="previewVideo" controls style="display:none;width:100%;"></video>
+
+            <iframe id="previewIframe" src="" frameborder="0" allowfullscreen
+                    style="display:none;width:100%;aspect-ratio:16/9;border-radius:8px;"></iframe>
 
             <div class="preview-name" id="previewName"></div>
 
@@ -2728,19 +2731,22 @@ function autoFillForm(data) {
 
   if (existingImageUrl) {
 
-    const img = document.getElementById('previewImg');
+    const img    = document.getElementById('previewImg');
 
-    const vid = document.getElementById('previewVideo');
+    const vid    = document.getElementById('previewVideo');
 
-    const isVid = selectedImageCodeValue && selectedImageCodeValue.startsWith('VID');
+    const iframe = document.getElementById('previewIframe');
+
+    const isVid  = selectedImageCodeValue && selectedImageCodeValue.startsWith('VID');
+
+    img.style.display = 'none'; vid.style.display = 'none'; iframe.style.display = 'none';
 
     if (isVid) {
 
-      vid.src = existingImageUrl;
+      // Drive preview URL (/preview) → iframe으로 재생
+      iframe.src = existingImageUrl;
 
-      vid.style.display = 'block';
-
-      img.style.display = 'none';
+      iframe.style.display = 'block';
 
       document.getElementById('previewName').textContent = '기존 동영상';
 
@@ -2749,8 +2755,6 @@ function autoFillForm(data) {
       img.src = driveThumbnail(existingImageUrl);
 
       img.style.display = 'block';
-
-      vid.style.display = 'none';
 
       document.getElementById('previewName').textContent = '기존 이미지';
 
@@ -3086,6 +3090,10 @@ function resetForm() {
   document.getElementById('previewImg').src = '';
 
   document.getElementById('previewVideo').src = '';
+
+  document.getElementById('previewIframe').src = '';
+
+  document.getElementById('previewIframe').style.display = 'none';
 
   document.getElementById('displayCode').textContent = '저장 시 자동 생성';
 
