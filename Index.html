@@ -1827,7 +1827,7 @@ function renderHierarchyAccordion(openState) {
 
   uniqueMedia.forEach(media => {
     const g = groups[media];
-    const isOpen = firstLoad || openState.media.has(media);
+    const isOpen = openState.media.has(media);
     container.appendChild(buildMediaSection(media, g.campOrder, g.camps, isOpen, openState));
   });
 }
@@ -1893,7 +1893,7 @@ function buildMediaSection(media, campOrder, campGroups, isOpen, openState) {
   const uniqueCamps = [...new Set(campOrder)];
   uniqueCamps.forEach(camp => {
     const cg = campGroups[camp];
-    const isCampOpen = firstLoad || (openState && openState.camps.has(media + '::' + camp));
+    const isCampOpen = openState && openState.camps.has(media + '::' + camp);
     campContainer.appendChild(buildCampaignSection(media, camp, cg.grpOrder, cg.grps, isCampOpen, openState, firstLoad));
   });
   if (!uniqueCamps.length) campContainer.appendChild(makeEmptyMsg('캠페인이 없습니다. [+ 캠페인 추가]를 눌러 추가하세요.', 'camp-empty'));
@@ -1974,7 +1974,7 @@ function buildCampaignSection(media, camp, grpOrder, grpGroups, isOpen, openStat
   const uniqueGrps = [...new Set(grpOrder)];
   uniqueGrps.forEach(grp => {
     const rows = grpGroups[grp];
-    const isGrpOpen = firstLoad || (openState && openState.groups.has(media + '::' + camp + '::' + grp));
+    const isGrpOpen = openState && openState.groups.has(media + '::' + camp + '::' + grp);
     grpContainer.appendChild(buildGroupSection(media, camp, grp, rows, isGrpOpen));
   });
   if (!uniqueGrps.length) grpContainer.appendChild(makeEmptyMsg('그룹이 없습니다. [+ 그룹 추가]를 눌러 추가하세요.', 'grp-empty'));
