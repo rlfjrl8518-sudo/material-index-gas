@@ -1398,7 +1398,7 @@ function buildBundleHtml(d) {
       ? '<div class="bv-placeholder">📷</div>'
       : isVideo
         ? '<iframe class="bv-video" src="' + esc(img.url) + '" allowfullscreen></iframe>'
-        : '<img class="bv-img" src="' + esc(img.url) + '" alt="' + esc(img.code) + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">'
+        : '<img class="bv-img" src="' + esc(driveThumb(img.url)) + '" alt="' + esc(img.code) + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">'
           + '<div class="bv-placeholder" style="display:none">🖼️</div>';
     const link = img.url ? '<a class="bv-link" href="' + esc(img.url) + '" target="_blank">원본 열기</a>' : '';
     return '<div class="bv-card"><div class="bv-media">' + media + '</div>'
@@ -1441,6 +1441,12 @@ function buildBundleHtml(d) {
 
 function esc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function driveThumb(url) {
+  if (!url) return '';
+  const m = url.match(/[?&]id=([^&]+)/) || url.match(/\/d\/([^/?]+)/);
+  return m ? 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w400' : url;
 }
 
 
