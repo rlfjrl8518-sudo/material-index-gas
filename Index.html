@@ -824,9 +824,9 @@
 
             <div class="auto-field">
 
-              <label>이미지코드</label>
+              <label>소재코드</label>
 
-              <div class="value empty" id="displayCode">저장 시 자동 생성</div>
+              <div class="value empty" id="displayCode">저장 시 자동 생성 (IMG/VID)</div>
 
             </div>
 
@@ -2395,6 +2395,17 @@ function ensureModal() {
 
   grid.id = 'imgPickerGrid';
 
+  // 이벤트 위임: item 클릭을 그리드 컨테이너에서 일괄 처리 (GAS 샌드박스 호환)
+  grid.addEventListener('click', function(e) {
+
+    var item = e.target.closest('.img-pick-item');
+
+    if (!item) return;
+
+    selectImageCode(item.dataset.code, item.dataset.name, item.dataset.url, item);
+
+  });
+
 
 
   var loading = document.createElement('div');
@@ -2541,13 +2552,17 @@ function renderImagePicker(codes) {
 
     if (c.code === selectedImageCodeValue) item.classList.add('selected');
 
+    // dataset에 선택 데이터 저장 (이벤트 위임에서 사용)
     item.dataset.code = c.code;
 
-    item.onclick = () => selectImageCode(c.code, c.소재이름, c.imageUrl, item);
+    item.dataset.name = c.소재이름 || '';
+
+    item.dataset.url  = c.imageUrl  || '';
 
 
 
-    const isVideo = !c.imageUrl || c.imageUrl.includes('video');
+    // VID 접두사 또는 mimeType 기반으로 동영상 판별
+    const isVideo = c.code.startsWith('VID');
 
     const thumbUrl = driveThumbnail(c.imageUrl);
 
@@ -2561,6 +2576,8 @@ function renderImagePicker(codes) {
 
       img.loading = 'lazy';
 
+      img.style.pointerEvents = 'none'; // 클릭이 item으로 위임되도록
+
       img.onerror = function() {
 
         const ph = document.createElement('div');
@@ -2568,6 +2585,8 @@ function renderImagePicker(codes) {
         ph.className = 'img-pick-placeholder';
 
         ph.textContent = '[IMG]';
+
+        ph.style.pointerEvents = 'none';
 
         this.replaceWith(ph);
 
@@ -2581,7 +2600,9 @@ function renderImagePicker(codes) {
 
       ph.className = 'img-pick-placeholder';
 
-      ph.textContent = isVideo ? '[VID]' : '[IMG]';
+      ph.textContent = isVideo ? '▶ VID' : '[IMG]';
+
+      ph.style.pointerEvents = 'none';
 
       item.appendChild(ph);
 
@@ -2711,13 +2732,29 @@ function autoFillForm(data) {
 
     const vid = document.getElementById('previewVideo');
 
-    img.src = driveThumbnail(existingImageUrl);
+    const isVid = selectedImageCodeValue && selectedImageCodeValue.startsWith('VID');
 
-    img.style.display = 'block';
+    if (isVid) {
 
-    vid.style.display = 'none';
+      vid.src = existingImageUrl;
 
-    document.getElementById('previewName').textContent = '기존 이미지';
+      vid.style.display = 'block';
+
+      img.style.display = 'none';
+
+      document.getElementById('previewName').textContent = '기존 동영상';
+
+    } else {
+
+      img.src = driveThumbnail(existingImageUrl);
+
+      img.style.display = 'block';
+
+      vid.style.display = 'none';
+
+      document.getElementById('previewName').textContent = '기존 이미지';
+
+    }
 
     document.getElementById('previewArea').classList.add('show');
 

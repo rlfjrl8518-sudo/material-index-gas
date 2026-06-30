@@ -278,22 +278,26 @@ function checkDuplicate(매체, 캠페인, 그룹, 소재이름) {
 }
 
 // --------------------------------------------------
-// 이미지코드 생성: IMG + YYMMDD + 3자리 순번
+// 소재코드 생성
+//   이미지: IMG + YYMMDD + 3자리 순번 (예: IMG260630001)
+//   동영상: VID + YYMMDD + 3자리 순번 (예: VID260630001)
 // --------------------------------------------------
-function generateImageCode() {
+function generateMediaCode(mimeType) {
+  const isVideo = mimeType && mimeType.startsWith('video/');
+  const prefix = (isVideo ? 'VID' : 'IMG');
   const ss = getSpreadsheet();
   const sheet = ss.getSheetByName(MASTER_SHEET_NAME);
   const today = new Date();
   const dateStr = String(today.getFullYear()).slice(2)
     + String(today.getMonth() + 1).padStart(2, '0')
     + String(today.getDate()).padStart(2, '0');
-  const prefix = 'IMG' + dateStr;
+  const fullPrefix = prefix + dateStr;
   let seq = 1;
   if (sheet && sheet.getLastRow() >= 2) {
     const codes = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat();
-    seq = codes.filter(c => c && String(c).startsWith(prefix)).length + 1;
+    seq = codes.filter(c => c && String(c).startsWith(fullPrefix)).length + 1;
   }
-  return prefix + String(seq).padStart(3, '0');
+  return fullPrefix + String(seq).padStart(3, '0');
 }
 
 // --------------------------------------------------
@@ -390,7 +394,7 @@ function saveCreative(data) {
         imageUrl  = existing.imageUrl;
         reused    = true;
       } else {
-        imageCode = generateImageCode();
+        imageCode = generateMediaCode(data.mimeType);
       }
     }
 
