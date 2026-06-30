@@ -2782,57 +2782,56 @@ async function handleFile(file) {
 
   if (!allowed.includes(file.type)) { showError('지원하지 않는 파일 형식입니다.'); return; }
 
+  // 이전 ObjectURL 해제
+  if (window._previewObjectUrl) { URL.revokeObjectURL(window._previewObjectUrl); window._previewObjectUrl = null; }
+
   fileName = file.name; fileMime = file.type; fileHash = null;
 
+  fileBase64 = null; // 직접 업로드 방식에서는 사용 안 함 (폴백 시에만 필요)
+
+  window._pendingFile = file; // 직접 업로드용 원본 File 보관
 
 
-  // SHA-256 해시 계산 (동일 이미지 판별용)
+
+  // SHA-256 해시 계산 (동일 파일 감지용) - ArrayBuffer를 미리보기와 공유
+  const buffer = await file.arrayBuffer();
 
   try {
 
-    const buffer = await file.arrayBuffer();
-
     const hashBuf = await crypto.subtle.digest('SHA-256', buffer);
 
-    fileHash = Array.from(new Uint8Array(hashBuf))
-
-      .map(b => b.toString(16).padStart(2, '0')).join('');
+    fileHash = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
 
   } catch (e) {
 
-    fileHash = null; // 해시 실패 시 무시 - 신규로 처리
+    fileHash = null;
 
   }
 
 
 
-  const reader = new FileReader();
+  // ObjectURL로 즉시 미리보기 (FileReader 불필요, 속도 향상)
+  const objectUrl = URL.createObjectURL(file);
 
-  reader.onload = ev => {
+  window._previewObjectUrl = objectUrl;
 
-    fileBase64 = ev.target.result.split(',')[1];
+  const img = document.getElementById('previewImg');
 
-    const img = document.getElementById('previewImg');
+  const vid = document.getElementById('previewVideo');
 
-    const vid = document.getElementById('previewVideo');
+  document.getElementById('previewArea').classList.add('show');
 
-    document.getElementById('previewArea').classList.add('show');
+  if (file.type.startsWith('image/')) {
 
-    if (file.type.startsWith('image/')) {
+    img.src = objectUrl; img.style.display = 'block'; vid.style.display = 'none';
 
-      img.src = ev.target.result; img.style.display = 'block'; vid.style.display = 'none';
+  } else {
 
-    } else {
+    vid.src = objectUrl; vid.style.display = 'block'; img.style.display = 'none';
 
-      vid.src = ev.target.result; vid.style.display = 'block'; img.style.display = 'none';
+  }
 
-    }
-
-    document.getElementById('previewName').textContent = file.name;
-
-  };
-
-  reader.readAsDataURL(file);
+  document.getElementById('previewName').textContent = file.name;
 
 }
 
@@ -2908,7 +2907,55 @@ function getFormData(forceSave) {
 
 
 
-function submitForm(forceSave) {
+// google.script.run을 Promise로 래핑하는 헬퍼
+function gasRun(methodName, ...args) {
+
+  return new Promise((resolve, reject) => {
+
+    google.script.run
+
+      .withSuccessHandler(resolve)
+
+      .withFailureHandler(reject)
+
+      [methodName](...args);
+
+  });
+
+}
+
+
+
+// Drive 직접 multipart 업로드 → fileId 반환
+async function uploadToDriveDirect(file, token, folderId) {
+
+  const metadata = JSON.stringify({ name: file.name, parents: [folderId] });
+
+  const form = new FormData();
+
+  form.append('metadata', new Blob([metadata], { type: 'application/json' }));
+
+  form.append('file', file);
+
+  const res = await fetch(
+
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+
+    { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: form }
+
+  );
+
+  if (!res.ok) throw new Error('Drive 업로드 실패 (HTTP ' + res.status + ')');
+
+  const json = await res.json();
+
+  return json.id;
+
+}
+
+
+
+async function submitForm(forceSave) {
 
   hideMessages();
 
@@ -2916,47 +2963,72 @@ function submitForm(forceSave) {
 
   setSaving(true);
 
-  google.script.run
+  try {
 
-    .withSuccessHandler(res => {
+    const data = getFormData(forceSave);
 
-      setSaving(false);
+    // 새 파일이 있으면 Drive에 직접 업로드
+    if (window._pendingFile) {
 
-      if (res.duplicate) {
+      setSavingLabel('업로드 중...');
 
-        if (confirm('이미 등록된 소재입니다. 그래도 등록하시겠습니까?')) submitForm(true);
+      const { token, folderId } = await gasRun('getUploadToken');
 
-        return;
+      const fileId = await uploadToDriveDirect(window._pendingFile, token, folderId);
 
-      }
+      data.directUploadUrl = await gasRun('setFilePublic', fileId);
 
-      if (res.error) { showError(res.message); return; }
+      data.mimeType = window._pendingFile.type; // 코드 생성에 필요
 
-      document.getElementById('displayCode').textContent = res.imageCode;
+      // 직접 업로드 완료 → fileData는 전송하지 않음
 
-      document.getElementById('displayCode').classList.remove('empty');
+      delete data.fileData;
 
-      document.getElementById('displayUrl').textContent = res.imageUrl || '(파일 없음)';
+      setSavingLabel('저장 중...');
 
-      document.getElementById('displayUrl').classList.remove('empty');
+    }
 
-      const reuseMsg = res.reused ? ' (기존 코드 재사용)' : '';
+    const res = await gasRun('saveCreative', data);
 
-      const unitMsg = res.광고단위코드 ? ' | 광고단위: ' + res.광고단위코드 : '';
+    setSaving(false);
 
-      const action = res.updated ? '수정 완료' : '등록 완료';
+    if (res.duplicate) {
 
-      showSuccess(action + '! 이미지코드: ' + res.imageCode + unitMsg + reuseMsg);
+      if (confirm('이미 등록된 소재입니다. 그래도 등록하시겠습니까?')) submitForm(true);
 
-      if (isIndexing) { markDetectItemDone(detectIndex - 1); loadNextDetectItem(); }
+      return;
 
-      else setTimeout(resetForm, 2000);
+    }
 
-    })
+    if (res.error) { showError(res.message); return; }
 
-    .withFailureHandler(err => { setSaving(false); showError('저장 실패: ' + err.message); })
+    document.getElementById('displayCode').textContent = res.imageCode;
 
-    .saveCreative(getFormData(forceSave));
+    document.getElementById('displayCode').classList.remove('empty');
+
+    document.getElementById('displayUrl').textContent = res.imageUrl || '(파일 없음)';
+
+    document.getElementById('displayUrl').classList.remove('empty');
+
+    const reuseMsg = res.reused ? ' (기존 코드 재사용)' : '';
+
+    const unitMsg = res.광고단위코드 ? ' | 광고단위: ' + res.광고단위코드 : '';
+
+    const action = res.updated ? '수정 완료' : '등록 완료';
+
+    showSuccess(action + '! 소재코드: ' + res.imageCode + unitMsg + reuseMsg);
+
+    if (isIndexing) { markDetectItemDone(detectIndex - 1); loadNextDetectItem(); }
+
+    else setTimeout(resetForm, 2000);
+
+  } catch (err) {
+
+    setSaving(false);
+
+    showError('저장 실패: ' + (err.message || String(err)));
+
+  }
 
 }
 
@@ -2987,6 +3059,10 @@ function resetForm() {
 
 
   fileBase64 = fileName = fileMime = fileHash = null;
+
+  if (window._previewObjectUrl) { URL.revokeObjectURL(window._previewObjectUrl); window._previewObjectUrl = null; }
+
+  window._pendingFile = null;
 
   existingImageUrl = '';
 
@@ -3207,6 +3283,12 @@ function setSaving(saving) {
   document.getElementById('spinSave').classList.toggle('show', saving);
 
   document.getElementById('btnSaveText').textContent = saving ? '저장 중...' : '저장';
+
+}
+
+function setSavingLabel(label) {
+
+  document.getElementById('btnSaveText').textContent = label;
 
 }
 

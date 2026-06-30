@@ -317,7 +317,29 @@ function createDriveFolder() {
 }
 
 // --------------------------------------------------
-// Drive 업로드 → 공개 URL 반환
+// Drive 직접 업로드용 OAuth 토큰 + 폴더 ID 반환
+// 브라우저가 Drive API로 직접 업로드할 때 사용
+// --------------------------------------------------
+function getUploadToken() {
+  return {
+    token:    ScriptApp.getOAuthToken(),
+    folderId: createDriveFolder()
+  };
+}
+
+// --------------------------------------------------
+// Drive 파일 공개 설정 → 공개 URL 반환
+// 브라우저 직접 업로드 후 fileId만 받아 공개 처리
+// --------------------------------------------------
+function setFilePublic(fileId) {
+  const file = DriveApp.getFileById(fileId);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  return 'https://drive.google.com/uc?export=view&id=' + fileId;
+}
+
+// --------------------------------------------------
+// Drive 업로드 (base64) → 공개 URL 반환
+// 직접 업로드가 불가한 환경의 폴백용
 // --------------------------------------------------
 function uploadImageToDrive(base64Data, fileName, mimeType) {
   const folder = DriveApp.getFolderById(createDriveFolder());
@@ -398,9 +420,11 @@ function saveCreative(data) {
       }
     }
 
-    // 새 파일이 있으면 Drive 업로드, 없으면 기존 URL 유지
-    if (data.fileData) {
-      imageUrl = uploadImageToDrive(data.fileData, data.fileName, data.mimeType);
+    // URL 결정: 브라우저 직접 업로드 → base64 폴백 → 기존 URL 유지
+    if (data.directUploadUrl) {
+      imageUrl = data.directUploadUrl;              // 브라우저가 Drive에 직접 업로드한 경우
+    } else if (data.fileData) {
+      imageUrl = uploadImageToDrive(data.fileData, data.fileName, data.mimeType); // 폴백
     } else if (data.existingImageUrl) {
       imageUrl = data.existingImageUrl;
     }
