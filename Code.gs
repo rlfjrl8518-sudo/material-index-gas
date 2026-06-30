@@ -8,6 +8,10 @@ const SETTINGS_SHEET_NAME = '설정';
 const HIERARCHY_SHEET_NAME = '매체_계층';
 const RAW_SHEET_NAME     = '매체_RAW';
 const DETECT_SHEET_NAME  = '신규소재감지';
+const DGPM_SHEET_NAME    = 'DG_PM_광고단위';
+
+// 광고 단위에 여러 이미지가 포함되는 매체 (1:N 구조)
+const DGPM_MEDIA = ['디멘드젠', '피맥스'];
 
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('Index')
@@ -64,6 +68,14 @@ function initializeSheets() {
 
   if (!ss.getSheetByName(RAW_SHEET_NAME))    ss.insertSheet(RAW_SHEET_NAME);
   if (!ss.getSheetByName(DETECT_SHEET_NAME)) ss.insertSheet(DETECT_SHEET_NAME);
+
+  // DG_PM_광고단위 시트
+  if (!ss.getSheetByName(DGPM_SHEET_NAME)) {
+    const dgpmSheet = ss.insertSheet(DGPM_SHEET_NAME);
+    const dgpmHeaders = ['광고단위코드', '매체', '캠페인', '그룹', '소재이름', '이미지코드목록', '등록일시', '최근수정일시'];
+    dgpmSheet.getRange(1, 1, 1, dgpmHeaders.length).setValues([dgpmHeaders]).setFontWeight('bold');
+    dgpmSheet.setFrozenRows(1);
+  }
 
   return { success: true, message: '시트 초기화 완료' };
 }
@@ -246,8 +258,10 @@ function checkExistingImage(fileHash) {
 
 // --------------------------------------------------
 // 중복 체크 (매체+캠페인+그룹+소재이름 조합)
+// DG/PM은 동일 소재이름에 여러 이미지가 허용되므로 체크 제외
 // --------------------------------------------------
 function checkDuplicate(매체, 캠페인, 그룹, 소재이름) {
+  if (DGPM_MEDIA.includes(매체)) return false;
   const ss = getSpreadsheet();
   const sheet = ss.getSheetByName(MASTER_SHEET_NAME);
   if (!sheet || sheet.getLastRow() < 2) return false;
@@ -354,10 +368,96 @@ function saveCreative(data) {
       imageUrl, data.fileHash || ''
     ]);
 
-    return { success: true, imageCode, imageUrl, reused };
+    // DG/PM: 광고단위 시트에 자동 등록/업데이트
+    let 광고단위코드 = null;
+    if (DGPM_MEDIA.includes(data.매체)) {
+      광고단위코드 = _updateDGPMUnit(data, imageCode);
+    }
+
+    return { success: true, imageCode, imageUrl, reused, 광고단위코드 };
   } catch (e) {
     return { error: true, message: e.message };
   }
+}
+
+// --------------------------------------------------
+// DG/PM 광고단위 시트 조회/업데이트
+// 동일 (매체, 캠페인, 그룹, 소재이름)이면 이미지코드목록에 추가,
+// 없으면 새 광고단위 행 생성. 광고단위코드 반환.
+// --------------------------------------------------
+function _updateDGPMUnit(data, imageCode) {
+  const ss = getSpreadsheet();
+  let sheet = ss.getSheetByName(DGPM_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(DGPM_SHEET_NAME);
+    const headers = ['광고단위코드', '매체', '캠페인', '그룹', '소재이름', '이미지코드목록', '등록일시', '최근수정일시'];
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+    sheet.setFrozenRows(1);
+  }
+
+  const now = new Date();
+  if (sheet.getLastRow() >= 2) {
+    const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 6).getValues();
+    for (let i = 0; i < rows.length; i++) {
+      const [code, 매체, 캠페인, 그룹, 소재이름, 이미지목록] = rows[i];
+      if (매체 === data.매체 && 캠페인 === data.캠페인 && 그룹 === data.그룹 && 소재이름 === data.소재이름) {
+        // 기존 광고단위 → 이미지코드 추가
+        const codes = 이미지목록 ? String(이미지목록).split(',').map(s => s.trim()).filter(Boolean) : [];
+        if (!codes.includes(imageCode)) {
+          codes.push(imageCode);
+          sheet.getRange(i + 2, 6).setValue(codes.join(','));
+          sheet.getRange(i + 2, 8).setValue(now);
+        }
+        return String(code);
+      }
+    }
+  }
+
+  // 신규 광고단위 생성
+  const unitCode = _generateDGPMCode(data.매체, sheet);
+  sheet.appendRow([unitCode, data.매체, data.캠페인, data.그룹, data.소재이름, imageCode, now, now]);
+  return unitCode;
+}
+
+function _generateDGPMCode(매체, sheet) {
+  const prefix = 매체 === '피맥스' ? 'PM' : 'DG';
+  const dateStr = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyMMdd');
+  const fullPrefix = prefix + dateStr;
+  let max = 0;
+  if (sheet.getLastRow() >= 2) {
+    sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat().forEach(v => {
+      const s = String(v);
+      if (s.startsWith(fullPrefix)) {
+        const seq = parseInt(s.slice(-3), 10);
+        if (!isNaN(seq) && seq > max) max = seq;
+      }
+    });
+  }
+  return fullPrefix + String(max + 1).padStart(3, '0');
+}
+
+// --------------------------------------------------
+// DG/PM 광고단위 목록 반환 (분석/조회용)
+// --------------------------------------------------
+function getDGPMList(매체필터) {
+  const ss = getSpreadsheet();
+  const sheet = ss.getSheetByName(DGPM_SHEET_NAME);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+
+  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 8).getValues();
+  return data
+    .filter(r => r[0] && (!매체필터 || r[1] === 매체필터))
+    .map(r => ({
+      광고단위코드:   String(r[0]),
+      매체:           String(r[1]),
+      캠페인:         String(r[2]),
+      그룹:           String(r[3]),
+      소재이름:       String(r[4]),
+      이미지코드목록: String(r[5]),
+      이미지수:       r[5] ? String(r[5]).split(',').filter(Boolean).length : 0,
+      등록일시:       r[6] ? Utilities.formatDate(new Date(r[6]), 'Asia/Seoul', 'yyyy-MM-dd') : '',
+      최근수정일시:   r[7] ? Utilities.formatDate(new Date(r[7]), 'Asia/Seoul', 'yyyy-MM-dd') : ''
+    }));
 }
 
 // --------------------------------------------------
