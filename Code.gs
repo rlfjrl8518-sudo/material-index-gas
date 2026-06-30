@@ -27,17 +27,11 @@ const DGPM_HEADERS = [
 
 function doGet(e) {
   const unitCode = e && e.parameter && e.parameter.unit;
-  if (unitCode) {
-    const template = HtmlService.createTemplateFromFile('BundleView');
-    template.data = getBundleData(unitCode);
-    template.unitCode = unitCode;
-    return template.evaluate()
-      .setTitle('광고단위 소재')
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
-      .setSandboxMode(HtmlService.SandboxMode.IFRAME);
-  }
-  return HtmlService.createHtmlOutputFromFile('Index')
-    .setTitle('소재 인덱싱 시스템')
+  const template = HtmlService.createTemplateFromFile('Index');
+  template.bundleData = unitCode ? getBundleData(unitCode) : null;
+  template.unitCode   = unitCode || '';
+  return template.evaluate()
+    .setTitle(unitCode ? '광고단위 소재' : '소재 인덱싱 시스템')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .setSandboxMode(HtmlService.SandboxMode.IFRAME);
 }

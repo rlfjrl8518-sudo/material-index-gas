@@ -1233,6 +1233,9 @@
 
 <script>
 
+// --- 번들 뷰 데이터 (doGet에서 주입) ---------------
+const __BUNDLE__ = <?!= JSON.stringify(bundleData || null) ?>;
+
 // --- 전역 오류 포착 ------------------------------
 
 window.onerror = function(msg, src, line) {
@@ -1354,11 +1357,91 @@ function switchSettingsTab(tabId, btn) {
 
 document.addEventListener('DOMContentLoaded', () => {
 
+  if (__BUNDLE__) {
+    renderBundleView(__BUNDLE__);
+    return;
+  }
+
   loadSettings();
 
   loadHierarchy();
 
 });
+
+// --- 번들 갤러리 렌더 ----------------------------
+function renderBundleView(d) {
+  document.querySelector('.header h1').textContent = '📋 광고단위 소재';
+  document.querySelector('.tab-nav').style.display = 'none';
+  document.querySelectorAll('.tab-panel').forEach(el => el.style.display = 'none');
+  document.getElementById('btnDetect').style.display = 'none';
+
+  const wrap = document.createElement('div');
+  wrap.id = 'bundleView';
+  wrap.innerHTML = buildBundleHtml(d);
+  document.body.appendChild(wrap);
+}
+
+function buildBundleHtml(d) {
+  if (!d) return '<div style="text-align:center;padding:80px;color:#6b7280;"><h2>광고단위를 찾을 수 없습니다</h2></div>';
+
+  const meta = [
+    d.캠페인 ? '캠페인 <b>' + esc(d.캠페인) + '</b>' : '',
+    d.그룹    ? '그룹 <b>' + esc(d.그룹) + '</b>' : '',
+    d.보종    ? '보종 <b>' + esc(d.보종) + '</b>' : '',
+    d.광고유형 ? '광고유형 <b>' + esc(d.광고유형) + '</b>' : '',
+    d.소재유형 ? '소재유형 <b>' + esc(d.소재유형) + '</b>' : ''
+  ].filter(Boolean).join('<span style="margin:0 8px;color:#475569">·</span>');
+
+  const cards = (d.images || []).map(img => {
+    const isVideo = img.url && img.url.indexOf('/preview') !== -1;
+    const media = !img.url
+      ? '<div class="bv-placeholder">📷</div>'
+      : isVideo
+        ? '<iframe class="bv-video" src="' + esc(img.url) + '" allowfullscreen></iframe>'
+        : '<img class="bv-img" src="' + esc(img.url) + '" alt="' + esc(img.code) + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">'
+          + '<div class="bv-placeholder" style="display:none">🖼️</div>';
+    const link = img.url ? '<a class="bv-link" href="' + esc(img.url) + '" target="_blank">원본 열기</a>' : '';
+    return '<div class="bv-card"><div class="bv-media">' + media + '</div>'
+      + '<div class="bv-info"><div class="bv-code">' + esc(img.code) + '</div>'
+      + '<div class="bv-name">' + esc(img.소재이름) + '</div></div>'
+      + (link ? '<div class="bv-actions">' + link + '</div>' : '')
+      + '</div>';
+  }).join('');
+
+  return '<style>'
+    + '#bundleView{padding:0}'
+    + '.bv-subheader{background:#16213e;padding:10px 28px;font-size:12px;color:#94a3b8;display:flex;flex-wrap:wrap;gap:6px 0}'
+    + '.bv-subheader b{color:#cbd5e1}'
+    + '.bv-unit-meta{font-size:11px;font-weight:700;color:#818cf8;margin-bottom:4px}'
+    + '.bv-unit-name{font-size:16px;font-weight:700;color:#fff}'
+    + '.bv-badge{background:#312e81;color:#a5b4fc;border-radius:12px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap}'
+    + '.bv-header-inner{display:flex;align-items:center;justify-content:space-between;gap:12px}'
+    + '.bv-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;max-width:1200px;margin:0 auto;padding:24px}'
+    + '.bv-card{background:#fff;border-radius:10px;border:1px solid #e5e7eb;overflow:hidden;transition:box-shadow .15s}'
+    + '.bv-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.1)}'
+    + '.bv-media{position:relative;width:100%;aspect-ratio:1;background:#f3f4f6;overflow:hidden}'
+    + '.bv-img{width:100%;height:100%;object-fit:contain;display:block}'
+    + '.bv-video{width:100%;height:100%;border:none;display:block}'
+    + '.bv-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:36px;color:#d1d5db}'
+    + '.bv-info{padding:10px 12px}'
+    + '.bv-code{font-size:11px;font-weight:700;color:#4f6ef7;margin-bottom:3px;word-break:break-all}'
+    + '.bv-name{font-size:12px;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
+    + '.bv-actions{padding:0 12px 10px}'
+    + '.bv-link{display:block;width:100%;padding:6px;text-align:center;font-size:12px;font-weight:500;background:#f3f4f6;color:#374151;border:1px solid #e5e7eb;border-radius:6px;text-decoration:none}'
+    + '.bv-link:hover{background:#e5e7eb}'
+    + '.bv-empty{text-align:center;padding:60px 24px;color:#6b7280}'
+    + '</style>'
+    + '<div class="bv-subheader"><div class="bv-header-inner" style="width:100%">'
+    + '<div><div class="bv-unit-meta">' + esc(d.광고단위코드) + '</div><div class="bv-unit-name">' + esc(d.소재이름) + '</div></div>'
+    + '<span class="bv-badge">' + esc(d.매체) + ' · ' + d.이미지수 + '개 소재</span></div></div>'
+    + '<div style="background:#16213e;padding:8px 28px 10px;font-size:12px;color:#94a3b8">' + meta + '</div>'
+    + (cards ? '<div class="bv-gallery">' + cards + '</div>'
+             : '<div class="bv-empty"><h3>등록된 소재 이미지가 없습니다</h3></div>');
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 
 
 
