@@ -3,12 +3,12 @@
 // ====================================================
 
 const SHEET_ID           = '1S74kKyOO3ATqk12nmQR860VT5ms8s5FS33T3gF5kd7I';
-const MASTER_SHEET_NAME  = '소재_마스터';
+const MASTER_SHEET_NAME  = '전매체 인덱스';
 const SETTINGS_SHEET_NAME = '설정';
-const HIERARCHY_SHEET_NAME = '매체_계층';
+const HIERARCHY_SHEET_NAME = '매체 구조';
 const RAW_SHEET_NAME     = '매체_RAW';
 const DETECT_SHEET_NAME  = '신규소재감지';
-const DGPM_SHEET_NAME    = 'DG_PM_광고단위';
+const DGPM_SHEET_NAME    = '구글DA 인덱스';
 
 // 광고 단위에 여러 이미지가 포함되는 매체 (1:N 구조)
 const DGPM_MEDIA = ['디멘드젠', '피맥스'];

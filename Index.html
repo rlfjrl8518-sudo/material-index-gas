@@ -917,7 +917,7 @@
 
           <div class="cascade-section">
 
-            <div class="cascade-section-label">🔗 매체 계층 선택</div>
+            <div class="cascade-section-label">🔗 매체 구조 선택</div>
 
             <div class="form-grid">
 
@@ -1141,7 +1141,7 @@
 
     <!-- 서브탭 네비게이션 -->
     <div class="settings-sub-nav">
-      <button class="settings-sub-btn active" onclick="switchSettingsTab('hierarchy', this)">🔗 매체 계층</button>
+      <button class="settings-sub-btn active" onclick="switchSettingsTab('hierarchy', this)">🔗 매체 구조</button>
       <button class="settings-sub-btn" onclick="switchSettingsTab('dropdown', this)">🏷 드롭다운</button>
       <button class="settings-sub-btn" onclick="switchSettingsTab('tools', this)">🔧 도구</button>
     </div>
@@ -1150,7 +1150,7 @@
     <div class="settings-sub-panel active" id="sp-hierarchy">
       <div class="card">
         <div class="card-header">
-          <span>매체 계층 구조</span>
+          <span>매체 구조</span>
           <div style="display:flex;gap:6px;align-items:center;">
             <input class="form-control" type="text" id="newMediaName" placeholder="새 매체명" style="width:130px;padding:5px 8px;font-size:12px;">
             <button class="btn btn-ghost btn-sm" onclick="addMediaSection()">+ 매체</button>
@@ -1191,10 +1191,10 @@
     <!-- 서브패널 3: 도구 -->
     <div class="settings-sub-panel" id="sp-tools">
       <div class="card">
-        <div class="card-header">DG/PM 광고단위 재구성</div>
+        <div class="card-header">구글DA 인덱스 재구성</div>
         <div class="card-body">
           <p style="font-size:12px;color:#6b7280;margin-bottom:12px;">
-            소재_마스터의 디멘드젠·피맥스 소재를 기반으로 <strong>DG_PM_광고단위</strong> 시트를 재작성합니다.
+            전매체 인덱스의 디멘드젠·피맥스 소재를 기반으로 <strong>구글DA 인덱스</strong> 시트를 재작성합니다.
             최초 1회 또는 데이터 불일치 시 실행하세요.
           </p>
           <div id="rebuildMsg" class="msg" style="margin-bottom:10px;"></div>
@@ -1897,13 +1897,13 @@ function runRebuildDGPM() {
   const txt = document.getElementById('btnRebuildText');
   const msg = document.getElementById('rebuildMsg');
 
-  if (!confirm('소재_마스터의 디멘드젠·피맥스 소재 전체를 재구성합니다.\nDG_PM_광고단위 시트가 초기화됩니다. 계속하시겠습니까?')) return;
+  if (!confirm('전매체 인덱스의 디멘드젠·피맥스 소재 전체를 재구성합니다.\n구글DA 인덱스 시트가 초기화됩니다. 계속하시겠습니까?')) return;
 
   btn.disabled = true; spin.classList.add('show'); txt.textContent = '재구성 중...'; msg.className = 'msg';
 
   google.script.run
     .withSuccessHandler(res => {
-      btn.disabled = false; spin.classList.remove('show'); txt.textContent = '🔄 광고단위 재구성 실행';
+      btn.disabled = false; spin.classList.remove('show'); txt.textContent = '🔄 구글DA 인덱스 재구성 실행';
       if (res.error) {
         msg.className = 'msg msg-error show'; msg.innerHTML = '❌ ' + res.message;
       } else {
@@ -1911,7 +1911,7 @@ function runRebuildDGPM() {
       }
     })
     .withFailureHandler(e => {
-      btn.disabled = false; spin.classList.remove('show'); txt.textContent = '🔄 광고단위 재구성 실행';
+      btn.disabled = false; spin.classList.remove('show'); txt.textContent = '🔄 구글DA 인덱스 재구성 실행';
       msg.className = 'msg msg-error show'; msg.innerHTML = '❌ 실패: ' + e.message;
     })
     .rebuildDGPMUnits();
