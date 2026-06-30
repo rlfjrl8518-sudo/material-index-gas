@@ -8,6 +8,8 @@ const SETTINGS_SHEET_NAME = '설정';
 const HIERARCHY_SHEET_NAME = '매체_계층';
 const RAW_SHEET_NAME     = '매체_RAW';
 const DETECT_SHEET_NAME  = '신규소재감지';
+const DG_SHEET_NAME      = '디멘드젠_마스터';
+const PM_SHEET_NAME      = '피맥스_마스터';
 
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('Index')
@@ -64,6 +66,21 @@ function initializeSheets() {
 
   if (!ss.getSheetByName(RAW_SHEET_NAME))    ss.insertSheet(RAW_SHEET_NAME);
   if (!ss.getSheetByName(DETECT_SHEET_NAME)) ss.insertSheet(DETECT_SHEET_NAME);
+
+  if (!ss.getSheetByName(DG_SHEET_NAME)) {
+    const dg = ss.insertSheet(DG_SHEET_NAME);
+    const dgH = ['광고코드','등록일자','캠페인','그룹','광고명','보종','소재유형',
+                  '소구포인트','후킹방식','소구상세','이미지유형','모델유형','이미지코드목록'];
+    dg.getRange(1,1,1,dgH.length).setValues([dgH]).setFontWeight('bold');
+    dg.setFrozenRows(1);
+  }
+  if (!ss.getSheetByName(PM_SHEET_NAME)) {
+    const pm = ss.insertSheet(PM_SHEET_NAME);
+    const pmH = ['에셋그룹코드','등록일자','캠페인','에셋그룹명','보종',
+                  '이미지코드목록','제목목록','설명목록','동영상코드목록'];
+    pm.getRange(1,1,1,pmH.length).setValues([pmH]).setFontWeight('bold');
+    pm.setFrozenRows(1);
+  }
 
   return { success: true, message: '시트 초기화 완료' };
 }
@@ -397,6 +414,194 @@ function detectNewCreatives() {
       items: newItems.map(r => ({ 매체: r[0], 캠페인: r[1], 그룹: r[2], 소재이름: r[3] })),
       message: `신규 소재 ${newItems.length}건 발견`
     };
+  } catch (e) {
+    return { error: true, message: e.message };
+  }
+}
+
+// ====================================================
+// 디멘드젠 / 피맥스 인덱싱
+// ====================================================
+
+function _ensureDGSheet(ss) {
+  let sheet = ss.getSheetByName(DG_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(DG_SHEET_NAME);
+    const h = ['광고코드','등록일자','캠페인','그룹','광고명','보종','소재유형',
+                '소구포인트','후킹방식','소구상세','이미지유형','모델유형','이미지코드목록'];
+    sheet.getRange(1,1,1,h.length).setValues([h]).setFontWeight('bold');
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function _ensurePMSheet(ss) {
+  let sheet = ss.getSheetByName(PM_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(PM_SHEET_NAME);
+    const h = ['에셋그룹코드','등록일자','캠페인','에셋그룹명','보종',
+                '이미지코드목록','제목목록','설명목록','동영상코드목록'];
+    sheet.getRange(1,1,1,h.length).setValues([h]).setFontWeight('bold');
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+// --------------------------------------------------
+// 광고코드 생성: DG + YYMMDD + 3자리 순번
+// --------------------------------------------------
+function generateDGCode() {
+  const ss = getSpreadsheet();
+  const sheet = ss.getSheetByName(DG_SHEET_NAME);
+  const today = new Date();
+  const d = String(today.getFullYear()).slice(2)
+    + String(today.getMonth() + 1).padStart(2, '0')
+    + String(today.getDate()).padStart(2, '0');
+  const prefix = 'DG' + d;
+  let seq = 1;
+  if (sheet && sheet.getLastRow() >= 2) {
+    const codes = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat();
+    seq = codes.filter(c => c && String(c).startsWith(prefix)).length + 1;
+  }
+  return prefix + String(seq).padStart(3, '0');
+}
+
+// --------------------------------------------------
+// 에셋그룹코드 생성: PM + YYMMDD + 3자리 순번
+// --------------------------------------------------
+function generatePMCode() {
+  const ss = getSpreadsheet();
+  const sheet = ss.getSheetByName(PM_SHEET_NAME);
+  const today = new Date();
+  const d = String(today.getFullYear()).slice(2)
+    + String(today.getMonth() + 1).padStart(2, '0')
+    + String(today.getDate()).padStart(2, '0');
+  const prefix = 'PM' + d;
+  let seq = 1;
+  if (sheet && sheet.getLastRow() >= 2) {
+    const codes = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat();
+    seq = codes.filter(c => c && String(c).startsWith(prefix)).length + 1;
+  }
+  return prefix + String(seq).padStart(3, '0');
+}
+
+// --------------------------------------------------
+// 디멘드젠 목록 조회
+// --------------------------------------------------
+function getDGList() {
+  const ss = getSpreadsheet();
+  const sheet = ss.getSheetByName(DG_SHEET_NAME);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  return sheet.getRange(2, 1, sheet.getLastRow() - 1, 13).getValues()
+    .filter(r => r[0])
+    .map(r => ({
+      코드:           String(r[0]),
+      등록일자:       r[1] ? String(r[1]).slice(0, 10) : '',
+      캠페인:         String(r[2]  || ''),
+      그룹:           String(r[3]  || ''),
+      광고명:         String(r[4]  || ''),
+      보종:           String(r[5]  || ''),
+      소재유형:       String(r[6]  || ''),
+      소구포인트:     String(r[7]  || ''),
+      후킹방식:       String(r[8]  || ''),
+      소구상세:       String(r[9]  || ''),
+      이미지유형:     String(r[10] || ''),
+      모델유형:       String(r[11] || ''),
+      이미지코드목록: String(r[12] || '')
+    }));
+}
+
+function getDGByCode(code) {
+  return getDGList().find(r => r.코드 === code) || null;
+}
+
+// --------------------------------------------------
+// 디멘드젠 저장 (신규 or 기존 코드로 수정)
+// --------------------------------------------------
+function saveDG(data) {
+  try {
+    const ss = getSpreadsheet();
+    const sheet = _ensureDGSheet(ss);
+    const dateStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+    if (data.코드 && sheet.getLastRow() >= 2) {
+      const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 13).getValues();
+      const idx = rows.findIndex(r => String(r[0]) === data.코드);
+      if (idx >= 0) {
+        sheet.getRange(idx + 2, 3, 1, 11).setValues([[
+          data.캠페인, data.그룹, data.광고명, data.보종, data.소재유형,
+          data.소구포인트, data.후킹방식, data.소구상세, data.이미지유형, data.모델유형,
+          data.이미지코드목록
+        ]]);
+        return { success: true, 코드: data.코드, updated: true };
+      }
+    }
+
+    const code = generateDGCode();
+    sheet.appendRow([
+      code, dateStr, data.캠페인, data.그룹, data.광고명,
+      data.보종, data.소재유형, data.소구포인트, data.후킹방식, data.소구상세,
+      data.이미지유형, data.모델유형, data.이미지코드목록
+    ]);
+    return { success: true, 코드: code };
+  } catch (e) {
+    return { error: true, message: e.message };
+  }
+}
+
+// --------------------------------------------------
+// 피맥스 목록 조회
+// --------------------------------------------------
+function getPMList() {
+  const ss = getSpreadsheet();
+  const sheet = ss.getSheetByName(PM_SHEET_NAME);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  return sheet.getRange(2, 1, sheet.getLastRow() - 1, 9).getValues()
+    .filter(r => r[0])
+    .map(r => ({
+      코드:           String(r[0]),
+      등록일자:       r[1] ? String(r[1]).slice(0, 10) : '',
+      캠페인:         String(r[2] || ''),
+      에셋그룹명:     String(r[3] || ''),
+      보종:           String(r[4] || ''),
+      이미지코드목록: String(r[5] || ''),
+      제목목록:       String(r[6] || ''),
+      설명목록:       String(r[7] || ''),
+      동영상코드목록: String(r[8] || '')
+    }));
+}
+
+function getPMByCode(code) {
+  return getPMList().find(r => r.코드 === code) || null;
+}
+
+// --------------------------------------------------
+// 피맥스 저장 (신규 or 기존 코드로 수정)
+// --------------------------------------------------
+function savePM(data) {
+  try {
+    const ss = getSpreadsheet();
+    const sheet = _ensurePMSheet(ss);
+    const dateStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+    if (data.코드 && sheet.getLastRow() >= 2) {
+      const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 9).getValues();
+      const idx = rows.findIndex(r => String(r[0]) === data.코드);
+      if (idx >= 0) {
+        sheet.getRange(idx + 2, 3, 1, 7).setValues([[
+          data.캠페인, data.에셋그룹명, data.보종,
+          data.이미지코드목록, data.제목목록, data.설명목록, data.동영상코드목록
+        ]]);
+        return { success: true, 코드: data.코드, updated: true };
+      }
+    }
+
+    const code = generatePMCode();
+    sheet.appendRow([
+      code, dateStr, data.캠페인, data.에셋그룹명, data.보종,
+      data.이미지코드목록, data.제목목록, data.설명목록, data.동영상코드목록
+    ]);
+    return { success: true, 코드: code };
   } catch (e) {
     return { error: true, message: e.message };
   }
