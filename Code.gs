@@ -25,11 +25,63 @@ const DGPM_HEADERS = [
   '번들URL'
 ];
 
-function doGet() {
+function doGet(e) {
+  const unitCode = e && e.parameter && e.parameter.unit;
+  if (unitCode) {
+    const template = HtmlService.createTemplateFromFile('BundleView');
+    template.data = getBundleData(unitCode);
+    template.unitCode = unitCode;
+    return template.evaluate()
+      .setTitle('광고단위 소재')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+      .setSandboxMode(HtmlService.SandboxMode.IFRAME);
+  }
   return HtmlService.createHtmlOutputFromFile('Index')
     .setTitle('소재 인덱싱 시스템')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .setSandboxMode(HtmlService.SandboxMode.IFRAME);
+}
+
+// --------------------------------------------------
+// 번들 뷰용 광고단위 데이터 조회
+// --------------------------------------------------
+function getBundleData(unitCode) {
+  const ss = getSpreadsheet();
+  const dgpmSheet = ss.getSheetByName(DGPM_SHEET_NAME);
+  if (!dgpmSheet || dgpmSheet.getLastRow() < 2) return null;
+
+  const rows = dgpmSheet.getRange(2, 1, dgpmSheet.getLastRow() - 1, DGPM_HEADERS.length).getValues();
+  const unitRow = rows.find(r => String(r[DGPM_COL['광고단위코드']]) === unitCode);
+  if (!unitRow) return null;
+
+  const imageCodes = _splitList(unitRow[DGPM_COL['이미지코드목록']]);
+
+  const masterSheet = ss.getSheetByName(MASTER_SHEET_NAME);
+  const images = [];
+  if (masterSheet && masterSheet.getLastRow() >= 2 && imageCodes.length) {
+    const masterData = masterSheet.getRange(2, 1, masterSheet.getLastRow() - 1, 15).getValues();
+    const codeMap = {};
+    masterData.forEach(r => {
+      const code = String(r[0] || '').trim();
+      if (code && !codeMap[code]) {
+        codeMap[code] = { code, url: String(r[14] || ''), 소재이름: String(r[5] || '') };
+      }
+    });
+    imageCodes.forEach(code => { if (codeMap[code]) images.push(codeMap[code]); });
+  }
+
+  return {
+    광고단위코드: String(unitRow[DGPM_COL['광고단위코드']]),
+    매체:         String(unitRow[DGPM_COL['매체']]),
+    캠페인:       String(unitRow[DGPM_COL['캠페인']]),
+    그룹:         String(unitRow[DGPM_COL['그룹']]),
+    소재이름:     String(unitRow[DGPM_COL['소재이름']]),
+    보종:         String(unitRow[DGPM_COL['보종']]),
+    광고유형:     String(unitRow[DGPM_COL['광고유형']]),
+    소재유형:     String(unitRow[DGPM_COL['소재유형']]),
+    이미지수:     Number(unitRow[DGPM_COL['이미지수']] || 0),
+    images
+  };
 }
 
 function getSpreadsheet() {
