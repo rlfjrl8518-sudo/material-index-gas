@@ -417,9 +417,23 @@
 
 
 
-  /* 기타 드롭다운 그리드 */
+  /* 설정 탭 서브탭 */
+  .settings-sub-nav {
+    display: flex; gap: 2px; margin-bottom: 20px;
+    background: #f3f4f6; border-radius: 8px; padding: 3px;
+  }
+  .settings-sub-btn {
+    flex: 1; padding: 7px 10px; font-size: 13px; font-weight: 500;
+    color: #6b7280; border: none; background: none; border-radius: 6px;
+    cursor: pointer; transition: all .15s; white-space: nowrap;
+  }
+  .settings-sub-btn.active { background: #fff; color: #1a1a2e; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+  .settings-sub-btn:hover:not(.active) { color: #374151; }
+  .settings-sub-panel { display: none; }
+  .settings-sub-panel.active { display: block; }
 
-  .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  /* 기타 드롭다운 그리드 */
+  .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
   .category-block { border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
 
@@ -1100,133 +1114,72 @@
 
 
 
-    <div class="settings-intro">
-
-      💡 <strong>매체 계층</strong>: 매체→캠페인→그룹→소재이름 경로를 행으로 추가하세요.
-
-      &nbsp;|&nbsp; <strong>기타 드롭다운</strong>: 각 항목의 선택지를 추가·삭제합니다.
-
-      변경 후 각 섹션의 저장 버튼을 눌러야 반영됩니다.
-
+    <!-- 서브탭 네비게이션 -->
+    <div class="settings-sub-nav">
+      <button class="settings-sub-btn active" onclick="switchSettingsTab('hierarchy', this)">🔗 매체 계층</button>
+      <button class="settings-sub-btn" onclick="switchSettingsTab('dropdown', this)">🏷 드롭다운</button>
+      <button class="settings-sub-btn" onclick="switchSettingsTab('tools', this)">🔧 도구</button>
     </div>
 
-
-
-    <!-- -- 매체 계층 -- -->
-
-    <div class="card">
-
-      <div class="card-header">
-
-        <span>🔗 매체 계층 구조 (매체 → 캠페인 → 그룹 → 소재이름)</span>
-
-      </div>
-
-      <div class="card-body">
-
-        <p style="font-size:12px;color:#6b7280;margin-bottom:12px;">
-
-          매체별로 접기/펼치기가 가능합니다. 한 행 = 하나의 캠페인→그룹→소재이름 경로입니다.
-
-        </p>
-
-        <div id="hierarchyAccordion"></div>
-
-        <div class="new-media-bar">
-          <input class="form-control" type="text" id="newMediaName" placeholder="새 매체명 (예: 카카오)" style="max-width:200px;">
-          <button class="btn btn-ghost btn-sm" onclick="addMediaSection()">+ 매체 추가</button>
+    <!-- 서브패널 1: 매체 계층 -->
+    <div class="settings-sub-panel active" id="sp-hierarchy">
+      <div class="card">
+        <div class="card-header">
+          <span>매체 계층 구조</span>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <input class="form-control" type="text" id="newMediaName" placeholder="새 매체명" style="width:130px;padding:5px 8px;font-size:12px;">
+            <button class="btn btn-ghost btn-sm" onclick="addMediaSection()">+ 매체</button>
+            <button class="btn btn-secondary btn-sm" onclick="loadHierarchyPanel()">↺</button>
+            <button class="btn btn-primary btn-sm" id="btnSaveHierarchy" onclick="saveHierarchyData()">
+              <div class="spinner" id="spinHierarchy"></div>
+              <span id="btnSaveHierarchyText">저장</span>
+            </button>
+          </div>
         </div>
+        <div class="card-body" style="padding:16px;">
+          <div id="hierarchyAccordion"></div>
+        </div>
+      </div>
+    </div>
 
-        <div style="margin-top:16px;display:flex;gap:8px;align-items:center;">
+    <!-- 서브패널 2: 드롭다운 -->
+    <div class="settings-sub-panel" id="sp-dropdown">
+      <div class="card">
+        <div class="card-header">
+          <span>드롭다운 항목</span>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <input class="add-category-input" type="text" id="newCategoryName" placeholder="새 카테고리명" style="width:130px;padding:5px 8px;font-size:12px;">
+            <button class="btn btn-ghost btn-sm" onclick="addCategory()">+ 추가</button>
+            <button class="btn btn-secondary btn-sm" onclick="loadSettingsPanel()">↺</button>
+            <button class="btn btn-primary btn-sm" id="btnSaveSettings" onclick="saveAllSettings()">
+              <div class="spinner" id="spinSettings"></div>
+              <span id="btnSaveSettingsText">저장</span>
+            </button>
+          </div>
+        </div>
+        <div class="card-body" style="padding:16px;">
+          <div class="settings-grid" id="categoryList"></div>
+        </div>
+      </div>
+    </div>
 
-          <button class="btn btn-primary" id="btnSaveHierarchy" onclick="saveHierarchyData()">
-
-            <div class="spinner" id="spinHierarchy"></div>
-
-            <span id="btnSaveHierarchyText">계층 저장</span>
-
+    <!-- 서브패널 3: 도구 -->
+    <div class="settings-sub-panel" id="sp-tools">
+      <div class="card">
+        <div class="card-header">DG/PM 광고단위 재구성</div>
+        <div class="card-body">
+          <p style="font-size:12px;color:#6b7280;margin-bottom:12px;">
+            소재_마스터의 디멘드젠·피맥스 소재를 기반으로 <strong>DG_PM_광고단위</strong> 시트를 재작성합니다.
+            최초 1회 또는 데이터 불일치 시 실행하세요.
+          </p>
+          <div id="rebuildMsg" class="msg" style="margin-bottom:10px;"></div>
+          <button class="btn btn-secondary" id="btnRebuildDGPM" onclick="runRebuildDGPM()">
+            <div class="spinner" id="spinRebuild"></div>
+            <span id="btnRebuildText">🔄 재구성 실행</span>
           </button>
-
-          <button class="btn btn-secondary" onclick="loadHierarchyPanel()">↺ 불러오기</button>
-
         </div>
-
       </div>
-
     </div>
-
-
-
-    <!-- -- 기타 드롭다운 -- -->
-
-    <div class="card">
-
-      <div class="card-header">
-
-        <span>🏷 기타 드롭다운 (광고유형, 보종 등)</span>
-
-        <div style="display:flex;gap:6px;">
-
-          <input class="add-category-input" type="text" id="newCategoryName"
-
-                 placeholder="새 카테고리명" style="padding:5px 10px;font-size:12px;width:140px;">
-
-          <button class="btn btn-ghost btn-sm" onclick="addCategory()">+ 추가</button>
-
-        </div>
-
-      </div>
-
-      <div class="card-body">
-
-        <div class="settings-grid" id="categoryList"></div>
-
-        <div style="margin-top:14px;display:flex;gap:8px;">
-
-          <button class="btn btn-primary" id="btnSaveSettings" onclick="saveAllSettings()">
-
-            <div class="spinner" id="spinSettings"></div>
-
-            <span id="btnSaveSettingsText">💾 드롭다운 저장</span>
-
-          </button>
-
-          <button class="btn btn-secondary" onclick="loadSettingsPanel()">↺ 불러오기</button>
-
-        </div>
-
-      </div>
-
-    </div>
-
-
-
-    <!-- -- DG/PM 광고단위 재구성 -- -->
-
-    <div class="card">
-
-      <div class="card-header">🔄 DG/PM 광고단위 재구성</div>
-
-      <div class="card-body">
-
-        <p style="font-size:12px;color:#6b7280;margin-bottom:12px;">
-          소재_마스터에 이미 등록된 디멘드젠·피맥스 소재를 기반으로
-          <strong>DG_PM_광고단위</strong> 시트를 재구성합니다.<br>
-          최초 1회 또는 데이터 불일치 시 실행하세요. 기존 광고단위 시트는 초기화 후 재작성됩니다.
-        </p>
-
-        <div id="rebuildMsg" class="msg" style="margin-bottom:10px;"></div>
-
-        <button class="btn btn-secondary" id="btnRebuildDGPM" onclick="runRebuildDGPM()">
-          <div class="spinner" id="spinRebuild"></div>
-          <span id="btnRebuildText">🔄 광고단위 재구성 실행</span>
-        </button>
-
-      </div>
-
-    </div>
-
-
 
   </div>
 
@@ -1332,11 +1285,25 @@ function switchTab(tab, btn) {
 
   if (tab === 'settings') {
 
-    loadSettingsPanel();
-
-    loadHierarchyPanel();
+    loadHierarchyPanel(); // 기본 활성 서브탭: 매체 계층
 
   }
+
+}
+
+function switchSettingsTab(tabId, btn) {
+
+  document.querySelectorAll('.settings-sub-panel').forEach(p => p.classList.remove('active'));
+
+  document.querySelectorAll('.settings-sub-btn').forEach(b => b.classList.remove('active'));
+
+  document.getElementById('sp-' + tabId).classList.add('active');
+
+  btn.classList.add('active');
+
+  if (tabId === 'hierarchy') loadHierarchyPanel();
+
+  if (tabId === 'dropdown')  loadSettingsPanel();
 
 }
 
