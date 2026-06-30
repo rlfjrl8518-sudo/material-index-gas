@@ -369,6 +369,52 @@
     border-top: 2px dashed #e5e7eb;
   }
 
+  /* 캠페인 아코디언 (2단계) */
+  .campaign-container { display: flex; flex-direction: column; gap: 5px; }
+  .campaign-section { border: 1px solid #dde3f0; border-radius: 6px; overflow: hidden; }
+  .campaign-section-header {
+    display: flex; align-items: center; gap: 7px;
+    background: #eef0fb; padding: 7px 11px; cursor: pointer; user-select: none;
+  }
+  .campaign-section-header:hover { background: #e4e8f8; }
+  .campaign-toggle { font-size: 10px; color: #7c87a6; transition: transform .2s; flex-shrink: 0; }
+  .campaign-section.open .campaign-toggle { transform: rotate(90deg); }
+  .campaign-name-input {
+    flex: 1; font-size: 12px; font-weight: 600; color: #374151;
+    border: none; background: transparent; outline: none; min-width: 80px;
+  }
+  .campaign-name-input:focus { background: #fff; border-radius: 4px; padding: 1px 5px; outline: 1px solid #4f6ef7; }
+  .campaign-section-body { display: none; border-top: 1px solid #dde3f0; }
+  .campaign-section.open .campaign-section-body { display: block; }
+  .campaign-section-body-inner { padding: 8px 10px; }
+  .add-camp-bar { display: flex; gap: 7px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #dde3f0; }
+
+  /* 그룹 아코디언 (3단계) */
+  .group-container { display: flex; flex-direction: column; gap: 4px; }
+  .group-section { border: 1px solid #e8ecf3; border-radius: 5px; overflow: hidden; }
+  .group-section-header {
+    display: flex; align-items: center; gap: 6px;
+    background: #f5f7ff; padding: 6px 10px; cursor: pointer; user-select: none;
+  }
+  .group-section-header:hover { background: #ecf0ff; }
+  .group-toggle { font-size: 9px; color: #9ca3af; transition: transform .2s; flex-shrink: 0; }
+  .group-section.open .group-toggle { transform: rotate(90deg); }
+  .group-name-input {
+    flex: 1; font-size: 12px; font-weight: 500; color: #4b5563;
+    border: none; background: transparent; outline: none; min-width: 80px;
+  }
+  .group-name-input:focus { background: #fff; border-radius: 4px; padding: 1px 5px; outline: 1px solid #4f6ef7; }
+  .group-section-body { display: none; border-top: 1px solid #e8ecf3; }
+  .group-section.open .group-section-body { display: block; }
+  .group-section-body-inner { padding: 6px 10px; }
+  .add-group-bar { display: flex; gap: 7px; margin-top: 6px; padding-top: 6px; border-top: 1px dashed #e8ecf3; }
+
+  /* 소재이름 행 (그룹 내 최하위) */
+  .creative-list { display: flex; flex-direction: column; gap: 2px; }
+  .creative-row { display: flex; align-items: center; gap: 6px; padding: 3px 0; border-bottom: 1px solid #f3f4f6; }
+  .creative-row:last-child { border-bottom: none; }
+  .creative-row .h-input { flex: 1; }
+
 
 
   /* 기타 드롭다운 그리드 */
@@ -1733,247 +1779,436 @@ function setSavingSettings(saving) {
 
 
 
-// --- 설정 탭 - 계층 관리 (아코디언) -------------------------
+// --- 설정 탭 - 계층 관리 (3단계 아코디언: 매체 > 캠페인 > 그룹) ---
 
 function loadHierarchyPanel() {
-
   google.script.run
-
     .withSuccessHandler(data => {
-
       hierarchyState = data.map(r => ({ ...r }));
-
       renderHierarchyAccordion();
-
     })
-
     .withFailureHandler(() => {})
-
     .getHierarchy();
-
 }
 
-// 매체별로 묶어서 아코디언 렌더링
-function renderHierarchyAccordion() {
-
+function _getOpenState() {
   const container = document.getElementById('hierarchyAccordion');
+  return {
+    media:    new Set([...container.querySelectorAll('.media-section.open')]   .map(el => el.dataset.media)),
+    camps:    new Set([...container.querySelectorAll('.campaign-section.open')].map(el => el.dataset.campKey)),
+    groups:   new Set([...container.querySelectorAll('.group-section.open')]   .map(el => el.dataset.groupKey))
+  };
+}
 
-  // 열려있던 매체 섹션 기억
-  const openSections = new Set(
-    [...container.querySelectorAll('.media-section.open')].map(el => el.dataset.media)
-  );
+function renderHierarchyAccordion(openState) {
+  const container = document.getElementById('hierarchyAccordion');
+  if (!openState) openState = _getOpenState();
+  const firstLoad = openState.media.size === 0;
 
   container.innerHTML = '';
 
-  // 매체 순서 유지하며 그룹핑
-  const mediaOrder = [];
-  const groups = {};
+  // 3단계 그룹핑: 매체 → 캠페인 → 그룹 → [rows]
+  const mediaOrder = [], groups = {};
   hierarchyState.forEach(row => {
-    const m = row.매체 || '(미분류)';
-    if (!groups[m]) { groups[m] = []; mediaOrder.push(m); }
-    groups[m].push(row);
+    const m = row.매체   || '(미분류)';
+    const c = row.캠페인 || '(미분류)';
+    const g = row.그룹   || '(미분류)';
+    if (!groups[m]) { groups[m] = { campOrder: [], camps: {} }; mediaOrder.push(m); }
+    if (!groups[m].camps[c]) { groups[m].camps[c] = { grpOrder: [], grps: {} }; groups[m].campOrder.push(c); }
+    if (!groups[m].camps[c].grps[g]) { groups[m].camps[c].grps[g] = []; groups[m].camps[c].grpOrder.push(g); }
+    groups[m].camps[c].grps[g].push(row);
   });
-  // 중복 제거 (같은 매체가 여러 번 나오면 처음 등장 순서 유지)
-  const uniqueOrder = [...new Set(mediaOrder)];
+  const uniqueMedia = [...new Set(mediaOrder)];
 
-  if (!uniqueOrder.length) {
-    container.innerHTML = '<p style="text-align:center;padding:20px;color:#9ca3af;font-size:12px;">매체가 없습니다. 아래 [+ 매체 추가] 버튼으로 추가하세요.</p>';
+  if (!uniqueMedia.length) {
+    container.innerHTML = '<p style="text-align:center;padding:20px 0;color:#9ca3af;font-size:12px;">매체가 없습니다. 아래 [+ 매체 추가] 버튼으로 추가하세요.</p>';
     return;
   }
 
-  uniqueOrder.forEach(media => {
-    const rows = groups[media];
-    const isOpen = openSections.size === 0 || openSections.has(media); // 처음 로드 시 전부 펼침
-    container.appendChild(buildMediaSection(media, rows, isOpen));
+  uniqueMedia.forEach(media => {
+    const g = groups[media];
+    const isOpen = firstLoad || openState.media.has(media);
+    container.appendChild(buildMediaSection(media, g.campOrder, g.camps, isOpen, openState));
   });
-
 }
 
-function buildMediaSection(media, rows, isOpen) {
-
+// ── 1단계: 매체 ──
+function buildMediaSection(media, campOrder, campGroups, isOpen, openState) {
   const section = document.createElement('div');
   section.className = 'media-section' + (isOpen ? ' open' : '');
   section.dataset.media = media;
 
-  // ── 헤더 ──
+  const totalRows = [...new Set(campOrder)].reduce((s, c) => {
+    const cg = campGroups[c];
+    return s + [...new Set(cg.grpOrder)].reduce((ss, g) => ss + cg.grps[g].length, 0);
+  }, 0);
+
+  // 헤더
   const header = document.createElement('div');
   header.className = 'media-section-header';
-  header.onclick = (e) => {
-    if (e.target.classList.contains('media-name-input')) return;
-    section.classList.toggle('open');
-  };
+  header.onclick = e => { if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return; section.classList.toggle('open'); };
 
-  const toggle = document.createElement('span');
-  toggle.className = 'media-toggle'; toggle.textContent = '▶';
+  const toggle = document.createElement('span'); toggle.className = 'media-toggle'; toggle.textContent = '▶';
 
   const nameInput = document.createElement('input');
   nameInput.type = 'text'; nameInput.className = 'media-name-input';
-  nameInput.value = media === '(미분류)' ? '' : media;
-  nameInput.placeholder = '매체명';
-  nameInput.onclick = (e) => e.stopPropagation();
+  nameInput.value = media === '(미분류)' ? '' : media; nameInput.placeholder = '매체명';
+  nameInput.onclick = e => e.stopPropagation();
   nameInput.onchange = () => {
     const oldName = section.dataset.media;
     const newName = nameInput.value.trim() || '(미분류)';
     section.dataset.media = newName;
-    // hierarchyState에서 해당 매체 행 일괄 수정
-    hierarchyState.forEach(r => { if (r.매체 === oldName || (oldName === '(미분류)' && !r.매체)) r.매체 = newName === '(미분류)' ? '' : newName; });
-    badge.textContent = rows.length + '개';
+    section.querySelector('.campaign-container').dataset.media = newName;
+    section.querySelectorAll('.campaign-section').forEach(cs => {
+      cs.dataset.campKey = newName + '::' + cs.dataset.camp;
+      cs.querySelectorAll('.group-section').forEach(gs => {
+        gs.dataset.groupKey = newName + '::' + cs.dataset.camp + '::' + gs.dataset.grp;
+      });
+    });
+    hierarchyState.forEach(r => { if ((r.매체 || '(미분류)') === oldName) r.매체 = newName === '(미분류)' ? '' : newName; });
   };
 
-  const badge = document.createElement('span');
-  badge.className = 'media-row-count'; badge.textContent = rows.length + '개';
+  const badge = document.createElement('span'); badge.className = 'media-row-count'; badge.textContent = totalRows + '개';
 
-  const addBtn = document.createElement('button');
-  addBtn.className = 'btn btn-ghost btn-sm';
-  addBtn.textContent = '+ 행 추가';
-  addBtn.onclick = (e) => { e.stopPropagation(); addRowToMedia(media, section); };
-
-  const delMediaBtn = document.createElement('button');
-  delMediaBtn.className = 'btn btn-danger btn-sm';
-  delMediaBtn.textContent = '매체 삭제';
-  delMediaBtn.style.cssText = 'padding:3px 8px;font-size:11px;';
-  delMediaBtn.onclick = (e) => {
+  const delBtn = document.createElement('button');
+  delBtn.className = 'btn btn-danger btn-sm'; delBtn.style.cssText = 'padding:3px 8px;font-size:11px;'; delBtn.textContent = '매체 삭제';
+  delBtn.onclick = e => {
     e.stopPropagation();
     const m = section.dataset.media;
-    if (!confirm((m === '(미분류)' ? '미분류' : m) + ' 매체와 하위 행 전체를 삭제하시겠습니까?')) return;
-    hierarchyState = hierarchyState.filter(r => {
-      const rm = r.매체 || '(미분류)';
-      return rm !== m;
-    });
-    renderHierarchyAccordion();
+    if (!confirm(`'${m}' 매체와 하위 모든 행을 삭제하시겠습니까?`)) return;
+    hierarchyState = hierarchyState.filter(r => (r.매체 || '(미분류)') !== m);
+    section.remove();
   };
 
-  header.appendChild(toggle);
-  header.appendChild(nameInput);
-  header.appendChild(badge);
-  header.appendChild(addBtn);
-  header.appendChild(delMediaBtn);
+  header.append(toggle, nameInput, badge, delBtn);
 
-  // ── 바디 ──
-  const body = document.createElement('div');
-  body.className = 'media-section-body';
+  // 바디
+  const body = document.createElement('div'); body.className = 'media-section-body';
+  const inner = document.createElement('div'); inner.className = 'media-section-body-inner';
 
-  const inner = document.createElement('div');
-  inner.className = 'media-section-body-inner';
+  const campContainer = document.createElement('div');
+  campContainer.className = 'campaign-container'; campContainer.dataset.media = media;
 
-  // 테이블 (매체 열 제외)
-  const wrap = document.createElement('div');
-  wrap.className = 'h-table-wrap';
+  const firstLoad = !openState || openState.media.size === 0;
+  const uniqueCamps = [...new Set(campOrder)];
+  uniqueCamps.forEach(camp => {
+    const cg = campGroups[camp];
+    const isCampOpen = firstLoad || (openState && openState.camps.has(media + '::' + camp));
+    campContainer.appendChild(buildCampaignSection(media, camp, cg.grpOrder, cg.grps, isCampOpen, openState, firstLoad));
+  });
+  if (!uniqueCamps.length) campContainer.appendChild(makeEmptyMsg('캠페인이 없습니다. [+ 캠페인 추가]를 눌러 추가하세요.', 'camp-empty'));
 
-  const table = document.createElement('table');
-  table.className = 'h-table';
-  table.innerHTML = '<thead><tr><th style="width:32%">캠페인</th><th style="width:32%">그룹</th><th>소재이름</th><th style="width:46px"></th></tr></thead>';
+  inner.appendChild(campContainer);
 
-  const tbody = document.createElement('tbody');
-  tbody.dataset.media = media;
+  // 캠페인 추가 바
+  const addCampBar = document.createElement('div'); addCampBar.className = 'add-camp-bar';
+  const ci = document.createElement('input'); ci.className = 'h-input'; ci.type = 'text'; ci.placeholder = '새 캠페인명'; ci.style.maxWidth = '190px';
+  const cb = document.createElement('button'); cb.className = 'btn btn-ghost btn-sm'; cb.textContent = '+ 캠페인 추가';
+  cb.onclick = () => { const n = ci.value.trim(); if (!n) { ci.focus(); return; } addCampaignSection(section, n); ci.value = ''; };
+  ci.onkeydown = e => { if (e.key === 'Enter') cb.click(); };
+  addCampBar.append(ci, cb);
+  inner.appendChild(addCampBar);
 
-  rows.forEach((row) => tbody.appendChild(buildMediaRow(row, tbody)));
-
-  if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:12px;color:#9ca3af;font-size:12px;">행이 없습니다. [+ 행 추가]를 눌러 추가하세요.</td></tr>';
-  }
-
-  table.appendChild(tbody);
-  wrap.appendChild(table);
-  inner.appendChild(wrap);
   body.appendChild(inner);
-
-  section.appendChild(header);
-  section.appendChild(body);
-
+  section.append(header, body);
   return section;
-
 }
 
-function buildMediaRow(row, tbody) {
+// ── 2단계: 캠페인 ──
+function buildCampaignSection(media, camp, grpOrder, grpGroups, isOpen, openState, firstLoad) {
+  const section = document.createElement('div');
+  section.className = 'campaign-section' + (isOpen ? ' open' : '');
+  section.dataset.camp = camp;
+  section.dataset.campKey = media + '::' + camp;
 
-  const tr = document.createElement('tr');
+  const totalRows = [...new Set(grpOrder)].reduce((s, g) => s + grpGroups[g].length, 0);
 
-  ['캠페인', '그룹', '소재이름'].forEach(key => {
-    const td = document.createElement('td');
-    const inp = document.createElement('input');
-    inp.type = 'text'; inp.className = 'h-input';
-    inp.value = row[key] || '';
-    inp.placeholder = key;
-    inp.oninput = () => { row[key] = inp.value; };
-    td.appendChild(inp);
-    tr.appendChild(td);
-  });
+  // 헤더
+  const header = document.createElement('div'); header.className = 'campaign-section-header';
+  header.onclick = e => { if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return; section.classList.toggle('open'); };
 
-  const tdDel = document.createElement('td');
+  const toggle = document.createElement('span'); toggle.className = 'campaign-toggle'; toggle.textContent = '▶';
+
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text'; nameInput.className = 'campaign-name-input';
+  nameInput.value = camp === '(미분류)' ? '' : camp; nameInput.placeholder = '캠페인명';
+  nameInput.onclick = e => e.stopPropagation();
+  nameInput.onchange = () => {
+    const oldCamp = section.dataset.camp;
+    const m = section.closest('.media-section').dataset.media;
+    const newCamp = nameInput.value.trim() || '(미분류)';
+    section.dataset.camp = newCamp;
+    section.dataset.campKey = m + '::' + newCamp;
+    section.querySelectorAll('.group-section').forEach(gs => {
+      gs.dataset.groupKey = m + '::' + newCamp + '::' + gs.dataset.grp;
+    });
+    hierarchyState.forEach(r => {
+      if ((r.매체 || '(미분류)') === m && (r.캠페인 || '(미분류)') === oldCamp) r.캠페인 = newCamp === '(미분류)' ? '' : newCamp;
+    });
+  };
+
+  const badge = document.createElement('span'); badge.className = 'media-row-count'; badge.textContent = totalRows + '개';
+
   const delBtn = document.createElement('button');
-  delBtn.className = 'btn btn-danger btn-sm';
-  delBtn.style.cssText = 'padding:3px 8px;font-size:11px;';
-  delBtn.textContent = '삭제';
+  delBtn.className = 'btn btn-danger btn-sm'; delBtn.style.cssText = 'padding:3px 8px;font-size:11px;'; delBtn.textContent = '캠페인 삭제';
+  delBtn.onclick = e => {
+    e.stopPropagation();
+    const c = section.dataset.camp;
+    const m = section.closest('.media-section').dataset.media;
+    if (!confirm(`'${c}' 캠페인과 하위 모든 행을 삭제하시겠습니까?`)) return;
+    hierarchyState = hierarchyState.filter(r => !((r.매체 || '(미분류)') === m && (r.캠페인 || '(미분류)') === c));
+    section.remove();
+    _updateMediaBadge(section.closest ? null : null); // 매체 배지 갱신
+    const ms = document.querySelector(`.media-section[data-media="${CSS.escape(m)}"]`);
+    if (ms) updateMediaBadge(ms);
+  };
+
+  header.append(toggle, nameInput, badge, delBtn);
+
+  // 바디
+  const body = document.createElement('div'); body.className = 'campaign-section-body';
+  const inner = document.createElement('div'); inner.className = 'campaign-section-body-inner';
+
+  const grpContainer = document.createElement('div'); grpContainer.className = 'group-container';
+
+  const uniqueGrps = [...new Set(grpOrder)];
+  uniqueGrps.forEach(grp => {
+    const rows = grpGroups[grp];
+    const isGrpOpen = firstLoad || (openState && openState.groups.has(media + '::' + camp + '::' + grp));
+    grpContainer.appendChild(buildGroupSection(media, camp, grp, rows, isGrpOpen));
+  });
+  if (!uniqueGrps.length) grpContainer.appendChild(makeEmptyMsg('그룹이 없습니다. [+ 그룹 추가]를 눌러 추가하세요.', 'grp-empty'));
+
+  inner.appendChild(grpContainer);
+
+  // 그룹 추가 바
+  const addGrpBar = document.createElement('div'); addGrpBar.className = 'add-group-bar';
+  const gi = document.createElement('input'); gi.className = 'h-input'; gi.type = 'text'; gi.placeholder = '새 그룹명'; gi.style.maxWidth = '190px';
+  const gb = document.createElement('button'); gb.className = 'btn btn-ghost btn-sm'; gb.textContent = '+ 그룹 추가';
+  gb.onclick = () => { const n = gi.value.trim(); if (!n) { gi.focus(); return; } addGroupSection(section, n); gi.value = ''; };
+  gi.onkeydown = e => { if (e.key === 'Enter') gb.click(); };
+  addGrpBar.append(gi, gb);
+  inner.appendChild(addGrpBar);
+
+  body.appendChild(inner);
+  section.append(header, body);
+  return section;
+}
+
+// ── 3단계: 그룹 ──
+function buildGroupSection(media, camp, grp, rows, isOpen) {
+  const section = document.createElement('div');
+  section.className = 'group-section' + (isOpen ? ' open' : '');
+  section.dataset.grp = grp;
+  section.dataset.groupKey = media + '::' + camp + '::' + grp;
+
+  // 헤더
+  const header = document.createElement('div'); header.className = 'group-section-header';
+  header.onclick = e => { if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return; section.classList.toggle('open'); };
+
+  const toggle = document.createElement('span'); toggle.className = 'group-toggle'; toggle.textContent = '▶';
+
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text'; nameInput.className = 'group-name-input';
+  nameInput.value = grp === '(미분류)' ? '' : grp; nameInput.placeholder = '그룹명';
+  nameInput.onclick = e => e.stopPropagation();
+  nameInput.onchange = () => {
+    const oldGrp = section.dataset.grp;
+    const cs = section.closest('.campaign-section');
+    const ms = section.closest('.media-section');
+    const m = ms ? ms.dataset.media : '';
+    const c = cs ? cs.dataset.camp : '';
+    const newGrp = nameInput.value.trim() || '(미분류)';
+    section.dataset.grp = newGrp;
+    section.dataset.groupKey = m + '::' + c + '::' + newGrp;
+    hierarchyState.forEach(r => {
+      if ((r.매체 || '(미분류)') === m && (r.캠페인 || '(미분류)') === c && (r.그룹 || '(미분류)') === oldGrp)
+        r.그룹 = newGrp === '(미분류)' ? '' : newGrp;
+    });
+  };
+
+  const badge = document.createElement('span'); badge.className = 'media-row-count'; badge.textContent = rows.length + '개';
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'btn btn-ghost btn-sm'; addBtn.textContent = '+ 소재 추가';
+  addBtn.onclick = e => { e.stopPropagation(); addCreativeRow(section); };
+
+  const delBtn = document.createElement('button');
+  delBtn.className = 'btn btn-danger btn-sm'; delBtn.style.cssText = 'padding:3px 8px;font-size:11px;'; delBtn.textContent = '그룹 삭제';
+  delBtn.onclick = e => {
+    e.stopPropagation();
+    const g = section.dataset.grp;
+    const cs = section.closest('.campaign-section');
+    const ms = section.closest('.media-section');
+    const m = ms ? ms.dataset.media : '';
+    const c = cs ? cs.dataset.camp : '';
+    if (!confirm(`'${g}' 그룹과 하위 소재이름 전체를 삭제하시겠습니까?`)) return;
+    hierarchyState = hierarchyState.filter(r => !((r.매체 || '(미분류)') === m && (r.캠페인 || '(미분류)') === c && (r.그룹 || '(미분류)') === g));
+    section.remove();
+    if (cs) updateCampBadge(cs);
+    if (ms) updateMediaBadge(ms);
+  };
+
+  header.append(toggle, nameInput, badge, addBtn, delBtn);
+
+  // 바디 (소재이름 목록)
+  const body = document.createElement('div'); body.className = 'group-section-body';
+  const inner = document.createElement('div'); inner.className = 'group-section-body-inner';
+  const list = document.createElement('div'); list.className = 'creative-list';
+
+  rows.forEach(row => list.appendChild(buildCreativeRow(row, list, section)));
+  if (!rows.length) list.appendChild(makeCreativeEmpty());
+
+  inner.appendChild(list);
+  body.appendChild(inner);
+  section.append(header, body);
+  return section;
+}
+
+// ── 소재이름 행 ──
+function buildCreativeRow(row, list, grpSection) {
+  const div = document.createElement('div'); div.className = 'creative-row';
+
+  const inp = document.createElement('input');
+  inp.type = 'text'; inp.className = 'h-input';
+  inp.value = row.소재이름 || ''; inp.placeholder = '소재이름';
+  inp.oninput = () => { row.소재이름 = inp.value; };
+
+  const delBtn = document.createElement('button');
+  delBtn.className = 'btn btn-danger btn-sm'; delBtn.style.cssText = 'padding:3px 8px;font-size:11px;flex-shrink:0;'; delBtn.textContent = '삭제';
   delBtn.onclick = () => {
     const idx = hierarchyState.indexOf(row);
     if (idx !== -1) hierarchyState.splice(idx, 1);
-    tr.remove();
-    // 행이 비면 빈 안내 표시
-    if (!tbody.children.length) {
-      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:12px;color:#9ca3af;font-size:12px;">행이 없습니다. [+ 행 추가]를 눌러 추가하세요.</td></tr>';
-    }
-    // 배지 카운트 갱신
-    const sec = tbody.closest('.media-section');
-    if (sec) {
-      const m = sec.dataset.media;
-      const cnt = hierarchyState.filter(r => (r.매체 || '(미분류)') === m).length;
-      const badge = sec.querySelector('.media-row-count');
-      if (badge) badge.textContent = cnt + '개';
-    }
+    div.remove();
+    if (!list.children.length) list.appendChild(makeCreativeEmpty());
+    updateGroupBadge(grpSection);
+    const cs = grpSection.closest('.campaign-section');
+    const ms = grpSection.closest('.media-section');
+    if (cs) updateCampBadge(cs);
+    if (ms) updateMediaBadge(ms);
   };
-  tdDel.appendChild(delBtn);
-  tr.appendChild(tdDel);
 
-  return tr;
-
+  div.append(inp, delBtn);
+  return div;
 }
 
-function addRowToMedia(media, section) {
-
-  const newRow = { 매체: media === '(미분류)' ? '' : media, 캠페인: '', 그룹: '', 소재이름: '' };
+function addCreativeRow(grpSection) {
+  const ms = grpSection.closest('.media-section');
+  const cs = grpSection.closest('.campaign-section');
+  const newRow = {
+    매체:    ms ? (ms.dataset.media   === '(미분류)' ? '' : ms.dataset.media)   : '',
+    캠페인:  cs ? (cs.dataset.camp    === '(미분류)' ? '' : cs.dataset.camp)    : '',
+    그룹:        grpSection.dataset.grp === '(미분류)' ? '' : grpSection.dataset.grp,
+    소재이름: ''
+  };
   hierarchyState.push(newRow);
 
-  const tbody = section.querySelector('tbody');
-  // 빈 안내 행 제거
-  if (tbody.querySelector('td[colspan]')) tbody.innerHTML = '';
+  const list = grpSection.querySelector('.creative-list');
+  const empty = list.querySelector('.creative-empty');
+  if (empty) empty.remove();
+  const row = buildCreativeRow(newRow, list, grpSection);
+  list.appendChild(row);
 
-  const tr = buildMediaRow(newRow, tbody);
-  tbody.appendChild(tr);
+  updateGroupBadge(grpSection);
+  if (cs) updateCampBadge(cs);
+  if (ms) updateMediaBadge(ms);
+  row.querySelector('.h-input')?.focus();
+  row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
 
-  // 배지 갱신
-  const m = section.dataset.media;
-  const cnt = hierarchyState.filter(r => (r.매체 || '(미분류)') === m).length;
-  const badge = section.querySelector('.media-row-count');
-  if (badge) badge.textContent = cnt + '개';
+// ── 섹션 추가 ──
+function addGroupSection(campSection, grpName) {
+  const ms = campSection.closest('.media-section');
+  const media = ms ? ms.dataset.media : '(미분류)';
+  const camp  = campSection.dataset.camp;
 
-  // 새 행 첫 input 포커스
-  tr.querySelector('.h-input')?.focus();
-  tr.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  const existing = [...campSection.querySelectorAll('.group-section')].find(gs => gs.dataset.grp === grpName);
+  if (existing) { existing.classList.add('open'); existing.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
 
+  const grpContainer = campSection.querySelector('.group-container');
+  const emptyEl = grpContainer.querySelector('.camp-empty,.grp-empty');
+  if (emptyEl) emptyEl.remove();
+
+  const gs = buildGroupSection(media, camp, grpName, [], true);
+  grpContainer.appendChild(gs);
+  gs.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function addCampaignSection(mediaSection, campName) {
+  const media = mediaSection.dataset.media;
+
+  const existing = [...mediaSection.querySelectorAll('.campaign-section')].find(cs => cs.dataset.camp === campName);
+  if (existing) { existing.classList.add('open'); existing.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+
+  const campContainer = mediaSection.querySelector('.campaign-container');
+  const emptyEl = campContainer.querySelector('.camp-empty');
+  if (emptyEl) emptyEl.remove();
+
+  const cs = buildCampaignSection(media, campName, [], {}, true, null, true);
+  campContainer.appendChild(cs);
+  cs.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function addMediaSection() {
-
   const input = document.getElementById('newMediaName');
   const name = input.value.trim();
   if (!name) { input.focus(); return; }
 
-  // 이미 존재하는 매체면 해당 섹션 열기
-  const existing = document.querySelector(`.media-section[data-media="${CSS.escape(name)}"]`);
-  if (existing) {
-    existing.classList.add('open');
-    existing.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    input.value = '';
-    return;
-  }
+  const container = document.getElementById('hierarchyAccordion');
+  const emptyEl = container.querySelector('p');
+  if (emptyEl) emptyEl.remove();
 
-  // 새 섹션 생성 (행 없이)
-  const section = buildMediaSection(name, [], true);
-  document.getElementById('hierarchyAccordion').appendChild(section);
+  const existing = container.querySelector(`.media-section[data-media="${CSS.escape(name)}"]`);
+  if (existing) { existing.classList.add('open'); existing.scrollIntoView({ behavior: 'smooth', block: 'start' }); input.value = ''; return; }
+
+  const section = buildMediaSection(name, [], {}, true, null);
+  container.appendChild(section);
   section.scrollIntoView({ behavior: 'smooth', block: 'start' });
   input.value = '';
+}
 
+// ── 배지 갱신 헬퍼 ──
+function updateGroupBadge(grpSection) {
+  const ms = grpSection.closest('.media-section');
+  const cs = grpSection.closest('.campaign-section');
+  const m = ms ? ms.dataset.media : '(미분류)';
+  const c = cs ? cs.dataset.camp  : '(미분류)';
+  const g = grpSection.dataset.grp;
+  const cnt = hierarchyState.filter(r => (r.매체||'(미분류)') === m && (r.캠페인||'(미분류)') === c && (r.그룹||'(미분류)') === g).length;
+  const badge = grpSection.querySelector(':scope > .group-section-header .media-row-count');
+  if (badge) badge.textContent = cnt + '개';
+}
+
+function updateCampBadge(campSection) {
+  const ms = campSection.closest('.media-section');
+  const m = ms ? ms.dataset.media : '(미분류)';
+  const c = campSection.dataset.camp;
+  const cnt = hierarchyState.filter(r => (r.매체||'(미분류)') === m && (r.캠페인||'(미분류)') === c).length;
+  const badge = campSection.querySelector(':scope > .campaign-section-header .media-row-count');
+  if (badge) badge.textContent = cnt + '개';
+}
+
+function updateMediaBadge(mediaSection) {
+  if (!mediaSection) return;
+  const m = mediaSection.dataset.media;
+  const cnt = hierarchyState.filter(r => (r.매체||'(미분류)') === m).length;
+  const badge = mediaSection.querySelector(':scope > .media-section-header .media-row-count');
+  if (badge) badge.textContent = cnt + '개';
+}
+
+// ── 빈 안내 요소 ──
+function makeEmptyMsg(text, cls) {
+  const p = document.createElement('p');
+  p.className = cls; p.style.cssText = 'padding:8px 0;color:#9ca3af;font-size:12px;text-align:center;';
+  p.textContent = text;
+  return p;
+}
+
+function makeCreativeEmpty() {
+  const p = document.createElement('p');
+  p.className = 'creative-empty'; p.style.cssText = 'padding:6px 0;color:#9ca3af;font-size:12px;';
+  p.textContent = '소재이름이 없습니다. [+ 소재 추가]를 눌러 추가하세요.';
+  return p;
 }
 
 function saveHierarchyData() {
