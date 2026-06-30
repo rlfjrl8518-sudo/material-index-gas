@@ -218,6 +218,22 @@ function getImageCodes() {
 }
 
 // --------------------------------------------------
+// 디버그: 이미지 코드 원시값 확인
+// --------------------------------------------------
+function debugImageCodes() {
+  const ss = getSpreadsheet();
+  const sheet = ss.getSheetByName(MASTER_SHEET_NAME);
+  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues();
+  const result = data.map((row, i) => ({
+    행: i + 2,
+    코드: JSON.stringify(String(row[0] || '')), // 공백·특수문자 포함해서 보여줌
+    길이: String(row[0] || '').length
+  }));
+  Logger.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+// --------------------------------------------------
 // 이미지코드로 소재 정보 조회 (기존 코드 선택 시 폼 자동 채우기)
 // --------------------------------------------------
 function getCreativeByImageCode(imageCode) {
