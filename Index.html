@@ -4157,26 +4157,39 @@ async function loadAnalysisData() {
   loadEl.style.display   = 'flex';
 
   try {
+    // ── 1단계: 연결 확인 ──
+    const ping = await gasRun('testPing');
+    if (!ping || ping.status !== 'ok') {
+      loadEl.innerHTML = `<div style="color:#f87171;font-size:13px">서버 연결 실패 — Code.gs가 최신 버전인지 확인하세요</div>`;
+      return;
+    }
+    if (!ping.sheetFound) {
+      const sheetList = (ping.allSheets || []).map(s => `"${esc(s)}"`).join(', ');
+      loadEl.innerHTML = `<div style="color:#f59e0b;font-size:13px;line-height:1.8;padding:8px">
+        <b>시트를 찾을 수 없음</b><br>
+        찾는 시트명: <code>${esc(ping.lookingFor)}</code><br>
+        현재 시트 목록: ${sheetList || '(없음)'}
+      </div>`;
+      return;
+    }
+    if (ping.lastRow < 2) {
+      loadEl.innerHTML = `<div style="color:#f59e0b;font-size:13px;text-align:center">
+        소재_통합RAW 시트에 데이터가 없습니다 (행 수: ${ping.lastRow})<br>
+        <span style="color:#64748b;font-size:11px">Apps Script 메뉴 → 소재 인덱싱 → 통합 적재를 먼저 실행하세요</span>
+      </div>`;
+      return;
+    }
+
+    // ── 2단계: 실데이터 로드 ──
     const [raw, master] = await Promise.all([
       gasRun('getAllData'),
       gasRun('getMasterData')
     ]);
-    // ── 진단: raw가 배열이 아닌 경우 (시트 미발견 등) ──
     if (!Array.isArray(raw)) {
-      const info = raw && typeof raw === 'object' ? raw : {};
-      let msg = '';
-      if (info._notFound) {
-        const sheetList = (info.sheets || []).map(s => `"${s}"`).join(', ');
-        msg = `<b>시트를 찾을 수 없음</b><br>
-          찾는 시트명: <code>${esc(info.looking)}</code><br>
-          현재 시트 목록: ${esc(sheetList) || '(없음)'}`;
-      } else if (info._empty) {
-        msg = `소재_통합RAW 시트가 비어 있습니다 (getLastRow=${info.lastRow})<br>
-          <span style="color:#64748b;font-size:11px">Apps Script 메뉴 → 소재 인덱싱 → 통합 적재를 먼저 실행하세요</span>`;
-      } else {
-        msg = `getAllData 반환값 이상: ${esc(JSON.stringify(raw))}`;
-      }
-      loadEl.innerHTML = `<div style="color:#f59e0b;font-size:13px;line-height:1.7;padding:8px">${msg}</div>`;
+      loadEl.innerHTML = `<div style="color:#f87171;font-size:13px">
+        getAllData 오류 — ping은 정상(${ping.lastRow}행), 데이터 직렬화 실패<br>
+        <span style="color:#64748b;font-size:11px">반환값: ${esc(JSON.stringify(raw))}</span>
+      </div>`;
       return;
     }
     azRawData    = raw;
