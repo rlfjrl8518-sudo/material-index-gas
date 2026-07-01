@@ -1437,12 +1437,12 @@
     <!-- 1행: 기간 + 매체 계층 -->
     <div class="az-filter-row">
       <div class="az-filter-item">
-        <label>시작일</label>
-        <input type="date" id="az-f-start" class="az-filter-input" onchange="azLoaded && updateDashboard()">
-      </div>
-      <div class="az-filter-item">
-        <label>종료일</label>
-        <input type="date" id="az-f-end" class="az-filter-input" onchange="azLoaded && updateDashboard()">
+        <label>기간</label>
+        <div style="display:flex;align-items:center;gap:4px">
+          <input type="date" id="az-f-start" class="az-filter-input" style="width:118px" onchange="azDateChange()">
+          <span style="color:var(--az-t3);font-size:11px;flex-shrink:0">~</span>
+          <input type="date" id="az-f-end" class="az-filter-input" style="width:118px" onchange="azDateChange()">
+        </div>
       </div>
       <div class="az-filter-item">
         <label>매체</label>
@@ -4278,27 +4278,53 @@ const AZ_CASCADE = [
   { id:'az-f-model',    col:AZ.MODELTYPE },
 ];
 
-// changedId 이후의 드롭다운을 현재 선택값 기준 필터링된 rows로 재구성
+// 날짜 필터 기준 rows (캐스케이드 드롭다운의 베이스로 사용)
+function azDateRows() {
+  if (!azRawData || azRawData.length < 2) return [];
+  const rows   = azRawData.slice(1);
+  const fStart = document.getElementById('az-f-start').value;
+  const fEnd   = document.getElementById('az-f-end').value;
+  if (!fStart && !fEnd) return rows;
+  return rows.filter(r => {
+    const d = azDateStr(r[AZ.DATE]);
+    if (fStart && d < fStart) return false;
+    if (fEnd   && d > fEnd)   return false;
+    return true;
+  });
+}
+
+// 날짜 변경 → 전체 캐스케이드 드롭다운 재구성 후 대시보드 갱신
+function azDateChange() {
+  if (!azLoaded) { updateDashboard(); return; }
+  const rows = azDateRows();
+  AZ_CASCADE.forEach(({ id, col }, i) => {
+    let scope = rows;
+    for (let j = 0; j < i; j++) {
+      const { id: jid, col: jcol } = AZ_CASCADE[j];
+      const v = document.getElementById(jid).value;
+      if (v) scope = scope.filter(r => String(r[jcol]||'').trim() === v);
+    }
+    const vals = [...new Set(scope.map(r => String(r[col]||'').trim()).filter(Boolean))].sort();
+    const el = document.getElementById(id);
+    const prev = el.value;
+    el.innerHTML = `<option value="">전체</option>` +
+      vals.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+    el.value = (prev && vals.includes(prev)) ? prev : '';
+  });
+  updateDashboard();
+}
+
+// changedId 이후의 드롭다운을 날짜+상위 선택 기준으로 재구성
 function azCascade(changedId) {
   if (!azLoaded) return;
-  const rows = azRawData.slice(1);
+  const rows = azDateRows();  // 날짜 필터 먼저 적용
   const changedIdx = AZ_CASCADE.findIndex(f => f.id === changedId);
 
-  // 변경된 필터 포함 이전까지의 조건으로 rows 좁히기
-  let filtered = rows;
-  for (let i = 0; i <= changedIdx; i++) {
-    const { id, col } = AZ_CASCADE[i];
-    const val = document.getElementById(id).value;
-    if (val) filtered = filtered.filter(r => String(r[col]||'').trim() === val);
-  }
-
-  // 변경된 필터 이후 드롭다운들을 재구성 (현재 선택값 유지 시도)
   for (let i = changedIdx + 1; i < AZ_CASCADE.length; i++) {
     const { id, col } = AZ_CASCADE[i];
     const el = document.getElementById(id);
     const prev = el.value;
 
-    // i 이전 조건으로 좁혀진 rows에서 유효 값 추출
     let scope = rows;
     for (let j = 0; j < i; j++) {
       const { id: jid, col: jcol } = AZ_CASCADE[j];
