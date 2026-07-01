@@ -898,9 +898,24 @@
   .az-flag-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--az-bd); font-size: 12px; }
   .az-flag-row:last-child { border-bottom: none; }
   .az-flag-badge { background: #f59e0b22; color: #f59e0b; border-radius: 5px; padding: 2px 7px; font-size: 10px; font-weight: 700; white-space: nowrap; }
-  .az-flag-name { flex: 1; color: var(--az-t1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .az-flag-name { flex: 1; color: var(--az-t1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: default; position: relative; }
   .az-flag-cpa { color: #f87171; font-weight: 700; white-space: nowrap; }
   .az-flag-diff { color: #fca5a5; font-size: 11px; white-space: nowrap; }
+
+  /* 소재이름 호버 이미지 팝업 */
+  #az-img-preview {
+    position: fixed; z-index: 9999; pointer-events: none;
+    background: var(--az-surf); border: 1px solid var(--az-bd2);
+    border-radius: 8px; padding: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.35);
+    display: none;
+  }
+  #az-img-preview img { display: block; width: 160px; height: 160px; object-fit: contain; border-radius: 4px; }
+  #az-img-preview .az-prev-bundle {
+    width: 160px; height: 160px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 6px;
+    color: #4f6ef7; font-size: 32px;
+  }
+  #az-img-preview .az-prev-bundle span { font-size: 11px; color: var(--az-t3); }
 
   /* AI 인사이트 */
   .az-insight-btn {
@@ -4630,6 +4645,44 @@ function renderRanking(rows) {
   }).join('');
 }
 
+// ── 소재이름 호버 이미지 팝업 ─────────────────────────────
+function azPreviewShow(el, e) {
+  const url = el.dataset.url;
+  const popup = document.getElementById('az-img-preview');
+  const img   = document.getElementById('az-img-preview-img');
+  const bundle= document.getElementById('az-img-preview-bundle');
+
+  if (!url) return;
+
+  if (/[?&]unit=/.test(url)) {
+    img.style.display    = 'none';
+    bundle.style.display = 'flex';
+  } else {
+    img.src = driveThumb(url);
+    img.style.display    = 'block';
+    bundle.style.display = 'none';
+    img.onerror = () => { img.style.display='none'; bundle.style.display='flex'; };
+  }
+
+  popup.style.display = 'block';
+  azPreviewMove(e);
+}
+function azPreviewMove(e) {
+  const popup = document.getElementById('az-img-preview');
+  if (popup.style.display === 'none') return;
+  const pw = popup.offsetWidth  || 172;
+  const ph = popup.offsetHeight || 172;
+  let x = e.clientX + 14;
+  let y = e.clientY + 14;
+  if (x + pw > window.innerWidth  - 8) x = e.clientX - pw - 14;
+  if (y + ph > window.innerHeight - 8) y = e.clientY - ph - 14;
+  popup.style.left = x + 'px';
+  popup.style.top  = y + 'px';
+}
+function azPreviewHide() {
+  document.getElementById('az-img-preview').style.display = 'none';
+}
+
 // ── 이미지 썸네일 헬퍼 ────────────────────────────────────
 // onerror 시 클릭 핸들러를 안전하게 붙이기 위해 data-url 사용
 function azImgFail(img) {
@@ -4839,7 +4892,8 @@ function renderLifecycle(rows) {
     const elapsed = Math.floor((today - new Date(dStr + 'T00:00:00')) / 86400000);
     const phase = elapsed <= 14 ? '초기' : elapsed <= 28 ? '중기' : '후기';
     const k = azKPI(azSum(rs));
-    phases[phase].push({ name, elapsed, ...k });
+    const url = (rs.find(r => r[AZ.IMGURL]) || {})[AZ.IMGURL] || '';
+    phases[phase].push({ name, elapsed, url, ...k });
   });
 
   // 전체 평균 CPA 계산
@@ -4903,7 +4957,9 @@ function renderLifecycle(rows) {
         const diff = avgCPA > 0 ? Math.round((e.cpa/avgCPA-1)*100) : 0;
         return `<div class="az-flag-row">
           <span class="az-flag-badge">후기 ${e.elapsed}일</span>
-          <span class="az-flag-name" title="${esc(e.name)}">${esc(e.name)}</span>
+          <span class="az-flag-name" data-url="${esc(e.url)}"
+            onmouseenter="azPreviewShow(this,event)" onmousemove="azPreviewMove(event)" onmouseleave="azPreviewHide()"
+            title="${esc(e.name)}">${esc(e.name)}</span>
           <span class="az-flag-cpa">${azWon(e.cpa)}</span>
           <span class="az-flag-diff">+${diff}%</span>
         </div>`;
@@ -4956,6 +5012,12 @@ async function runAIInsight() {
 }
 
 </script>
+
+<!-- 소재이름 호버 이미지 팝업 -->
+<div id="az-img-preview">
+  <img id="az-img-preview-img" src="" alt="">
+  <div class="az-prev-bundle" id="az-img-preview-bundle" style="display:none">📦<span>번들 소재</span></div>
+</div>
 
 </body>
 
