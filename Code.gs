@@ -2,13 +2,14 @@
 // 소재 인덱싱 시스템 - Code.gs
 // ====================================================
 
-const SHEET_ID           = '1S74kKyOO3ATqk12nmQR860VT5ms8s5FS33T3gF5kd7I';
-const MASTER_SHEET_NAME  = '전매체 인덱스';
-const SETTINGS_SHEET_NAME = '설정';
-const HIERARCHY_SHEET_NAME = '매체 구조';
-const RAW_SHEET_NAME     = '매체_RAW';
-const DETECT_SHEET_NAME  = '신규소재감지';
-const DGPM_SHEET_NAME    = '구글DA 인덱스';
+const SHEET_ID                    = '1S74kKyOO3ATqk12nmQR860VT5ms8s5FS33T3gF5kd7I';
+const MASTER_SHEET_NAME           = '전매체 인덱스';
+const SETTINGS_SHEET_NAME         = '설정';
+const HIERARCHY_SHEET_NAME        = '매체 구조';
+const RAW_SHEET_NAME              = '매체_RAW';
+const DETECT_SHEET_NAME           = '신규소재감지';
+const DGPM_SHEET_NAME             = '구글DA 인덱스';
+const CONSOLIDATED_RAW_SHEET_NAME = '소재_통합RAW';
 
 // 광고 단위에 여러 이미지가 포함되는 매체 (1:N 구조)
 const DGPM_MEDIA = ['디멘드젠', '피맥스'];
@@ -25,6 +26,17 @@ const DGPM_HEADERS = [
   '번들URL'
 ];
 
+// 소재_통합RAW 시트 헤더 (A~U, 21열)
+const CONSOLIDATED_RAW_HEADERS = [
+  '매체', '일', '캠페인', '광고그룹', '소재이름',
+  '보종', '광고유형', '소재유형', '소구포인트', '후킹방식', '소구상세',
+  '이미지유형', '모델유형', '이미지URL',
+  '노출수', '클릭수', 'CTR', '비용', '전환', 'CVR', 'CPA'
+];
+
+// --------------------------------------------------
+// 웹앱 진입점
+// --------------------------------------------------
 function doGet(e) {
   const unitCode = e && e.parameter && e.parameter.unit;
   const template = HtmlService.createTemplateFromFile('Index');
@@ -34,6 +46,19 @@ function doGet(e) {
     .setTitle(unitCode ? '광고단위 소재' : '소재 인덱싱 시스템')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .setSandboxMode(HtmlService.SandboxMode.IFRAME);
+}
+
+// --------------------------------------------------
+// 커스텀 메뉴 (스프레드시트 열릴 때 자동 등록)
+// [통합 적재] 버튼 대체 수단으로도 활용
+// --------------------------------------------------
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('소재 인덱싱')
+    .addItem('통합 적재', 'consolidateRawData')
+    .addSeparator()
+    .addItem('시트 초기화', 'initializeSheets')
+    .addToUi();
 }
 
 // --------------------------------------------------
@@ -132,6 +157,14 @@ function initializeSheets() {
     const dgpmSheet = ss.insertSheet(DGPM_SHEET_NAME);
     dgpmSheet.getRange(1, 1, 1, DGPM_HEADERS.length).setValues([DGPM_HEADERS]).setFontWeight('bold');
     dgpmSheet.setFrozenRows(1);
+  }
+
+  // 소재_통합RAW 시트
+  if (!ss.getSheetByName(CONSOLIDATED_RAW_SHEET_NAME)) {
+    const cSheet = ss.insertSheet(CONSOLIDATED_RAW_SHEET_NAME);
+    cSheet.getRange(1, 1, 1, CONSOLIDATED_RAW_HEADERS.length)
+      .setValues([CONSOLIDATED_RAW_HEADERS]).setFontWeight('bold');
+    cSheet.setFrozenRows(1);
   }
 
   return { success: true, message: '시트 초기화 완료' };
@@ -857,3 +890,60 @@ function detectNewCreatives() {
   }
 }
 
+// --------------------------------------------------
+// 통합 적재
+// RAW_ 로 시작하는 모든 시트의 A~U열 데이터를 소재_통합RAW에 병합
+// 중복 키: 일(B열) + 매체(A열) + 소재이름(E열)
+// --------------------------------------------------
+function consolidateRawData() {
+  try {
+    const ss = getSpreadsheet();
+
+    // 소재_통합RAW 시트 확보
+    let targetSheet = ss.getSheetByName(CONSOLIDATED_RAW_SHEET_NAME);
+    if (!targetSheet) {
+      targetSheet = ss.insertSheet(CONSOLIDATED_RAW_SHEET_NAME);
+      targetSheet.getRange(1, 1, 1, CONSOLIDATED_RAW_HEADERS.length)
+        .setValues([CONSOLIDATED_RAW_HEADERS]).setFontWeight('bold');
+      targetSheet.setFrozenRows(1);
+    }
+
+    // 기존 데이터로 중복 체크 Set 구성 (일+매체+소재이름)
+    // 컬럼: A=매체(0), B=일(1), E=소재이름(4)
+    const existingSet = new Set();
+    if (targetSheet.getLastRow() >= 2) {
+      targetSheet.getRange(2, 1, targetSheet.getLastRow() - 1, 5).getValues()
+        .forEach(r => existingSet.add([String(r[1]), String(r[0]), String(r[4])].join('\x00')));
+    }
+
+    // RAW_ 로 시작하는 모든 소스 시트 수집
+    const rawSheets = ss.getSheets().filter(s => s.getName().startsWith('RAW_'));
+
+    const rowsToAppend = [];
+
+    rawSheets.forEach(srcSheet => {
+      if (srcSheet.getLastRow() < 2) return;
+      const data = srcSheet.getRange(2, 1, srcSheet.getLastRow() - 1, 21).getValues();
+      data.forEach(row => {
+        // 매체·일·소재이름 모두 비어있으면 빈 행으로 판단, 스킵
+        if (!row[0] && !row[1] && !row[4]) return;
+        const key = [String(row[1]), String(row[0]), String(row[4])].join('\x00');
+        if (existingSet.has(key)) return;
+        existingSet.add(key);
+        rowsToAppend.push(row);
+      });
+    });
+
+    if (rowsToAppend.length > 0) {
+      targetSheet
+        .getRange(targetSheet.getLastRow() + 1, 1, rowsToAppend.length, 21)
+        .setValues(rowsToAppend);
+    }
+
+    SpreadsheetApp.getUi().alert(`${rowsToAppend.length}건 적재 완료`);
+    return { success: true, count: rowsToAppend.length };
+  } catch (e) {
+    SpreadsheetApp.getUi().alert('오류: ' + e.message);
+    return { error: true, message: e.message };
+  }
+}
