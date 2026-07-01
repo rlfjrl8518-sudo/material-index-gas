@@ -4908,25 +4908,22 @@ function renderHeatmap(rows) {
   const minV = allVals.length ? Math.min(...allVals) : 0;
   const maxV = allVals.length ? Math.max(...allVals) : 1;
   const lowerBetter = metric === 'CPA';
-  // 단색 강도: 진할수록 좋은 성과 (CTR/CVR=높을수록, CPA=낮을수록)
-  // 다크모드: 배경 어두움 → 좋으면 파란색 진하게 / 나쁘면 거의 투명
-  // 라이트모드: 배경 흰색 → 좋으면 파란색 진하게 / 나쁘면 연하게
-  const isLight = document.getElementById('panel-analyze').classList.contains('az-light');
-  const baseR = 79, baseG = 110, baseB = 247; // #4f6ef7
+  // CTR/CVR → 초록(좋을수록 진함), CPA → 빨강(낮을수록=좋음=진함), 데이터 없음 → 회색
+  const [baseR, baseG, baseB] = lowerBetter ? [220, 38, 38] : [22, 163, 74];
 
   function cellBg(v) {
-    if (!v || v <= 0 || !allVals.length) return isLight ? '#f1f5f9' : 'var(--az-row-alt)';
+    if (!v || v <= 0 || !allVals.length) return '#e5e7eb';
     const pct  = (v - minV) / ((maxV - minV) || 1);
-    const good = lowerBetter ? 1 - pct : pct; // 0(나쁨) ~ 1(좋음)
-    const alpha = 0.12 + good * 0.82; // 0.12 ~ 0.94
+    const good = lowerBetter ? 1 - pct : pct;
+    const alpha = 0.12 + good * 0.82;
     return `rgba(${baseR},${baseG},${baseB},${alpha.toFixed(2)})`;
   }
 
   function cellTextColor(v) {
-    if (!v || v <= 0) return isLight ? '#94a3b8' : '#334155';
+    if (!v || v <= 0) return '#9ca3af';
     const pct  = (v - minV) / ((maxV - minV) || 1);
     const good = lowerBetter ? 1 - pct : pct;
-    return good > 0.5 ? '#ffffff' : (isLight ? '#1e293b' : '#94a3b8');
+    return good > 0.5 ? '#ffffff' : '#374151';
   }
 
   if (!xVals.length || !yVals.length) {
