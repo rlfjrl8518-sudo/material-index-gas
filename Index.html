@@ -1432,43 +1432,47 @@
       </div>
       <div class="az-filter-item">
         <label>매체</label>
-        <select id="az-f-media" class="az-filter-select" onchange="azLoaded && updateDashboard()"><option value="">전체</option></select>
+        <select id="az-f-media" class="az-filter-select" onchange="azCascade('az-f-media')"><option value="">전체</option></select>
       </div>
       <div class="az-filter-item">
         <label>캠페인</label>
-        <select id="az-f-campaign" class="az-filter-select" onchange="azLoaded && updateDashboard()" style="min-width:130px"><option value="">전체</option></select>
+        <select id="az-f-campaign" class="az-filter-select" onchange="azCascade('az-f-campaign')" style="min-width:130px"><option value="">전체</option></select>
       </div>
       <div class="az-filter-item">
         <label>광고그룹</label>
-        <select id="az-f-group" class="az-filter-select" onchange="azLoaded && updateDashboard()" style="min-width:130px"><option value="">전체</option></select>
+        <select id="az-f-group" class="az-filter-select" onchange="azCascade('az-f-group')" style="min-width:130px"><option value="">전체</option></select>
+      </div>
+      <div class="az-filter-item">
+        <label>소재이름</label>
+        <select id="az-f-creative" class="az-filter-select" onchange="azCascade('az-f-creative')" style="min-width:150px"><option value="">전체</option></select>
       </div>
       <div class="az-filter-item">
         <label>보종</label>
-        <select id="az-f-bojong" class="az-filter-select" onchange="azLoaded && updateDashboard()"><option value="">전체</option></select>
+        <select id="az-f-bojong" class="az-filter-select" onchange="azCascade(this.id)"><option value="">전체</option></select>
       </div>
       <div class="az-filter-item">
         <label>소재유형</label>
-        <select id="az-f-crtype" class="az-filter-select" onchange="azLoaded && updateDashboard()"><option value="">전체</option></select>
+        <select id="az-f-crtype" class="az-filter-select" onchange="azCascade(this.id)"><option value="">전체</option></select>
       </div>
       <div class="az-filter-item">
         <label>소구포인트</label>
-        <select id="az-f-appeal" class="az-filter-select" onchange="azLoaded && updateDashboard()"><option value="">전체</option></select>
+        <select id="az-f-appeal" class="az-filter-select" onchange="azCascade(this.id)"><option value="">전체</option></select>
       </div>
       <div class="az-filter-item">
         <label>광고유형</label>
-        <select id="az-f-adtype" class="az-filter-select" onchange="azLoaded && updateDashboard()"><option value="">전체</option></select>
+        <select id="az-f-adtype" class="az-filter-select" onchange="azCascade(this.id)"><option value="">전체</option></select>
       </div>
       <div class="az-filter-item">
         <label>후킹방식</label>
-        <select id="az-f-hook" class="az-filter-select" onchange="azLoaded && updateDashboard()"><option value="">전체</option></select>
+        <select id="az-f-hook" class="az-filter-select" onchange="azCascade(this.id)"><option value="">전체</option></select>
       </div>
       <div class="az-filter-item">
         <label>이미지유형</label>
-        <select id="az-f-imgtype" class="az-filter-select" onchange="azLoaded && updateDashboard()"><option value="">전체</option></select>
+        <select id="az-f-imgtype" class="az-filter-select" onchange="azCascade(this.id)"><option value="">전체</option></select>
       </div>
       <div class="az-filter-item">
         <label>모델유형</label>
-        <select id="az-f-model" class="az-filter-select" onchange="azLoaded && updateDashboard()"><option value="">전체</option></select>
+        <select id="az-f-model" class="az-filter-select" onchange="azCascade(this.id)"><option value="">전체</option></select>
       </div>
       <button id="az-load-btn" class="az-load-btn" onclick="loadAnalysisData()">
         🔄 데이터 로드
@@ -4242,31 +4246,69 @@ async function loadAnalysisData() {
   }
 }
 
-// ── 필터 드롭다운 초기화 (실데이터 기준 동적 추출) ─────────
+// ── 필터 연쇄(cascade) 정의 ───────────────────────────────
+// 순서: 매체 → 캠페인 → 광고그룹 → 소재이름 → 보종 → 소재유형 → 소구포인트 → 광고유형 → 후킹방식 → 이미지유형 → 모델유형
+const AZ_CASCADE = [
+  { id:'az-f-media',    col:AZ.MEDIA },
+  { id:'az-f-campaign', col:AZ.CAMPAIGN },
+  { id:'az-f-group',    col:AZ.GROUP },
+  { id:'az-f-creative', col:AZ.CREATIVE },
+  { id:'az-f-bojong',   col:AZ.BOJONG },
+  { id:'az-f-crtype',   col:AZ.CRTYPE },
+  { id:'az-f-appeal',   col:AZ.APPEAL },
+  { id:'az-f-adtype',   col:AZ.ADTYPE },
+  { id:'az-f-hook',     col:AZ.HOOK },
+  { id:'az-f-imgtype',  col:AZ.IMGTYPE },
+  { id:'az-f-model',    col:AZ.MODELTYPE },
+];
+
+// changedId 이후의 드롭다운을 현재 선택값 기준 필터링된 rows로 재구성
+function azCascade(changedId) {
+  if (!azLoaded) return;
+  const rows = azRawData.slice(1);
+  const changedIdx = AZ_CASCADE.findIndex(f => f.id === changedId);
+
+  // 변경된 필터 포함 이전까지의 조건으로 rows 좁히기
+  let filtered = rows;
+  for (let i = 0; i <= changedIdx; i++) {
+    const { id, col } = AZ_CASCADE[i];
+    const val = document.getElementById(id).value;
+    if (val) filtered = filtered.filter(r => String(r[col]||'').trim() === val);
+  }
+
+  // 변경된 필터 이후 드롭다운들을 재구성 (현재 선택값 유지 시도)
+  for (let i = changedIdx + 1; i < AZ_CASCADE.length; i++) {
+    const { id, col } = AZ_CASCADE[i];
+    const el = document.getElementById(id);
+    const prev = el.value;
+
+    // i 이전 조건으로 좁혀진 rows에서 유효 값 추출
+    let scope = rows;
+    for (let j = 0; j < i; j++) {
+      const { id: jid, col: jcol } = AZ_CASCADE[j];
+      const v = document.getElementById(jid).value;
+      if (v) scope = scope.filter(r => String(r[jcol]||'').trim() === v);
+    }
+    const vals = [...new Set(scope.map(r => String(r[col]||'').trim()).filter(Boolean))].sort();
+    el.innerHTML = `<option value="">전체</option>` +
+      vals.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+    el.value = (prev && vals.includes(prev)) ? prev : '';
+  }
+
+  updateDashboard();
+}
+
+// ── 필터 드롭다운 초기화 ─────────────────────────────────────
 function initFilterDropdowns() {
   if (!azRawData || azRawData.length < 2) return;
   const rows = azRawData.slice(1);
 
-  const cols = [
-    { id:'az-f-media',    col:AZ.MEDIA },
-    { id:'az-f-bojong',   col:AZ.BOJONG },
-    { id:'az-f-crtype',   col:AZ.CRTYPE },
-    { id:'az-f-appeal',   col:AZ.APPEAL },
-    { id:'az-f-adtype',   col:AZ.ADTYPE },
-    { id:'az-f-hook',     col:AZ.HOOK },
-    { id:'az-f-imgtype',  col:AZ.IMGTYPE },
-    { id:'az-f-model',    col:AZ.MODELTYPE },
-    { id:'az-f-campaign', col:AZ.CAMPAIGN },
-    { id:'az-f-group',    col:AZ.GROUP },
-  ];
-
-  cols.forEach(({ id, col }) => {
+  AZ_CASCADE.forEach(({ id, col }) => {
     const vals = [...new Set(rows.map(r => String(r[col]||'').trim()).filter(Boolean))].sort();
     const el = document.getElementById(id);
-    const prev = el.value;
     el.innerHTML = `<option value="">전체</option>` +
       vals.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
-    if (prev && vals.includes(prev)) el.value = prev;
+    el.value = '';
   });
 
   // 날짜 범위 (최초 1회만)
@@ -4320,30 +4362,16 @@ function getFilteredRows() {
   if (!azRawData || azRawData.length < 2) return [];
   const rows = azRawData.slice(1);
 
-  const fMedia    = document.getElementById('az-f-media').value;
-  const fBojong   = document.getElementById('az-f-bojong').value;
-  const fCrtype   = document.getElementById('az-f-crtype').value;
-  const fAppeal   = document.getElementById('az-f-appeal').value;
-  const fAdtype   = document.getElementById('az-f-adtype').value;
-  const fHook     = document.getElementById('az-f-hook').value;
-  const fImgtype  = document.getElementById('az-f-imgtype').value;
-  const fModel    = document.getElementById('az-f-model').value;
-  const fCampaign = document.getElementById('az-f-campaign').value;
-  const fGroup    = document.getElementById('az-f-group').value;
   const fStart    = document.getElementById('az-f-start').value;
   const fEnd      = document.getElementById('az-f-end').value;
 
+  // 연쇄 필터 값 일괄 수집
+  const cascadeFilters = AZ_CASCADE.map(({ id, col }) => ({ col, val: document.getElementById(id).value }));
+
   return rows.filter(r => {
-    if (fMedia    && String(r[AZ.MEDIA]    ||'').trim() !== fMedia)    return false;
-    if (fBojong   && String(r[AZ.BOJONG]   ||'').trim() !== fBojong)   return false;
-    if (fCrtype   && String(r[AZ.CRTYPE]   ||'').trim() !== fCrtype)   return false;
-    if (fAppeal   && String(r[AZ.APPEAL]   ||'').trim() !== fAppeal)   return false;
-    if (fAdtype   && String(r[AZ.ADTYPE]   ||'').trim() !== fAdtype)   return false;
-    if (fHook     && String(r[AZ.HOOK]     ||'').trim() !== fHook)     return false;
-    if (fImgtype  && String(r[AZ.IMGTYPE]  ||'').trim() !== fImgtype)  return false;
-    if (fModel    && String(r[AZ.MODELTYPE]||'').trim() !== fModel)    return false;
-    if (fCampaign && String(r[AZ.CAMPAIGN] ||'').trim() !== fCampaign) return false;
-    if (fGroup    && String(r[AZ.GROUP]    ||'').trim() !== fGroup)    return false;
+    for (const { col, val } of cascadeFilters) {
+      if (val && String(r[col]||'').trim() !== val) return false;
+    }
     if (fStart || fEnd) {
       const d = azDateStr(r[AZ.DATE]);
       if (fStart && d < fStart) return false;
