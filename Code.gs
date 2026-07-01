@@ -938,6 +938,43 @@ function getMasterData() {
 }
 
 // --------------------------------------------------
+// API 키 관리 (스크립트 속성)
+// --------------------------------------------------
+const MANAGED_API_KEYS = [
+  { id: 'OPENAI_API_KEY', label: 'OpenAI API Key', description: 'AI 인사이트 분석 (소재 분석 탭)' }
+];
+
+function getApiKeys() {
+  const props = PropertiesService.getScriptProperties().getProperties();
+  return MANAGED_API_KEYS.map(k => {
+    const val = props[k.id] || '';
+    return {
+      id:          k.id,
+      label:       k.label,
+      description: k.description,
+      isSet:       !!val,
+      masked:      val ? val.slice(0, 4) + '••••••••' + val.slice(-4) : ''
+    };
+  });
+}
+
+function saveApiKey(keyId, value) {
+  const allowed = MANAGED_API_KEYS.map(k => k.id);
+  if (!allowed.includes(keyId)) return { error: true, message: '허용되지 않은 키입니다.' };
+  try {
+    const props = PropertiesService.getScriptProperties();
+    if (value && value.trim()) {
+      props.setProperty(keyId, value.trim());
+    } else {
+      props.deleteProperty(keyId);
+    }
+    return { success: true };
+  } catch (e) {
+    return { error: true, message: e.message };
+  }
+}
+
+// --------------------------------------------------
 // OpenAI 인사이트 생성
 // PropertiesService 'OPENAI_API_KEY' → gpt-5 호출 → 텍스트 반환
 // --------------------------------------------------
