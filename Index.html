@@ -738,40 +738,65 @@
   }
 
   /* ============================================================
-     소재 분석 대시보드 (다크 테마, #panel-analyze 스코프)
+     소재 분석 대시보드 — CSS 변수 기반 다크/라이트 테마
      ============================================================ */
   #panel-analyze {
-    background: #0f1117;
+    --az-bg:      #0f1117;
+    --az-surf:    #1a1d2e;
+    --az-surf2:   #242740;
+    --az-bd:      #2a2d3e;
+    --az-bd2:     #2d3158;
+    --az-t1:      #e2e8f0;
+    --az-t2:      #94a3b8;
+    --az-t3:      #64748b;
+    --az-t4:      #475569;
+    --az-in-bg:   #242740;
+    --az-in-bd:   #333657;
+    --az-row-alt: #1e2035;
+    background: var(--az-bg);
     min-height: calc(100vh - 112px);
+    transition: background .2s;
   }
+  #panel-analyze.az-light {
+    --az-bg:      #f8fafc;
+    --az-surf:    #ffffff;
+    --az-surf2:   #f1f5f9;
+    --az-bd:      #e2e8f0;
+    --az-bd2:     #cbd5e1;
+    --az-t1:      #1e293b;
+    --az-t2:      #475569;
+    --az-t3:      #64748b;
+    --az-t4:      #94a3b8;
+    --az-in-bg:   #f8fafc;
+    --az-in-bd:   #e2e8f0;
+    --az-row-alt: #f8fafc;
+  }
+  /* 테마 토글 버튼 */
+  .az-theme-btn {
+    display:inline-flex; align-items:center; gap:5px;
+    padding:4px 10px; font-size:11px; font-weight:600;
+    background:var(--az-surf2); border:1px solid var(--az-bd2);
+    color:var(--az-t3); border-radius:20px; cursor:pointer;
+    transition:all .15s; white-space:nowrap;
+  }
+  .az-theme-btn:hover { border-color:#4f6ef7; color:#4f6ef7; }
 
   /* 필터 바 */
   .az-filter-bar {
-    background: #1a1d2e;
-    border-bottom: 1px solid #2a2d3e;
-    position: sticky;
-    top: 56px;
-    z-index: 90;
-    padding: 10px 24px;
+    background: var(--az-surf); border-bottom: 1px solid var(--az-bd);
+    position: sticky; top: 56px; z-index: 90; padding: 10px 24px;
   }
-  .az-filter-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: flex-end;
-  }
+  .az-filter-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
   .az-filter-item { display: flex; flex-direction: column; gap: 3px; }
-  .az-filter-item label { font-size: 10px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: .4px; }
+  .az-filter-item label { font-size: 10px; font-weight: 600; color: var(--az-t3); text-transform: uppercase; letter-spacing: .4px; }
   .az-filter-input, .az-filter-select {
-    background: #242740; border: 1px solid #333657; color: #e2e8f0;
-    border-radius: 6px; padding: 6px 9px; font-size: 12px; height: 32px;
-    transition: border-color .15s;
+    background: var(--az-in-bg); border: 1px solid var(--az-in-bd); color: var(--az-t1);
+    border-radius: 6px; padding: 6px 9px; font-size: 12px; height: 32px; transition: border-color .15s;
   }
   .az-filter-input:focus, .az-filter-select:focus { outline: none; border-color: #4f6ef7; }
   .az-filter-input { width: 120px; }
   .az-filter-select { min-width: 100px; }
-  .az-filter-select option { background: #1a1d2e; }
-
+  .az-filter-select option { background: var(--az-surf); }
   .az-load-btn {
     display: inline-flex; align-items: center; gap: 6px;
     background: #4f6ef7; color: #fff; border: none; border-radius: 6px;
@@ -782,21 +807,15 @@
   .az-load-btn:disabled { opacity: .5; cursor: not-allowed; }
 
   /* 초기 빈 상태 */
-  .az-empty {
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    min-height: 60vh; gap: 12px; color: #475569;
-  }
+  .az-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; gap: 12px; }
   .az-empty-icon { font-size: 48px; opacity: .4; }
-  .az-empty-title { font-size: 18px; font-weight: 700; color: #64748b; }
-  .az-empty-desc { font-size: 13px; color: #475569; text-align: center; }
+  .az-empty-title { font-size: 18px; font-weight: 700; color: var(--az-t3); }
+  .az-empty-desc { font-size: 13px; color: var(--az-t4); text-align: center; }
 
   /* 로딩 */
-  .az-loading {
-    display: flex; align-items: center; justify-content: center;
-    min-height: 60vh; color: #64748b; font-size: 14px; gap: 12px;
-  }
+  .az-loading { display: flex; align-items: center; justify-content: center; min-height: 60vh; color: var(--az-t3); font-size: 14px; gap: 12px; }
   .az-big-spinner {
-    width: 28px; height: 28px; border: 3px solid #333657;
+    width: 28px; height: 28px; border: 3px solid var(--az-bd2);
     border-top-color: #4f6ef7; border-radius: 50%; animation: spin .7s linear infinite;
   }
 
@@ -804,122 +823,82 @@
   .az-dash-wrap { max-width: 1400px; margin: 0 auto; padding: 20px 24px; }
 
   /* 섹션 카드 */
-  .az-section {
-    background: #1a1d2e; border: 1px solid #2a2d3e; border-radius: 12px;
-    margin-bottom: 20px; overflow: hidden;
-  }
+  .az-section { background: var(--az-surf); border: 1px solid var(--az-bd); border-radius: 12px; margin-bottom: 20px; overflow: hidden; }
   .az-section-header {
-    padding: 13px 18px; border-bottom: 1px solid #2a2d3e;
-    font-size: 13px; font-weight: 700; color: #e2e8f0;
+    padding: 13px 18px; border-bottom: 1px solid var(--az-bd);
+    font-size: 13px; font-weight: 700; color: var(--az-t1);
     display: flex; align-items: center; justify-content: space-between;
   }
   .az-section-body { padding: 18px; }
 
   /* KPI 카드 */
   .az-kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 16px; }
-  .az-kpi-card {
-    background: #242740; border: 1px solid #2d3158; border-radius: 10px;
-    padding: 16px; display: flex; flex-direction: column; gap: 4px;
-  }
-  .az-kpi-label { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: .4px; }
-  .az-kpi-value { font-size: 22px; font-weight: 800; color: #e2e8f0; letter-spacing: -.5px; }
-  .az-kpi-sub { font-size: 11px; color: #475569; }
-  .az-count-badge {
-    background: #2d3158; color: #94a3b8; border-radius: 8px;
-    padding: 2px 8px; font-size: 11px; font-weight: 600;
-  }
+  .az-kpi-card { background: var(--az-surf2); border: 1px solid var(--az-bd2); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 4px; }
+  .az-kpi-label { font-size: 11px; font-weight: 600; color: var(--az-t3); text-transform: uppercase; letter-spacing: .4px; }
+  .az-kpi-value { font-size: 22px; font-weight: 800; color: var(--az-t1); letter-spacing: -.5px; }
+  .az-kpi-sub { font-size: 11px; color: var(--az-t4); }
+  .az-count-badge { background: var(--az-bd2); color: var(--az-t2); border-radius: 8px; padding: 2px 8px; font-size: 11px; font-weight: 600; }
 
   /* 지표 탭 */
   .az-metric-tabs { display:flex; gap:4px; }
   .az-metric-tab {
-    padding:3px 11px; font-size:11px; border:1px solid #2d3158;
-    background:transparent; color:#64748b; border-radius:20px;
+    padding:3px 11px; font-size:11px; border:1px solid var(--az-bd2);
+    background:transparent; color:var(--az-t3); border-radius:20px;
     cursor:pointer; transition:all .15s; line-height:1.6;
   }
   .az-metric-tab.active { background:#4f6ef7; border-color:#4f6ef7; color:#fff; }
-  .az-metric-tab:hover:not(.active) { border-color:#4f6ef7; color:#a5b4fc; }
-  /* 차트 그리드 (2열) */
+  .az-metric-tab:hover:not(.active) { border-color:#4f6ef7; color:#4f6ef7; }
   .az-chart-trio { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
   .az-chart-box { position: relative; }
-  .az-chart-box canvas { display: block; }
-  .az-chart-label {
-    font-size: 11px; font-weight: 600; color: #64748b; margin-bottom: 6px;
-    text-transform: uppercase; letter-spacing: .4px;
-  }
+  .az-chart-label { font-size: 11px; font-weight: 600; color: var(--az-t3); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .4px; }
 
   /* 보종 테이블 */
   .az-table-wrap { overflow-x: auto; }
-  .az-table {
-    width: 100%; border-collapse: collapse; font-size: 12px; color: #cbd5e1;
-  }
+  .az-table { width: 100%; border-collapse: collapse; font-size: 12px; color: var(--az-t2); }
   .az-table th {
-    background: #242740; padding: 9px 12px; text-align: right;
-    font-size: 11px; font-weight: 600; color: #64748b; border-bottom: 1px solid #2d3158;
-    white-space: nowrap;
+    background: var(--az-surf2); padding: 9px 12px; text-align: right;
+    font-size: 11px; font-weight: 600; color: var(--az-t3); border-bottom: 1px solid var(--az-bd2); white-space: nowrap;
   }
   .az-table th:first-child { text-align: left; }
-  .az-table td {
-    padding: 8px 12px; border-bottom: 1px solid #1e2035;
-    text-align: right; font-variant-numeric: tabular-nums;
-  }
-  .az-table td:first-child { text-align: left; color: #e2e8f0; font-weight: 600; }
+  .az-table td { padding: 8px 12px; border-bottom: 1px solid var(--az-row-alt); text-align: right; font-variant-numeric: tabular-nums; }
+  .az-table td:first-child { text-align: left; color: var(--az-t1); font-weight: 600; }
   .az-table tr:last-child td { border-bottom: none; }
-  .az-table tr:hover td { background: #242740; }
+  .az-table tr:hover td { background: var(--az-surf2); }
 
   /* 랭킹 탭 */
   .az-rank-tabs { display: flex; gap: 4px; margin-bottom: 14px; flex-wrap: wrap; }
   .az-rank-tab {
     padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;
-    color: #64748b; background: #242740; border: 1px solid #2d3158; cursor: pointer;
-    transition: all .15s;
+    color: var(--az-t3); background: var(--az-surf2); border: 1px solid var(--az-bd2); cursor: pointer; transition: all .15s;
   }
   .az-rank-tab.active { background: #4f6ef7; color: #fff; border-color: #4f6ef7; }
-  .az-rank-tab:hover:not(.active) { color: #e2e8f0; }
-
-  .az-rank-min-row {
-    display: flex; gap: 10px; align-items: center; margin-bottom: 12px;
-    font-size: 12px; color: #64748b;
-  }
+  .az-rank-tab:hover:not(.active) { color: var(--az-t1); }
+  .az-rank-min-row { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; font-size: 12px; color: var(--az-t3); }
   .az-rank-min-row input {
-    width: 80px; background: #242740; border: 1px solid #2d3158; color: #e2e8f0;
+    width: 80px; background: var(--az-surf2); border: 1px solid var(--az-bd2); color: var(--az-t1);
     border-radius: 5px; padding: 4px 8px; font-size: 12px;
   }
   .az-rank-min-row input:focus { outline: none; border-color: #4f6ef7; }
 
   /* 히트맵 */
   .az-hm-controls { display: flex; gap: 12px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
-  .az-hm-controls label { font-size: 11px; color: #64748b; }
-  .az-hm-controls select {
-    background: #242740; border: 1px solid #2d3158; color: #e2e8f0;
-    border-radius: 6px; padding: 5px 9px; font-size: 12px;
-  }
+  .az-hm-controls label { font-size: 11px; color: var(--az-t3); }
+  .az-hm-controls select { background: var(--az-surf2); border: 1px solid var(--az-bd2); color: var(--az-t1); border-radius: 6px; padding: 5px 9px; font-size: 12px; }
   .az-hm-table { border-collapse: collapse; font-size: 11px; min-width: 400px; }
-  .az-hm-table th, .az-hm-y-label {
-    background: #242740; color: #64748b; padding: 7px 10px;
-    font-weight: 600; white-space: nowrap;
-  }
-  .az-hm-table th { border-bottom: 1px solid #2d3158; }
+  .az-hm-table th, .az-hm-y-label { background: var(--az-surf2); color: var(--az-t3); padding: 7px 10px; font-weight: 600; white-space: nowrap; }
+  .az-hm-table th { border-bottom: 1px solid var(--az-bd2); }
   .az-hm-table td { padding: 7px 10px; text-align: center; font-size: 11px; font-weight: 600; min-width: 70px; }
 
   /* 추이 차트 컨트롤 */
   .az-trend-controls { display: flex; gap: 12px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
-  .az-trend-controls label { font-size: 11px; color: #64748b; }
-  .az-trend-controls select {
-    background: #242740; border: 1px solid #2d3158; color: #e2e8f0;
-    border-radius: 6px; padding: 5px 9px; font-size: 12px;
-  }
+  .az-trend-controls label { font-size: 11px; color: var(--az-t3); }
+  .az-trend-controls select { background: var(--az-surf2); border: 1px solid var(--az-bd2); color: var(--az-t1); border-radius: 6px; padding: 5px 9px; font-size: 12px; }
 
   /* 생애주기 */
-  .az-flag-row {
-    display: flex; align-items: center; gap: 10px; padding: 7px 0;
-    border-bottom: 1px solid #1e2035; font-size: 12px;
-  }
+  .az-flag-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--az-bd); font-size: 12px; }
   .az-flag-row:last-child { border-bottom: none; }
-  .az-flag-badge {
-    background: #f59e0b22; color: #f59e0b; border-radius: 5px;
-    padding: 2px 7px; font-size: 10px; font-weight: 700; white-space: nowrap;
-  }
-  .az-flag-name { flex: 1; color: #e2e8f0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .az-flag-badge { background: #f59e0b22; color: #f59e0b; border-radius: 5px; padding: 2px 7px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+  .az-flag-name { flex: 1; color: var(--az-t1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .az-flag-cpa { color: #f87171; font-weight: 700; white-space: nowrap; }
   .az-flag-diff { color: #fca5a5; font-size: 11px; white-space: nowrap; }
 
@@ -932,16 +911,11 @@
   }
   .az-insight-btn:hover:not(:disabled) { opacity: .85; }
   .az-insight-btn:disabled { opacity: .5; cursor: not-allowed; }
-  .az-insight-panel {
-    margin-top: 14px; background: #0f1117; border: 1px solid #2a2d3e;
-    border-radius: 8px; padding: 16px; min-height: 48px;
-  }
-  .az-insight-text { font-size: 13px; color: #cbd5e1; line-height: 1.8; white-space: pre-wrap; }
+  .az-insight-panel { margin-top: 14px; background: var(--az-bg); border: 1px solid var(--az-bd); border-radius: 8px; padding: 16px; min-height: 48px; }
+  .az-insight-text { font-size: 13px; color: var(--az-t2); line-height: 1.8; white-space: pre-wrap; }
 
   /* 공통 유틸 */
-  .az-no-data {
-    text-align: center; padding: 32px; color: #334155; font-size: 13px;
-  }
+  .az-no-data { text-align: center; padding: 32px; color: var(--az-t4); font-size: 13px; }
   .az-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 
 
@@ -1485,12 +1459,23 @@
         <select id="az-f-imgtype" class="az-filter-select" onchange="azLoaded && updateDashboard()"><option value="">전체</option></select>
       </div>
       <div class="az-filter-item">
+        <label>캠페인</label>
+        <select id="az-f-campaign" class="az-filter-select" onchange="azLoaded && updateDashboard()" style="min-width:130px"><option value="">전체</option></select>
+      </div>
+      <div class="az-filter-item">
+        <label>광고그룹</label>
+        <select id="az-f-group" class="az-filter-select" onchange="azLoaded && updateDashboard()" style="min-width:130px"><option value="">전체</option></select>
+      </div>
+      <div class="az-filter-item">
         <label>모델유형</label>
         <select id="az-f-model" class="az-filter-select" onchange="azLoaded && updateDashboard()"><option value="">전체</option></select>
       </div>
       <button id="az-load-btn" class="az-load-btn" onclick="loadAnalysisData()">
         🔄 데이터 로드
         <div class="spinner" id="az-load-spinner"></div>
+      </button>
+      <button class="az-theme-btn" onclick="azToggleTheme(this)" title="테마 전환">
+        ☀️ 라이트
       </button>
     </div>
   </div>
@@ -4263,14 +4248,16 @@ function initFilterDropdowns() {
   const rows = azRawData.slice(1);
 
   const cols = [
-    { id:'az-f-media',   col:AZ.MEDIA },
-    { id:'az-f-bojong',  col:AZ.BOJONG },
-    { id:'az-f-crtype',  col:AZ.CRTYPE },
-    { id:'az-f-appeal',  col:AZ.APPEAL },
-    { id:'az-f-adtype',  col:AZ.ADTYPE },
-    { id:'az-f-hook',    col:AZ.HOOK },
-    { id:'az-f-imgtype', col:AZ.IMGTYPE },
-    { id:'az-f-model',   col:AZ.MODELTYPE },
+    { id:'az-f-media',    col:AZ.MEDIA },
+    { id:'az-f-bojong',   col:AZ.BOJONG },
+    { id:'az-f-crtype',   col:AZ.CRTYPE },
+    { id:'az-f-appeal',   col:AZ.APPEAL },
+    { id:'az-f-adtype',   col:AZ.ADTYPE },
+    { id:'az-f-hook',     col:AZ.HOOK },
+    { id:'az-f-imgtype',  col:AZ.IMGTYPE },
+    { id:'az-f-model',    col:AZ.MODELTYPE },
+    { id:'az-f-campaign', col:AZ.CAMPAIGN },
+    { id:'az-f-group',    col:AZ.GROUP },
   ];
 
   cols.forEach(({ id, col }) => {
@@ -4333,26 +4320,30 @@ function getFilteredRows() {
   if (!azRawData || azRawData.length < 2) return [];
   const rows = azRawData.slice(1);
 
-  const fMedia   = document.getElementById('az-f-media').value;
-  const fBojong  = document.getElementById('az-f-bojong').value;
-  const fCrtype  = document.getElementById('az-f-crtype').value;
-  const fAppeal  = document.getElementById('az-f-appeal').value;
-  const fAdtype  = document.getElementById('az-f-adtype').value;
-  const fHook    = document.getElementById('az-f-hook').value;
-  const fImgtype = document.getElementById('az-f-imgtype').value;
-  const fModel   = document.getElementById('az-f-model').value;
-  const fStart   = document.getElementById('az-f-start').value;
-  const fEnd     = document.getElementById('az-f-end').value;
+  const fMedia    = document.getElementById('az-f-media').value;
+  const fBojong   = document.getElementById('az-f-bojong').value;
+  const fCrtype   = document.getElementById('az-f-crtype').value;
+  const fAppeal   = document.getElementById('az-f-appeal').value;
+  const fAdtype   = document.getElementById('az-f-adtype').value;
+  const fHook     = document.getElementById('az-f-hook').value;
+  const fImgtype  = document.getElementById('az-f-imgtype').value;
+  const fModel    = document.getElementById('az-f-model').value;
+  const fCampaign = document.getElementById('az-f-campaign').value;
+  const fGroup    = document.getElementById('az-f-group').value;
+  const fStart    = document.getElementById('az-f-start').value;
+  const fEnd      = document.getElementById('az-f-end').value;
 
   return rows.filter(r => {
-    if (fMedia   && String(r[AZ.MEDIA]    ||'').trim() !== fMedia)   return false;
-    if (fBojong  && String(r[AZ.BOJONG]   ||'').trim() !== fBojong)  return false;
-    if (fCrtype  && String(r[AZ.CRTYPE]   ||'').trim() !== fCrtype)  return false;
-    if (fAppeal  && String(r[AZ.APPEAL]   ||'').trim() !== fAppeal)  return false;
-    if (fAdtype  && String(r[AZ.ADTYPE]   ||'').trim() !== fAdtype)  return false;
-    if (fHook    && String(r[AZ.HOOK]     ||'').trim() !== fHook)    return false;
-    if (fImgtype && String(r[AZ.IMGTYPE]  ||'').trim() !== fImgtype) return false;
-    if (fModel   && String(r[AZ.MODELTYPE]||'').trim() !== fModel)   return false;
+    if (fMedia    && String(r[AZ.MEDIA]    ||'').trim() !== fMedia)    return false;
+    if (fBojong   && String(r[AZ.BOJONG]   ||'').trim() !== fBojong)   return false;
+    if (fCrtype   && String(r[AZ.CRTYPE]   ||'').trim() !== fCrtype)   return false;
+    if (fAppeal   && String(r[AZ.APPEAL]   ||'').trim() !== fAppeal)   return false;
+    if (fAdtype   && String(r[AZ.ADTYPE]   ||'').trim() !== fAdtype)   return false;
+    if (fHook     && String(r[AZ.HOOK]     ||'').trim() !== fHook)     return false;
+    if (fImgtype  && String(r[AZ.IMGTYPE]  ||'').trim() !== fImgtype)  return false;
+    if (fModel    && String(r[AZ.MODELTYPE]||'').trim() !== fModel)    return false;
+    if (fCampaign && String(r[AZ.CAMPAIGN] ||'').trim() !== fCampaign) return false;
+    if (fGroup    && String(r[AZ.GROUP]    ||'').trim() !== fGroup)    return false;
     if (fStart || fEnd) {
       const d = azDateStr(r[AZ.DATE]);
       if (fStart && d < fStart) return false;
@@ -4491,12 +4482,26 @@ function azDestroyChart(id) {
   if (azCharts[id]) { azCharts[id].destroy(); delete azCharts[id]; }
 }
 
+function azIsLight() {
+  return document.getElementById('panel-analyze').classList.contains('az-light');
+}
+function azChartColors() {
+  const light = azIsLight();
+  return {
+    tick:  light ? '#475569' : '#64748b',
+    label: light ? '#1e293b' : '#cbd5e1',
+    grid:  light ? 'rgba(0,0,0,.06)' : 'rgba(255,255,255,.05)',
+    legend:light ? '#475569' : '#94a3b8',
+  };
+}
+
 function azDrawHBar(canvasId, labels, data, label, color, height) {
   azDestroyChart(canvasId);
   const el = document.getElementById(canvasId);
   if (!el) return;
   el.parentElement.style.height = height + 'px';
   if (!labels.length) { el.parentElement.innerHTML = '<div class="az-no-data">데이터 없음</div>'; return; }
+  const c = azChartColors();
   azCharts[canvasId] = new Chart(el.getContext('2d'), {
     type: 'bar',
     data: {
@@ -4510,11 +4515,20 @@ function azDrawHBar(canvasId, labels, data, label, color, height) {
         tooltip: { callbacks: { label: ctx => ' ' + Number(ctx.parsed.x).toLocaleString('ko-KR') } }
       },
       scales: {
-        x: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#64748b', font: { size: 10 } } },
-        y: { grid: { display: false }, ticks: { color: '#cbd5e1', font: { size: 11 } } }
+        x: { grid: { color: c.grid }, ticks: { color: c.tick, font: { size: 10 } } },
+        y: { grid: { display: false }, ticks: { color: c.label, font: { size: 11 } } }
       }
     }
   });
+}
+
+// ── 테마 토글 ──────────────────────────────────────────────
+function azToggleTheme(btn) {
+  const panel = document.getElementById('panel-analyze');
+  const isNowLight = panel.classList.toggle('az-light');
+  btn.textContent = isNowLight ? '🌙 다크' : '☀️ 라이트';
+  // 차트 색상 반영을 위해 재렌더
+  if (azLoaded) updateDashboard();
 }
 
 // ── 7. 보종 분석 테이블 ────────────────────────────────────
@@ -4631,15 +4645,25 @@ function renderHeatmap(rows) {
   const minV = allVals.length ? Math.min(...allVals) : 0;
   const maxV = allVals.length ? Math.max(...allVals) : 1;
   const lowerBetter = metric === 'CPA';
+  // 단색 강도: 진할수록 좋은 성과 (CTR/CVR=높을수록, CPA=낮을수록)
+  // 다크모드: 배경 어두움 → 좋으면 파란색 진하게 / 나쁘면 거의 투명
+  // 라이트모드: 배경 흰색 → 좋으면 파란색 진하게 / 나쁘면 연하게
+  const isLight = document.getElementById('panel-analyze').classList.contains('az-light');
+  const baseR = 79, baseG = 110, baseB = 247; // #4f6ef7
 
   function cellBg(v) {
-    if (!v || v <= 0 || !allVals.length) return '#1e2035';
+    if (!v || v <= 0 || !allVals.length) return isLight ? '#f1f5f9' : 'var(--az-row-alt)';
+    const pct  = (v - minV) / ((maxV - minV) || 1);
+    const good = lowerBetter ? 1 - pct : pct; // 0(나쁨) ~ 1(좋음)
+    const alpha = 0.12 + good * 0.82; // 0.12 ~ 0.94
+    return `rgba(${baseR},${baseG},${baseB},${alpha.toFixed(2)})`;
+  }
+
+  function cellTextColor(v) {
+    if (!v || v <= 0) return isLight ? '#94a3b8' : '#334155';
     const pct  = (v - minV) / ((maxV - minV) || 1);
     const good = lowerBetter ? 1 - pct : pct;
-    const r2   = Math.round(220 * (1 - good) + 16 * good);
-    const g2   = Math.round(68  * (1 - good) + 185 * good);
-    const b2   = Math.round(68  * (1 - good) + 129 * good);
-    return `rgba(${r2},${g2},${b2},0.85)`;
+    return good > 0.5 ? '#ffffff' : (isLight ? '#1e293b' : '#94a3b8');
   }
 
   if (!xVals.length || !yVals.length) {
@@ -4654,10 +4678,8 @@ function renderHeatmap(rows) {
     xVals.forEach(x => {
       const c   = mat[y]?.[x];
       const v   = c ? azMetricVal(c, metric) : 0;
-      const bg  = cellBg(v);
       const txt = v > 0 ? (metric==='CPA' ? azWon(v) : azPct(v)) : '—';
-      const col = (v > 0) ? '#fff' : '#2d3158';
-      html += `<td style="background:${bg};color:${col}">${txt}</td>`;
+      html += `<td style="background:${cellBg(v)};color:${cellTextColor(v)}">${txt}</td>`;
     });
     html += '</tr>';
   });
@@ -4717,8 +4739,8 @@ function renderTrend(rows) {
         tooltip: { callbacks: { label: ctx => ` ${metric}: ${Number(ctx.parsed.y).toLocaleString('ko-KR')}` } }
       },
       scales: {
-        x: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#64748b', font:{ size:10 }, maxRotation:45 } },
-        y: { grid: { color: 'rgba(255,255,255,.06)' }, ticks: { color: '#64748b', font:{ size:10 } } }
+        x: { grid: { color: azChartColors().grid }, ticks: { color: azChartColors().tick, font:{ size:10 }, maxRotation:45 } },
+        y: { grid: { color: azChartColors().grid }, ticks: { color: azChartColors().tick, font:{ size:10 } } }
       }
     }
   });
@@ -4745,18 +4767,13 @@ function azPeriodLabel(key, unit) {
 
 // ── 11. 소재 생애주기 분석 ────────────────────────────────
 function renderLifecycle(rows) {
-  if (!azMasterData || azMasterData.length < 2) {
-    document.getElementById('az-lifecycle-flags').innerHTML =
-      '<div style="color:#475569;font-size:12px">소재 마스터 데이터를 불러오지 못했습니다.</div>';
-    return;
-  }
-
-  // 소재이름 → 최초 등록일 맵
-  const regMap = {};
-  azMasterData.slice(1).forEach(r => {
-    const name = String(r[5]||'').trim();  // col 5 = 소재이름
-    const regDate = r[1];                  // col 1 = 등록일자
-    if (name && !regMap[name] && regDate) regMap[name] = azDateStr(regDate);
+  // 소재이름 → RAW 데이터 내 첫 노출일 (마스터 시트 불필요)
+  const firstSeen = {};
+  rows.forEach(r => {
+    const name = String(r[AZ.CREATIVE]||'').trim();
+    const d    = azDateStr(r[AZ.DATE]);
+    if (!name || !d) return;
+    if (!firstSeen[name] || d < firstSeen[name]) firstSeen[name] = d;
   });
 
   const today = new Date();
@@ -4764,7 +4781,7 @@ function renderLifecycle(rows) {
 
   const phases = { 초기:[], 중기:[], 후기:[] };
   Object.entries(azGroup(rows, AZ.CREATIVE)).forEach(([name, rs]) => {
-    const dStr = regMap[name];
+    const dStr = firstSeen[name];
     if (!dStr) return;
     const elapsed = Math.floor((today - new Date(dStr + 'T00:00:00')) / 86400000);
     const phase = elapsed <= 14 ? '초기' : elapsed <= 28 ? '중기' : '후기';
@@ -4805,16 +4822,16 @@ function renderLifecycle(rows) {
       },
       options: {
         responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { labels: { color:'#94a3b8', font:{size:11} } } },
+        plugins: { legend: { labels: { color: azChartColors().legend, font:{size:11} } } },
         scales: {
-          x:  { ticks:{ color:'#64748b' }, grid:{ color:'rgba(255,255,255,.04)' } },
-          y:  { ticks:{ color:'#64748b', font:{size:10} }, grid:{ color:'rgba(255,255,255,.06)' }, position:'left' },
+          x:  { ticks:{ color: azChartColors().tick }, grid:{ color: azChartColors().grid } },
+          y:  { ticks:{ color: azChartColors().tick, font:{size:10} }, grid:{ color: azChartColors().grid }, position:'left' },
           y2: { ticks:{ color:'#f59e0b', font:{size:10} }, grid:{ display:false }, position:'right' }
         }
       }
     });
   } else if (el) {
-    el.parentElement.innerHTML = '<div class="az-no-data">생애주기 데이터 없음 (소재 마스터와 매칭 불가)</div>';
+    el.parentElement.innerHTML = '<div class="az-no-data">생애주기 데이터 없음</div>';
   }
 
   // 교체 검토 소재 (후기 + CPA > 평균*1.2)
