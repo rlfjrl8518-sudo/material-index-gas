@@ -8,7 +8,9 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>소재 인덱싱 시스템</title>
+<title>운영 소재 분석</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
 <style>
 
@@ -735,6 +737,204 @@
 
   }
 
+  /* ============================================================
+     소재 분석 대시보드 (다크 테마, #panel-analyze 스코프)
+     ============================================================ */
+  #panel-analyze {
+    background: #0f1117;
+    min-height: calc(100vh - 112px);
+  }
+
+  /* 필터 바 */
+  .az-filter-bar {
+    background: #1a1d2e;
+    border-bottom: 1px solid #2a2d3e;
+    position: sticky;
+    top: 56px;
+    z-index: 90;
+    padding: 10px 24px;
+  }
+  .az-filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: flex-end;
+  }
+  .az-filter-item { display: flex; flex-direction: column; gap: 3px; }
+  .az-filter-item label { font-size: 10px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: .4px; }
+  .az-filter-input, .az-filter-select {
+    background: #242740; border: 1px solid #333657; color: #e2e8f0;
+    border-radius: 6px; padding: 6px 9px; font-size: 12px; height: 32px;
+    transition: border-color .15s;
+  }
+  .az-filter-input:focus, .az-filter-select:focus { outline: none; border-color: #4f6ef7; }
+  .az-filter-input { width: 120px; }
+  .az-filter-select { min-width: 100px; }
+  .az-filter-select option { background: #1a1d2e; }
+
+  .az-load-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #4f6ef7; color: #fff; border: none; border-radius: 6px;
+    padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer;
+    height: 32px; transition: background .15s; margin-left: 4px;
+  }
+  .az-load-btn:hover:not(:disabled) { background: #3b5beb; }
+  .az-load-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* 초기 빈 상태 */
+  .az-empty {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 60vh; gap: 12px; color: #475569;
+  }
+  .az-empty-icon { font-size: 48px; opacity: .4; }
+  .az-empty-title { font-size: 18px; font-weight: 700; color: #64748b; }
+  .az-empty-desc { font-size: 13px; color: #475569; text-align: center; }
+
+  /* 로딩 */
+  .az-loading {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 60vh; color: #64748b; font-size: 14px; gap: 12px;
+  }
+  .az-big-spinner {
+    width: 28px; height: 28px; border: 3px solid #333657;
+    border-top-color: #4f6ef7; border-radius: 50%; animation: spin .7s linear infinite;
+  }
+
+  /* 대시보드 래퍼 */
+  .az-dash-wrap { max-width: 1400px; margin: 0 auto; padding: 20px 24px; }
+
+  /* 섹션 카드 */
+  .az-section {
+    background: #1a1d2e; border: 1px solid #2a2d3e; border-radius: 12px;
+    margin-bottom: 20px; overflow: hidden;
+  }
+  .az-section-header {
+    padding: 13px 18px; border-bottom: 1px solid #2a2d3e;
+    font-size: 13px; font-weight: 700; color: #e2e8f0;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .az-section-body { padding: 18px; }
+
+  /* KPI 카드 */
+  .az-kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 16px; }
+  .az-kpi-card {
+    background: #242740; border: 1px solid #2d3158; border-radius: 10px;
+    padding: 16px; display: flex; flex-direction: column; gap: 4px;
+  }
+  .az-kpi-label { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: .4px; }
+  .az-kpi-value { font-size: 22px; font-weight: 800; color: #e2e8f0; letter-spacing: -.5px; }
+  .az-kpi-sub { font-size: 11px; color: #475569; }
+  .az-count-badge {
+    background: #2d3158; color: #94a3b8; border-radius: 8px;
+    padding: 2px 8px; font-size: 11px; font-weight: 600;
+  }
+
+  /* 차트 그리드 (2열) */
+  .az-chart-trio { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  .az-chart-box { position: relative; }
+  .az-chart-box canvas { display: block; }
+  .az-chart-label {
+    font-size: 11px; font-weight: 600; color: #64748b; margin-bottom: 6px;
+    text-transform: uppercase; letter-spacing: .4px;
+  }
+
+  /* 보종 테이블 */
+  .az-table-wrap { overflow-x: auto; }
+  .az-table {
+    width: 100%; border-collapse: collapse; font-size: 12px; color: #cbd5e1;
+  }
+  .az-table th {
+    background: #242740; padding: 9px 12px; text-align: right;
+    font-size: 11px; font-weight: 600; color: #64748b; border-bottom: 1px solid #2d3158;
+    white-space: nowrap;
+  }
+  .az-table th:first-child { text-align: left; }
+  .az-table td {
+    padding: 8px 12px; border-bottom: 1px solid #1e2035;
+    text-align: right; font-variant-numeric: tabular-nums;
+  }
+  .az-table td:first-child { text-align: left; color: #e2e8f0; font-weight: 600; }
+  .az-table tr:last-child td { border-bottom: none; }
+  .az-table tr:hover td { background: #242740; }
+
+  /* 랭킹 탭 */
+  .az-rank-tabs { display: flex; gap: 4px; margin-bottom: 14px; flex-wrap: wrap; }
+  .az-rank-tab {
+    padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;
+    color: #64748b; background: #242740; border: 1px solid #2d3158; cursor: pointer;
+    transition: all .15s;
+  }
+  .az-rank-tab.active { background: #4f6ef7; color: #fff; border-color: #4f6ef7; }
+  .az-rank-tab:hover:not(.active) { color: #e2e8f0; }
+
+  .az-rank-min-row {
+    display: flex; gap: 10px; align-items: center; margin-bottom: 12px;
+    font-size: 12px; color: #64748b;
+  }
+  .az-rank-min-row input {
+    width: 80px; background: #242740; border: 1px solid #2d3158; color: #e2e8f0;
+    border-radius: 5px; padding: 4px 8px; font-size: 12px;
+  }
+  .az-rank-min-row input:focus { outline: none; border-color: #4f6ef7; }
+
+  /* 히트맵 */
+  .az-hm-controls { display: flex; gap: 12px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+  .az-hm-controls label { font-size: 11px; color: #64748b; }
+  .az-hm-controls select {
+    background: #242740; border: 1px solid #2d3158; color: #e2e8f0;
+    border-radius: 6px; padding: 5px 9px; font-size: 12px;
+  }
+  .az-hm-table { border-collapse: collapse; font-size: 11px; min-width: 400px; }
+  .az-hm-table th, .az-hm-y-label {
+    background: #242740; color: #64748b; padding: 7px 10px;
+    font-weight: 600; white-space: nowrap;
+  }
+  .az-hm-table th { border-bottom: 1px solid #2d3158; }
+  .az-hm-table td { padding: 7px 10px; text-align: center; font-size: 11px; font-weight: 600; min-width: 70px; }
+
+  /* 추이 차트 컨트롤 */
+  .az-trend-controls { display: flex; gap: 12px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+  .az-trend-controls label { font-size: 11px; color: #64748b; }
+  .az-trend-controls select {
+    background: #242740; border: 1px solid #2d3158; color: #e2e8f0;
+    border-radius: 6px; padding: 5px 9px; font-size: 12px;
+  }
+
+  /* 생애주기 */
+  .az-flag-row {
+    display: flex; align-items: center; gap: 10px; padding: 7px 0;
+    border-bottom: 1px solid #1e2035; font-size: 12px;
+  }
+  .az-flag-row:last-child { border-bottom: none; }
+  .az-flag-badge {
+    background: #f59e0b22; color: #f59e0b; border-radius: 5px;
+    padding: 2px 7px; font-size: 10px; font-weight: 700; white-space: nowrap;
+  }
+  .az-flag-name { flex: 1; color: #e2e8f0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .az-flag-cpa { color: #f87171; font-weight: 700; white-space: nowrap; }
+  .az-flag-diff { color: #fca5a5; font-size: 11px; white-space: nowrap; }
+
+  /* AI 인사이트 */
+  .az-insight-btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: linear-gradient(135deg, #6366f1, #4f6ef7);
+    color: #fff; border: none; border-radius: 8px; padding: 9px 18px;
+    font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity .15s;
+  }
+  .az-insight-btn:hover:not(:disabled) { opacity: .85; }
+  .az-insight-btn:disabled { opacity: .5; cursor: not-allowed; }
+  .az-insight-panel {
+    margin-top: 14px; background: #0f1117; border: 1px solid #2a2d3e;
+    border-radius: 8px; padding: 16px; min-height: 48px;
+  }
+  .az-insight-text { font-size: 13px; color: #cbd5e1; line-height: 1.8; white-space: pre-wrap; }
+
+  /* 공통 유틸 */
+  .az-no-data {
+    text-align: center; padding: 32px; color: #334155; font-size: 13px;
+  }
+  .az-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
 
 </style>
 
@@ -746,7 +946,7 @@
 
 <div class="header">
 
-  <h1>📋 소재 인덱싱 시스템</h1>
+  <h1>📊 운영 소재 분석</h1>
 
   <button class="btn btn-detect" id="btnDetect" onclick="runDetect()">
 
@@ -765,6 +965,8 @@
   <button class="tab-btn active" onclick="switchTab('register', this)">📝 소재 등록</button>
 
   <button class="tab-btn" onclick="switchTab('settings', this)">⚙️ 설정 관리</button>
+
+  <button class="tab-btn" onclick="switchTab('analyze', this)">📊 소재 분석</button>
 
 </div>
 
@@ -1226,6 +1428,294 @@
 
 </div>
 
+<!-- ================================================
+     소재 분석 탭
+     ================================================ -->
+<div class="tab-panel" id="panel-analyze">
+
+  <!-- 필터 바 (sticky) -->
+  <div class="az-filter-bar">
+    <div class="az-filter-row">
+      <div class="az-filter-item">
+        <label>시작일</label>
+        <input type="date" id="az-f-start" class="az-filter-input" onchange="azLoaded && updateDashboard()">
+      </div>
+      <div class="az-filter-item">
+        <label>종료일</label>
+        <input type="date" id="az-f-end" class="az-filter-input" onchange="azLoaded && updateDashboard()">
+      </div>
+      <div class="az-filter-item">
+        <label>매체</label>
+        <select id="az-f-media" class="az-filter-select" onchange="azLoaded && updateDashboard()"><option value="">전체</option></select>
+      </div>
+      <div class="az-filter-item">
+        <label>보종</label>
+        <select id="az-f-bojong" class="az-filter-select" onchange="azLoaded && updateDashboard()"><option value="">전체</option></select>
+      </div>
+      <div class="az-filter-item">
+        <label>소재유형</label>
+        <select id="az-f-crtype" class="az-filter-select" onchange="azLoaded && updateDashboard()"><option value="">전체</option></select>
+      </div>
+      <div class="az-filter-item">
+        <label>소구포인트</label>
+        <select id="az-f-appeal" class="az-filter-select" onchange="azLoaded && updateDashboard()"><option value="">전체</option></select>
+      </div>
+      <div class="az-filter-item">
+        <label>광고유형</label>
+        <select id="az-f-adtype" class="az-filter-select" onchange="azLoaded && updateDashboard()"><option value="">전체</option></select>
+      </div>
+      <div class="az-filter-item">
+        <label>후킹방식</label>
+        <select id="az-f-hook" class="az-filter-select" onchange="azLoaded && updateDashboard()"><option value="">전체</option></select>
+      </div>
+      <div class="az-filter-item">
+        <label>이미지유형</label>
+        <select id="az-f-imgtype" class="az-filter-select" onchange="azLoaded && updateDashboard()"><option value="">전체</option></select>
+      </div>
+      <div class="az-filter-item">
+        <label>모델유형</label>
+        <select id="az-f-model" class="az-filter-select" onchange="azLoaded && updateDashboard()"><option value="">전체</option></select>
+      </div>
+      <button id="az-load-btn" class="az-load-btn" onclick="loadAnalysisData()">
+        🔄 데이터 로드
+        <div class="spinner" id="az-load-spinner"></div>
+      </button>
+    </div>
+  </div>
+
+  <!-- 로딩 -->
+  <div id="az-loading" class="az-loading" style="display:none">
+    <div class="az-big-spinner"></div>
+    <div>소재 데이터 불러오는 중...</div>
+  </div>
+
+  <!-- 초기 안내 -->
+  <div id="az-empty" class="az-empty">
+    <div class="az-empty-icon">📊</div>
+    <div class="az-empty-title">소재 분석 대시보드</div>
+    <div class="az-empty-desc">소재_통합RAW의 데이터를 불러와 성과를 분석합니다.<br>데이터 로드 버튼을 클릭하세요.</div>
+    <button class="az-load-btn" style="margin-top:8px" onclick="loadAnalysisData()">🔄 데이터 로드</button>
+  </div>
+
+  <!-- 대시보드 본문 -->
+  <div id="az-dashboard" style="display:none">
+    <div class="az-dash-wrap">
+
+      <!-- 1. KPI 요약 -->
+      <div class="az-section">
+        <div class="az-section-header">
+          <span>KPI 요약</span>
+          <span id="az-kpi-count" class="az-count-badge"></span>
+        </div>
+        <div id="az-kpi-grid" class="az-kpi-grid"></div>
+      </div>
+
+      <!-- 2~5. 차원별 분석 (2열 그리드) -->
+      <div class="az-two-col">
+
+        <!-- 2. 소재유형 -->
+        <div class="az-section">
+          <div class="az-section-header">소재유형 분석</div>
+          <div class="az-section-body">
+            <div class="az-chart-trio">
+              <div><div class="az-chart-label">CTR (%)</div><div style="height:150px"><canvas id="az-chart-crtype-ctr"></canvas></div></div>
+              <div><div class="az-chart-label">CVR (%)</div><div style="height:150px"><canvas id="az-chart-crtype-cvr"></canvas></div></div>
+              <div><div class="az-chart-label">CPA (원)</div><div style="height:150px"><canvas id="az-chart-crtype-cpa"></canvas></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. 소구포인트 -->
+        <div class="az-section">
+          <div class="az-section-header">소구포인트 분석</div>
+          <div class="az-section-body">
+            <div class="az-chart-trio">
+              <div><div class="az-chart-label">CTR (%)</div><div style="height:150px"><canvas id="az-chart-appeal-ctr"></canvas></div></div>
+              <div><div class="az-chart-label">CVR (%)</div><div style="height:150px"><canvas id="az-chart-appeal-cvr"></canvas></div></div>
+              <div><div class="az-chart-label">CPA (원)</div><div style="height:150px"><canvas id="az-chart-appeal-cpa"></canvas></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. 후킹방식 -->
+        <div class="az-section">
+          <div class="az-section-header">후킹방식 분석</div>
+          <div class="az-section-body">
+            <div class="az-chart-trio">
+              <div><div class="az-chart-label">CTR (%)</div><div style="height:150px"><canvas id="az-chart-hook-ctr"></canvas></div></div>
+              <div><div class="az-chart-label">CVR (%)</div><div style="height:150px"><canvas id="az-chart-hook-cvr"></canvas></div></div>
+              <div><div class="az-chart-label">CPA (원)</div><div style="height:150px"><canvas id="az-chart-hook-cpa"></canvas></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. 이미지유형 -->
+        <div class="az-section">
+          <div class="az-section-header">이미지유형 분석</div>
+          <div class="az-section-body">
+            <div class="az-chart-trio">
+              <div><div class="az-chart-label">CTR (%)</div><div style="height:150px"><canvas id="az-chart-imgtype-ctr"></canvas></div></div>
+              <div><div class="az-chart-label">CVR (%)</div><div style="height:150px"><canvas id="az-chart-imgtype-cvr"></canvas></div></div>
+              <div><div class="az-chart-label">CPA (원)</div><div style="height:150px"><canvas id="az-chart-imgtype-cpa"></canvas></div></div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /.az-two-col -->
+
+      <!-- 6. 모델유형 (전폭) -->
+      <div class="az-section">
+        <div class="az-section-header">모델유형 분석</div>
+        <div class="az-section-body">
+          <div class="az-chart-trio">
+            <div><div class="az-chart-label">CTR (%)</div><div style="height:180px"><canvas id="az-chart-modeltype-ctr"></canvas></div></div>
+            <div><div class="az-chart-label">CVR (%)</div><div style="height:180px"><canvas id="az-chart-modeltype-cvr"></canvas></div></div>
+            <div><div class="az-chart-label">CPA (원)</div><div style="height:180px"><canvas id="az-chart-modeltype-cpa"></canvas></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 7. 보종 분석 테이블 -->
+      <div class="az-section">
+        <div class="az-section-header">보종 분석</div>
+        <div class="az-section-body" style="padding:0">
+          <div class="az-table-wrap">
+            <table class="az-table">
+              <thead>
+                <tr>
+                  <th style="text-align:left">보종</th>
+                  <th>노출</th><th>클릭</th><th>CTR</th>
+                  <th>비용</th><th>전환</th><th>CVR</th><th>CPA</th>
+                </tr>
+              </thead>
+              <tbody id="az-bojong-tbody">
+                <tr><td colspan="8" style="text-align:center;color:#334155;padding:20px">데이터 없음</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- 8. TOP 소재 랭킹 -->
+      <div class="az-section">
+        <div class="az-section-header">TOP 소재 랭킹</div>
+        <div class="az-section-body">
+          <div class="az-rank-tabs">
+            <button class="az-rank-tab active" data-tab="ctr"  onclick="switchRankTab('ctr')">CTR TOP 10</button>
+            <button class="az-rank-tab" data-tab="cvr"  onclick="switchRankTab('cvr')">CVR TOP 10</button>
+            <button class="az-rank-tab" data-tab="cpa"  onclick="switchRankTab('cpa')">CPA TOP 10 ↑낮은순</button>
+            <button class="az-rank-tab" data-tab="clk"  onclick="switchRankTab('clk')">클릭 TOP 10</button>
+            <button class="az-rank-tab" data-tab="conv" onclick="switchRankTab('conv')">전환 TOP 10</button>
+          </div>
+          <div class="az-rank-min-row">
+            <span>최소 모수:</span>
+            <span>노출</span>
+            <input type="number" id="az-rank-min-imp" value="1000" min="0" onchange="azLoaded && renderRanking(getFilteredRows())">
+            <span>이상 &amp;</span>
+            <span>클릭</span>
+            <input type="number" id="az-rank-min-clk" value="50" min="0" onchange="azLoaded && renderRanking(getFilteredRows())">
+            <span>이상</span>
+          </div>
+          <div class="az-table-wrap">
+            <table class="az-table">
+              <thead>
+                <tr>
+                  <th style="text-align:left;width:32px">#</th>
+                  <th style="text-align:left;width:50px">이미지</th>
+                  <th style="text-align:left">소재이름</th>
+                  <th>노출</th><th>CTR</th><th>CVR</th><th>CPA</th>
+                </tr>
+              </thead>
+              <tbody id="az-rank-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- 9. 교차 분석 히트맵 -->
+      <div class="az-section">
+        <div class="az-section-header">교차 분석 히트맵</div>
+        <div class="az-section-body">
+          <div class="az-hm-controls">
+            <label>X축</label>
+            <select id="az-hm-x" onchange="azLoaded && renderHeatmap(getFilteredRows())">
+              <option>소재유형</option><option>소구포인트</option><option>후킹방식</option>
+              <option>이미지유형</option><option>모델유형</option><option>보종</option>
+            </select>
+            <label>Y축</label>
+            <select id="az-hm-y" onchange="azLoaded && renderHeatmap(getFilteredRows())">
+              <option>보종</option><option>소재유형</option><option>소구포인트</option>
+              <option>후킹방식</option><option>이미지유형</option><option>모델유형</option>
+            </select>
+            <label>지표</label>
+            <select id="az-hm-metric" onchange="azLoaded && renderHeatmap(getFilteredRows())">
+              <option>CTR</option><option>CVR</option><option>CPA</option>
+            </select>
+            <span style="font-size:11px;color:#475569">초록=성과 좋음 / 빨강=성과 낮음 / 회색=데이터 없음</span>
+          </div>
+          <div id="az-heatmap"></div>
+        </div>
+      </div>
+
+      <!-- 10. 기간별 추이 -->
+      <div class="az-section">
+        <div class="az-section-header">기간별 성과 추이</div>
+        <div class="az-section-body">
+          <div class="az-trend-controls">
+            <label>단위</label>
+            <select id="az-trend-unit" onchange="azLoaded && renderTrend(getFilteredRows())">
+              <option value="day">일별</option>
+              <option value="week" selected>주별</option>
+              <option value="month">월별</option>
+            </select>
+            <label>지표</label>
+            <select id="az-trend-metric" onchange="azLoaded && renderTrend(getFilteredRows())">
+              <option>CTR</option><option>CVR</option><option>CPA</option>
+              <option>비용</option><option>전환</option>
+            </select>
+          </div>
+          <div style="height:280px"><canvas id="az-trend-chart"></canvas></div>
+        </div>
+      </div>
+
+      <!-- 11. 소재 생애주기 분석 -->
+      <div class="az-section">
+        <div class="az-section-header">소재 생애주기 분석</div>
+        <div class="az-section-body">
+          <div class="az-two-col">
+            <div>
+              <div class="az-chart-label" style="margin-bottom:8px">구간별 평균 성과 (초기 1~14일 / 중기 15~28일 / 후기 29일+)</div>
+              <div style="height:200px"><canvas id="az-lifecycle-chart"></canvas></div>
+            </div>
+            <div>
+              <div class="az-chart-label" style="margin-bottom:8px;color:#f59e0b">⚠️ 교체 검토 소재 (후기 &amp; CPA 전체평균 +20% 초과)</div>
+              <div id="az-lifecycle-flags" style="max-height:200px;overflow-y:auto"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 12. AI 자동 인사이트 -->
+      <div class="az-section" style="margin-bottom:40px">
+        <div class="az-section-header">
+          <span>✨ AI 자동 인사이트</span>
+          <span style="font-size:11px;color:#475569">현재 필터 기준 집계 → GPT-5 분석</span>
+        </div>
+        <div class="az-section-body">
+          <button id="az-insight-btn" class="az-insight-btn" onclick="runAIInsight()">
+            ✨ 인사이트 생성
+            <div class="spinner" id="az-insight-spinner"></div>
+          </button>
+          <div id="az-insight-panel" class="az-insight-panel">
+            <div style="color:#334155;font-size:13px">인사이트 생성 버튼을 클릭하면 현재 필터 데이터를 GPT-5로 분석합니다.</div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /.az-dash-wrap -->
+  </div><!-- /#az-dashboard -->
+
+</div><!-- /#panel-analyze -->
 
 
 
@@ -1329,7 +1819,11 @@ function switchTab(tab, btn) {
 
   if (tab === 'settings') {
 
-    loadHierarchyPanel(); // 기본 활성 서브탭: 매체 계층
+    loadHierarchyPanel();
+
+  } else if (tab === 'analyze') {
+
+    onAnalyzeTabActivate();
 
   }
 
@@ -3621,6 +4115,643 @@ function hideSettingsMessages() {
 
 }
 
+
+
+// ============================================================
+//  소재 분석 대시보드 JavaScript
+// ============================================================
+
+// ── 상태 ──────────────────────────────────────────────────
+let azRawData    = null;   // [헤더행, ...데이터행]
+let azMasterData = null;   // [헤더행, ...데이터행]
+let azLoaded     = false;
+let azCharts     = {};     // Chart.js 인스턴스 맵
+let azRankTab    = 'ctr';
+
+// 컬럼 인덱스 (CONSOLIDATED_RAW_HEADERS 기준)
+const AZ = {
+  MEDIA:0, DATE:1, CAMPAIGN:2, GROUP:3, CREATIVE:4,
+  BOJONG:5, ADTYPE:6, CRTYPE:7, APPEAL:8, HOOK:9, DETAIL:10,
+  IMGTYPE:11, MODELTYPE:12, IMGURL:13,
+  IMP:14, CLICK:15, CTR_COL:16, COST:17, CONV:18, CVR_COL:19, CPA_COL:20
+};
+
+// ── 탭 진입 시 최초 1회 자동 로드 ─────────────────────────
+function onAnalyzeTabActivate() {
+  if (azLoaded) { updateDashboard(); return; }
+  loadAnalysisData();
+}
+
+// ── 데이터 로드 ────────────────────────────────────────────
+async function loadAnalysisData() {
+  const btn     = document.getElementById('az-load-btn');
+  const spinner = document.getElementById('az-load-spinner');
+  const loadEl  = document.getElementById('az-loading');
+  const emptyEl = document.getElementById('az-empty');
+  const dashEl  = document.getElementById('az-dashboard');
+
+  btn.disabled = true;
+  spinner.classList.add('show');
+  emptyEl.style.display  = 'none';
+  dashEl.style.display   = 'none';
+  loadEl.style.display   = 'flex';
+
+  try {
+    const [raw, master] = await Promise.all([
+      gasRun('getAllData'),
+      gasRun('getMasterData')
+    ]);
+    azRawData    = raw;
+    azMasterData = master;
+    azLoaded     = true;
+    initFilterDropdowns();
+    updateDashboard();
+    loadEl.style.display = 'none';
+    dashEl.style.display = 'block';
+  } catch (err) {
+    loadEl.innerHTML = `<div style="color:#f87171;font-size:13px">데이터 로드 실패: ${esc(String(err.message||err))}</div>`;
+  } finally {
+    btn.disabled = false;
+    spinner.classList.remove('show');
+  }
+}
+
+// ── 필터 드롭다운 초기화 (실데이터 기준 동적 추출) ─────────
+function initFilterDropdowns() {
+  if (!azRawData || azRawData.length < 2) return;
+  const rows = azRawData.slice(1);
+
+  const cols = [
+    { id:'az-f-media',   col:AZ.MEDIA },
+    { id:'az-f-bojong',  col:AZ.BOJONG },
+    { id:'az-f-crtype',  col:AZ.CRTYPE },
+    { id:'az-f-appeal',  col:AZ.APPEAL },
+    { id:'az-f-adtype',  col:AZ.ADTYPE },
+    { id:'az-f-hook',    col:AZ.HOOK },
+    { id:'az-f-imgtype', col:AZ.IMGTYPE },
+    { id:'az-f-model',   col:AZ.MODELTYPE },
+  ];
+
+  cols.forEach(({ id, col }) => {
+    const vals = [...new Set(rows.map(r => String(r[col]||'').trim()).filter(Boolean))].sort();
+    const el = document.getElementById(id);
+    const prev = el.value;
+    el.innerHTML = `<option value="">전체</option>` +
+      vals.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+    if (prev && vals.includes(prev)) el.value = prev;
+  });
+
+  // 날짜 범위 (최초 1회만)
+  if (!document.getElementById('az-f-start').value) {
+    const dates = rows.map(r => azDateStr(r[AZ.DATE])).filter(Boolean).sort();
+    if (dates.length) {
+      document.getElementById('az-f-start').value = dates[0];
+      document.getElementById('az-f-end').value   = dates[dates.length - 1];
+    }
+  }
+}
+
+function azDateStr(val) {
+  if (!val) return '';
+  if (val instanceof Date) {
+    return val.getFullYear() + '-' +
+      String(val.getMonth()+1).padStart(2,'0') + '-' +
+      String(val.getDate()).padStart(2,'0');
+  }
+  return String(val).slice(0,10);
+}
+
+// ── 필터 적용 ──────────────────────────────────────────────
+function getFilteredRows() {
+  if (!azRawData || azRawData.length < 2) return [];
+  const rows = azRawData.slice(1);
+
+  const fMedia   = document.getElementById('az-f-media').value;
+  const fBojong  = document.getElementById('az-f-bojong').value;
+  const fCrtype  = document.getElementById('az-f-crtype').value;
+  const fAppeal  = document.getElementById('az-f-appeal').value;
+  const fAdtype  = document.getElementById('az-f-adtype').value;
+  const fHook    = document.getElementById('az-f-hook').value;
+  const fImgtype = document.getElementById('az-f-imgtype').value;
+  const fModel   = document.getElementById('az-f-model').value;
+  const fStart   = document.getElementById('az-f-start').value;
+  const fEnd     = document.getElementById('az-f-end').value;
+
+  return rows.filter(r => {
+    if (fMedia   && String(r[AZ.MEDIA]    ||'').trim() !== fMedia)   return false;
+    if (fBojong  && String(r[AZ.BOJONG]   ||'').trim() !== fBojong)  return false;
+    if (fCrtype  && String(r[AZ.CRTYPE]   ||'').trim() !== fCrtype)  return false;
+    if (fAppeal  && String(r[AZ.APPEAL]   ||'').trim() !== fAppeal)  return false;
+    if (fAdtype  && String(r[AZ.ADTYPE]   ||'').trim() !== fAdtype)  return false;
+    if (fHook    && String(r[AZ.HOOK]     ||'').trim() !== fHook)    return false;
+    if (fImgtype && String(r[AZ.IMGTYPE]  ||'').trim() !== fImgtype) return false;
+    if (fModel   && String(r[AZ.MODELTYPE]||'').trim() !== fModel)   return false;
+    if (fStart || fEnd) {
+      const d = azDateStr(r[AZ.DATE]);
+      if (fStart && d < fStart) return false;
+      if (fEnd   && d > fEnd)   return false;
+    }
+    return true;
+  });
+}
+
+// ── 집계 헬퍼 ─────────────────────────────────────────────
+function azSum(rows) {
+  return rows.reduce((a, r) => ({
+    imp:  a.imp  + (Number(r[AZ.IMP])   || 0),
+    clk:  a.clk  + (Number(r[AZ.CLICK]) || 0),
+    cost: a.cost + (Number(r[AZ.COST])  || 0),
+    conv: a.conv + (Number(r[AZ.CONV])  || 0),
+  }), { imp:0, clk:0, cost:0, conv:0 });
+}
+
+function azKPI(s) {
+  return {
+    imp: s.imp, clk: s.clk, cost: s.cost, conv: s.conv,
+    ctr: s.imp  > 0 ? s.clk  / s.imp  * 100 : 0,
+    cvr: s.clk  > 0 ? s.conv / s.clk  * 100 : 0,
+    cpa: s.conv > 0 ? s.cost / s.conv        : 0,
+    cpc: s.clk  > 0 ? s.cost / s.clk         : 0,
+  };
+}
+
+function azGroup(rows, col) {
+  return rows.reduce((m, r) => {
+    const k = String(r[col]||'').trim() || '(미입력)';
+    (m[k] = m[k]||[]).push(r);
+    return m;
+  }, {});
+}
+
+function azMetricVal(s, metric) {
+  switch (metric) {
+    case 'CTR': return s.imp  > 0 ? s.clk  / s.imp  * 100 : 0;
+    case 'CVR': return s.clk  > 0 ? s.conv / s.clk  * 100 : 0;
+    case 'CPA': return s.conv > 0 ? s.cost / s.conv        : 0;
+    case '비용': return s.cost;
+    case '전환': return s.conv;
+    default: return 0;
+  }
+}
+
+// ── 포맷 헬퍼 ─────────────────────────────────────────────
+function azFmt(n, d=0) {
+  if (n === null || n === undefined || isNaN(n)) return '-';
+  if (Math.abs(n) >= 1e8) return (n/1e8).toFixed(1) + '억';
+  if (Math.abs(n) >= 1e4) return (n/1e4).toFixed(1) + '만';
+  return n.toLocaleString('ko-KR', { maximumFractionDigits: d });
+}
+function azPct(n) { return isNaN(n)||n===0 ? '-' : n.toFixed(2) + '%'; }
+function azWon(n) { return (!n||isNaN(n)) ? '-' : '₩' + Math.round(n).toLocaleString('ko-KR'); }
+
+// ── 전체 대시보드 업데이트 ────────────────────────────────
+function updateDashboard() {
+  if (!azLoaded) return;
+  const rows = getFilteredRows();
+  renderKPI(rows);
+  renderDimChart('crtype',    rows, AZ.CRTYPE,    '#4f6ef7', '#10b981', '#f59e0b');
+  renderDimChart('appeal',    rows, AZ.APPEAL,    '#4f6ef7', '#10b981', '#f59e0b');
+  renderDimChart('hook',      rows, AZ.HOOK,      '#4f6ef7', '#10b981', '#f59e0b');
+  renderDimChart('imgtype',   rows, AZ.IMGTYPE,   '#4f6ef7', '#10b981', '#f59e0b');
+  renderDimChart('modeltype', rows, AZ.MODELTYPE, '#4f6ef7', '#10b981', '#f59e0b');
+  renderBojongTable(rows);
+  renderRanking(rows);
+  renderHeatmap(rows);
+  renderTrend(rows);
+  renderLifecycle(rows);
+}
+
+// ── 1. KPI 카드 ───────────────────────────────────────────
+function renderKPI(rows) {
+  const k = azKPI(azSum(rows));
+  const cards = [
+    { label:'노출',  value: azFmt(k.imp),  sub:'합계' },
+    { label:'클릭',  value: azFmt(k.clk),  sub:'합계' },
+    { label:'CTR',   value: azPct(k.ctr),  sub:'클릭/노출' },
+    { label:'비용',  value: azWon(k.cost), sub:'합계' },
+    { label:'CPC',   value: azWon(k.cpc),  sub:'비용/클릭' },
+    { label:'전환',  value: azFmt(k.conv), sub:'합계' },
+    { label:'CVR',   value: azPct(k.cvr),  sub:'전환/클릭' },
+    { label:'CPA',   value: azWon(k.cpa),  sub:'비용/전환' },
+  ];
+  document.getElementById('az-kpi-grid').innerHTML =
+    cards.map(c => `<div class="az-kpi-card">
+      <div class="az-kpi-label">${c.label}</div>
+      <div class="az-kpi-value">${c.value}</div>
+      <div class="az-kpi-sub">${c.sub}</div>
+    </div>`).join('');
+  document.getElementById('az-kpi-count').textContent = rows.length.toLocaleString('ko-KR') + '행';
+}
+
+// ── 2~6. 차원별 가로 막대 차트 ────────────────────────────
+function renderDimChart(key, rows, col, ctrColor, cvrColor, cpaColor) {
+  const grouped = azGroup(rows, col);
+  const entries = Object.entries(grouped)
+    .map(([k, rs]) => ({ k, ...azKPI(azSum(rs)) }))
+    .sort((a, b) => b.ctr - a.ctr);
+
+  const labels = entries.map(e => e.k);
+  const h = Math.max(entries.length * 26 + 40, 80);
+
+  azDrawHBar(`az-chart-${key}-ctr`, labels, entries.map(e => +e.ctr.toFixed(3)), 'CTR (%)',  ctrColor, h);
+  azDrawHBar(`az-chart-${key}-cvr`, labels, entries.map(e => +e.cvr.toFixed(3)), 'CVR (%)',  cvrColor, h);
+  azDrawHBar(`az-chart-${key}-cpa`, labels, entries.map(e => +e.cpa.toFixed(0)), 'CPA (원)', cpaColor, h);
+}
+
+function azDestroyChart(id) {
+  if (azCharts[id]) { azCharts[id].destroy(); delete azCharts[id]; }
+}
+
+function azDrawHBar(canvasId, labels, data, label, color, height) {
+  azDestroyChart(canvasId);
+  const el = document.getElementById(canvasId);
+  if (!el) return;
+  el.parentElement.style.height = height + 'px';
+  if (!labels.length) { el.parentElement.innerHTML = '<div class="az-no-data">데이터 없음</div>'; return; }
+  azCharts[canvasId] = new Chart(el.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ label, data, backgroundColor: color + 'bb', borderColor: color, borderWidth: 1 }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ' ' + Number(ctx.parsed.x).toLocaleString('ko-KR') } }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#64748b', font: { size: 10 } } },
+        y: { grid: { display: false }, ticks: { color: '#cbd5e1', font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+// ── 7. 보종 분석 테이블 ────────────────────────────────────
+function renderBojongTable(rows) {
+  const grouped = azGroup(rows, AZ.BOJONG);
+  const entries = Object.entries(grouped)
+    .map(([k, rs]) => ({ k, ...azKPI(azSum(rs)) }))
+    .sort((a, b) => b.imp - a.imp);
+
+  const tbody = document.getElementById('az-bojong-tbody');
+  if (!entries.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#334155;padding:20px">데이터 없음</td></tr>';
+    return;
+  }
+  tbody.innerHTML = entries.map(e =>
+    `<tr>
+      <td>${esc(e.k)}</td>
+      <td>${azFmt(e.imp)}</td><td>${azFmt(e.clk)}</td><td>${azPct(e.ctr)}</td>
+      <td>${azWon(e.cost)}</td><td>${azFmt(e.conv)}</td><td>${azPct(e.cvr)}</td><td>${azWon(e.cpa)}</td>
+    </tr>`).join('');
+}
+
+// ── 8. TOP 소재 랭킹 ─────────────────────────────────────
+function switchRankTab(tab) {
+  azRankTab = tab;
+  document.querySelectorAll('.az-rank-tab').forEach(b =>
+    b.classList.toggle('active', b.dataset.tab === tab));
+  renderRanking(getFilteredRows());
+}
+
+function renderRanking(rows) {
+  const minImp = parseInt(document.getElementById('az-rank-min-imp').value) || 0;
+  const minClk = parseInt(document.getElementById('az-rank-min-clk').value) || 0;
+
+  const grouped = azGroup(rows, AZ.CREATIVE);
+  let entries = Object.entries(grouped).map(([k, rs]) => {
+    const s = azSum(rs);
+    const kk = azKPI(s);
+    const url = (rs.find(r => r[AZ.IMGURL]) || {})[AZ.IMGURL] || '';
+    return { k, url, ...s, ...kk };
+  }).filter(e => e.imp >= minImp && e.clk >= minClk);
+
+  switch (azRankTab) {
+    case 'ctr':  entries.sort((a,b) => b.ctr - a.ctr);  break;
+    case 'cvr':  entries.sort((a,b) => b.cvr - a.cvr);  break;
+    case 'cpa':  entries = entries.filter(e => e.cpa > 0).sort((a,b) => a.cpa - b.cpa); break;
+    case 'clk':  entries.sort((a,b) => b.clk - a.clk);  break;
+    case 'conv': entries.sort((a,b) => b.conv - a.conv); break;
+  }
+
+  const top = entries.slice(0, 10);
+  const tbody = document.getElementById('az-rank-tbody');
+  if (!top.length) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#334155;padding:20px">모수 기준(노출 ${minImp.toLocaleString()}+, 클릭 ${minClk.toLocaleString()}+) 충족 소재 없음</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = top.map((e, i) => {
+    const thumb = e.url
+      ? `<img src="${driveThumb(e.url)}" style="width:40px;height:40px;object-fit:cover;border-radius:4px;cursor:pointer;border:1px solid #2d3158"
+           onclick="window.open('${esc(e.url)}','_blank')" title="원본 보기">`
+      : `<div style="width:40px;height:40px;background:#2a2d3e;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#475569;font-size:18px">🖼</div>`;
+    return `<tr>
+      <td style="color:#475569;text-align:left">${i+1}</td>
+      <td style="text-align:left">${thumb}</td>
+      <td style="text-align:left;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.k)}">${esc(e.k)}</td>
+      <td>${azFmt(e.imp)}</td>
+      <td>${azPct(e.ctr)}</td>
+      <td>${azPct(e.cvr)}</td>
+      <td>${azWon(e.cpa)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── 9. 교차 분석 히트맵 ───────────────────────────────────
+function renderHeatmap(rows) {
+  const colMap = {
+    보종:AZ.BOJONG, 소재유형:AZ.CRTYPE, 소구포인트:AZ.APPEAL,
+    후킹방식:AZ.HOOK, 이미지유형:AZ.IMGTYPE, 모델유형:AZ.MODELTYPE
+  };
+  const xKey    = document.getElementById('az-hm-x').value;
+  const yKey    = document.getElementById('az-hm-y').value;
+  const metric  = document.getElementById('az-hm-metric').value;
+  const xCol    = colMap[xKey];
+  const yCol    = colMap[yKey];
+  const container = document.getElementById('az-heatmap');
+  if (xCol === undefined || yCol === undefined) return;
+
+  const xVals = [...new Set(rows.map(r => String(r[xCol]||'').trim()).filter(Boolean))].sort();
+  const yVals = [...new Set(rows.map(r => String(r[yCol]||'').trim()).filter(Boolean))].sort();
+
+  const mat = {};
+  rows.forEach(r => {
+    const x = String(r[xCol]||'').trim();
+    const y = String(r[yCol]||'').trim();
+    if (!x || !y) return;
+    if (!mat[y]) mat[y] = {};
+    if (!mat[y][x]) mat[y][x] = {imp:0,clk:0,cost:0,conv:0};
+    const c = mat[y][x];
+    c.imp  += Number(r[AZ.IMP])   || 0;
+    c.clk  += Number(r[AZ.CLICK]) || 0;
+    c.cost += Number(r[AZ.COST])  || 0;
+    c.conv += Number(r[AZ.CONV])  || 0;
+  });
+
+  const allVals = [];
+  yVals.forEach(y => xVals.forEach(x => {
+    const c = mat[y]?.[x];
+    if (c) { const v = azMetricVal(c, metric); if (v > 0) allVals.push(v); }
+  }));
+
+  const minV = allVals.length ? Math.min(...allVals) : 0;
+  const maxV = allVals.length ? Math.max(...allVals) : 1;
+  const lowerBetter = metric === 'CPA';
+
+  function cellBg(v) {
+    if (!v || v <= 0 || !allVals.length) return '#1e2035';
+    const pct  = (v - minV) / ((maxV - minV) || 1);
+    const good = lowerBetter ? 1 - pct : pct;
+    const r2   = Math.round(220 * (1 - good) + 16 * good);
+    const g2   = Math.round(68  * (1 - good) + 185 * good);
+    const b2   = Math.round(68  * (1 - good) + 129 * good);
+    return `rgba(${r2},${g2},${b2},0.85)`;
+  }
+
+  if (!xVals.length || !yVals.length) {
+    container.innerHTML = '<div class="az-no-data">데이터 없음</div>'; return;
+  }
+
+  let html = `<div style="overflow-x:auto"><table class="az-hm-table">
+    <thead><tr><th></th>${xVals.map(x => `<th>${esc(x)}</th>`).join('')}</tr></thead>
+    <tbody>`;
+  yVals.forEach(y => {
+    html += `<tr><td class="az-hm-y-label">${esc(y)}</td>`;
+    xVals.forEach(x => {
+      const c   = mat[y]?.[x];
+      const v   = c ? azMetricVal(c, metric) : 0;
+      const bg  = cellBg(v);
+      const txt = v > 0 ? (metric==='CPA' ? azWon(v) : azPct(v)) : '—';
+      const col = (v > 0) ? '#fff' : '#2d3158';
+      html += `<td style="background:${bg};color:${col}">${txt}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
+}
+
+// ── 10. 기간별 추이 라인 차트 ─────────────────────────────
+function renderTrend(rows) {
+  const unit   = document.getElementById('az-trend-unit').value;
+  const metric = document.getElementById('az-trend-metric').value;
+
+  const grouped = {};
+  rows.forEach(r => {
+    const d = azDateStr(r[AZ.DATE]);
+    if (!d) return;
+    const key = azPeriodKey(d, unit);
+    if (!grouped[key]) grouped[key] = {imp:0,clk:0,cost:0,conv:0};
+    const c = grouped[key];
+    c.imp  += Number(r[AZ.IMP])   || 0;
+    c.clk  += Number(r[AZ.CLICK]) || 0;
+    c.cost += Number(r[AZ.COST])  || 0;
+    c.conv += Number(r[AZ.CONV])  || 0;
+  });
+
+  const entries = Object.entries(grouped).sort((a,b) => a[0].localeCompare(b[0]));
+  const labels  = entries.map(([k]) => azPeriodLabel(k, unit));
+  const vals    = entries.map(([, s]) => {
+    const v = azMetricVal(s, metric);
+    return metric === 'CPA' || metric === '비용' || metric === '전환'
+      ? Math.round(v) : +v.toFixed(3);
+  });
+
+  azDestroyChart('az-trend-chart');
+  const el = document.getElementById('az-trend-chart');
+  if (!el) return;
+  if (!entries.length) { el.parentElement.innerHTML = '<div class="az-no-data">데이터 없음</div>'; return; }
+
+  const colorMap = { CTR:'#4f6ef7', CVR:'#10b981', CPA:'#f59e0b', 비용:'#e879f9', 전환:'#34d399' };
+  const color = colorMap[metric] || '#4f6ef7';
+
+  azCharts['az-trend-chart'] = new Chart(el.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: metric, data: vals,
+        borderColor: color, backgroundColor: color + '22',
+        borderWidth: 2, pointRadius: 3, pointBackgroundColor: color,
+        fill: true, tension: 0.3
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${metric}: ${Number(ctx.parsed.y).toLocaleString('ko-KR')}` } }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#64748b', font:{ size:10 }, maxRotation:45 } },
+        y: { grid: { color: 'rgba(255,255,255,.06)' }, ticks: { color: '#64748b', font:{ size:10 } } }
+      }
+    }
+  });
+}
+
+function azPeriodKey(dateStr, unit) {
+  if (unit === 'day')   return dateStr;
+  if (unit === 'month') return dateStr.slice(0, 7);
+  // week: 해당 주 월요일 기준 YYMMDD
+  const d = new Date(dateStr + 'T00:00:00');
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const mon = new Date(d);
+  mon.setDate(d.getDate() + diff);
+  return String(mon.getFullYear()).slice(2) +
+    String(mon.getMonth()+1).padStart(2,'0') +
+    String(mon.getDate()).padStart(2,'0');
+}
+
+function azPeriodLabel(key, unit) {
+  if (unit === 'week') return `${key}(월)주`;
+  return key;
+}
+
+// ── 11. 소재 생애주기 분석 ────────────────────────────────
+function renderLifecycle(rows) {
+  if (!azMasterData || azMasterData.length < 2) {
+    document.getElementById('az-lifecycle-flags').innerHTML =
+      '<div style="color:#475569;font-size:12px">소재 마스터 데이터를 불러오지 못했습니다.</div>';
+    return;
+  }
+
+  // 소재이름 → 최초 등록일 맵
+  const regMap = {};
+  azMasterData.slice(1).forEach(r => {
+    const name = String(r[5]||'').trim();  // col 5 = 소재이름
+    const regDate = r[1];                  // col 1 = 등록일자
+    if (name && !regMap[name] && regDate) regMap[name] = azDateStr(regDate);
+  });
+
+  const today = new Date();
+  today.setHours(0,0,0,0);
+
+  const phases = { 초기:[], 중기:[], 후기:[] };
+  Object.entries(azGroup(rows, AZ.CREATIVE)).forEach(([name, rs]) => {
+    const dStr = regMap[name];
+    if (!dStr) return;
+    const elapsed = Math.floor((today - new Date(dStr + 'T00:00:00')) / 86400000);
+    const phase = elapsed <= 14 ? '초기' : elapsed <= 28 ? '중기' : '후기';
+    const k = azKPI(azSum(rs));
+    phases[phase].push({ name, elapsed, ...k });
+  });
+
+  // 전체 평균 CPA 계산
+  const allCPAs = [...phases.초기, ...phases.중기, ...phases.후기].filter(e => e.cpa > 0).map(e => e.cpa);
+  const avgCPA  = allCPAs.length ? allCPAs.reduce((a,b)=>a+b,0)/allCPAs.length : 0;
+
+  // 구간별 평균 차트
+  const phaseNames = ['초기','중기','후기'];
+  const phaseStats = phaseNames.map(n => {
+    const items = phases[n];
+    if (!items.length) return { n, count:0, ctr:0, cvr:0, cpa:0 };
+    const cpaItems = items.filter(e=>e.cpa>0);
+    return {
+      n, count: items.length,
+      ctr: items.reduce((a,b)=>a+b.ctr,0)/items.length,
+      cvr: items.reduce((a,b)=>a+b.cvr,0)/items.length,
+      cpa: cpaItems.length ? cpaItems.reduce((a,b)=>a+b.cpa,0)/cpaItems.length : 0,
+    };
+  }).filter(p => p.count > 0);
+
+  azDestroyChart('az-lifecycle-chart');
+  const el = document.getElementById('az-lifecycle-chart');
+  if (el && phaseStats.length) {
+    azCharts['az-lifecycle-chart'] = new Chart(el.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: phaseStats.map(p => `${p.n} (${p.count}개)`),
+        datasets: [
+          { label: 'CTR (%)', data: phaseStats.map(p => +p.ctr.toFixed(3)), backgroundColor:'#4f6ef7bb', yAxisID:'y' },
+          { label: 'CVR (%)', data: phaseStats.map(p => +p.cvr.toFixed(3)), backgroundColor:'#10b981bb', yAxisID:'y' },
+          { label: 'CPA',     data: phaseStats.map(p => +p.cpa.toFixed(0)), backgroundColor:'#f59e0bbb', yAxisID:'y2' },
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { color:'#94a3b8', font:{size:11} } } },
+        scales: {
+          x:  { ticks:{ color:'#64748b' }, grid:{ color:'rgba(255,255,255,.04)' } },
+          y:  { ticks:{ color:'#64748b', font:{size:10} }, grid:{ color:'rgba(255,255,255,.06)' }, position:'left' },
+          y2: { ticks:{ color:'#f59e0b', font:{size:10} }, grid:{ display:false }, position:'right' }
+        }
+      }
+    });
+  } else if (el) {
+    el.parentElement.innerHTML = '<div class="az-no-data">생애주기 데이터 없음 (소재 마스터와 매칭 불가)</div>';
+  }
+
+  // 교체 검토 소재 (후기 + CPA > 평균*1.2)
+  const flagged = (phases.후기 || [])
+    .filter(e => e.cpa > 0 && avgCPA > 0 && e.cpa > avgCPA * 1.2)
+    .sort((a,b) => b.cpa - a.cpa)
+    .slice(0, 20);
+
+  const flagEl = document.getElementById('az-lifecycle-flags');
+  if (!flagged.length) {
+    flagEl.innerHTML = `<div style="color:#475569;font-size:12px;padding:12px 0">교체 검토 소재 없음${avgCPA>0?' (전체 평균 CPA: '+azWon(avgCPA)+')':''}</div>`;
+  } else {
+    flagEl.innerHTML =
+      `<div style="color:#64748b;font-size:11px;margin-bottom:6px">전체 평균 CPA: ${azWon(avgCPA)}</div>` +
+      flagged.map(e => {
+        const diff = avgCPA > 0 ? Math.round((e.cpa/avgCPA-1)*100) : 0;
+        return `<div class="az-flag-row">
+          <span class="az-flag-badge">후기 ${e.elapsed}일</span>
+          <span class="az-flag-name" title="${esc(e.name)}">${esc(e.name)}</span>
+          <span class="az-flag-cpa">${azWon(e.cpa)}</span>
+          <span class="az-flag-diff">+${diff}%</span>
+        </div>`;
+      }).join('');
+  }
+}
+
+// ── 12. OpenAI 인사이트 ───────────────────────────────────
+async function runAIInsight() {
+  const btn     = document.getElementById('az-insight-btn');
+  const spinner = document.getElementById('az-insight-spinner');
+  const panel   = document.getElementById('az-insight-panel');
+
+  btn.disabled = true;
+  spinner.classList.add('show');
+  panel.innerHTML = '<div style="color:#64748b;font-size:13px">인사이트 생성 중... (15~30초 소요)</div>';
+
+  const rows = getFilteredRows();
+
+  function dimSum(col, label) {
+    return Object.entries(azGroup(rows, col)).map(([k, rs]) => {
+      const kk = azKPI(azSum(rs));
+      return { [label]:k, CTR:+kk.ctr.toFixed(3), CVR:+kk.cvr.toFixed(3), CPA:Math.round(kk.cpa), 노출:Math.round(kk.imp), 클릭:Math.round(kk.clk) };
+    }).sort((a,b) => b.CTR - a.CTR);
+  }
+
+  const agg = {
+    기간:      { 시작: document.getElementById('az-f-start').value, 종료: document.getElementById('az-f-end').value },
+    전체KPI:   (() => { const k=azKPI(azSum(rows)); return { 노출:Math.round(k.imp), 클릭:Math.round(k.clk), CTR:+k.ctr.toFixed(3), 비용:Math.round(k.cost), 전환:Math.round(k.conv), CVR:+k.cvr.toFixed(3), CPA:Math.round(k.cpa) }; })(),
+    소재유형별: dimSum(AZ.CRTYPE,    '소재유형'),
+    소구포인트별: dimSum(AZ.APPEAL,  '소구포인트'),
+    후킹방식별: dimSum(AZ.HOOK,      '후킹방식'),
+    이미지유형별: dimSum(AZ.IMGTYPE, '이미지유형'),
+    모델유형별: dimSum(AZ.MODELTYPE, '모델유형'),
+  };
+
+  try {
+    const res = await gasRun('getOpenAIInsight', agg);
+    if (res.error) {
+      panel.innerHTML = `<div style="color:#f87171;font-size:13px;white-space:pre-wrap">${esc(res.message)}</div>`;
+    } else {
+      panel.innerHTML = `<div class="az-insight-text">${esc(res.text).replace(/\n/g,'<br>')}</div>`;
+    }
+  } catch (err) {
+    panel.innerHTML = `<div style="color:#f87171;font-size:13px">오류: ${esc(String(err.message||err))}</div>`;
+  } finally {
+    btn.disabled = false;
+    spinner.classList.remove('show');
+  }
+}
 
 </script>
 
