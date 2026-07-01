@@ -1721,7 +1721,7 @@
             <select id="az-hm-metric" onchange="azLoaded && renderHeatmap(getFilteredRows())">
               <option>CTR</option><option>CVR</option><option>CPA</option>
             </select>
-            <span style="font-size:11px;color:#475569">초록=성과 좋음 / 빨강=성과 낮음 / 회색=데이터 없음</span>
+            <span style="font-size:11px;color:#475569">🟢 진할수록 성과 좋음 &nbsp;·&nbsp; ⬜ 회색=데이터 없음</span>
           </div>
           <div id="az-heatmap"></div>
         </div>
@@ -4908,8 +4908,8 @@ function renderHeatmap(rows) {
   const minV = allVals.length ? Math.min(...allVals) : 0;
   const maxV = allVals.length ? Math.max(...allVals) : 1;
   const lowerBetter = metric === 'CPA';
-  // CTR/CVR → 초록(좋을수록 진함), CPA → 빨강(낮을수록=좋음=진함), 데이터 없음 → 회색
-  const [baseR, baseG, baseB] = lowerBetter ? [220, 38, 38] : [22, 163, 74];
+  // 모든 지표 초록(좋을수록 진함), 데이터 없음 → 회색
+  const [baseR, baseG, baseB] = [22, 163, 74];
 
   function cellBg(v) {
     if (!v || v <= 0 || !allVals.length) return '#e5e7eb';
