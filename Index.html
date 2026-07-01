@@ -456,6 +456,25 @@
   .settings-sub-panel { display: none; }
   .settings-sub-panel.active { display: block; }
 
+  /* API 키 관리 */
+  .api-key-item {
+    border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px 18px;
+    margin-bottom: 12px; background: #fafafa;
+  }
+  .api-key-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .api-key-label { font-size: 14px; font-weight: 600; color: #111827; }
+  .api-key-badge-set   { background: #d1fae5; color: #065f46; border-radius: 20px; padding: 2px 9px; font-size: 11px; font-weight: 600; }
+  .api-key-badge-unset { background: #fee2e2; color: #991b1b; border-radius: 20px; padding: 2px 9px; font-size: 11px; font-weight: 600; }
+  .api-key-desc { font-size: 12px; color: #6b7280; margin-bottom: 12px; }
+  .api-key-masked { font-size: 12px; font-family: monospace; color: #374151; background: #f3f4f6; border-radius: 5px; padding: 4px 8px; display: inline-block; margin-bottom: 10px; }
+  .api-key-input-row { display: flex; gap: 8px; align-items: center; }
+  .api-key-input-row input {
+    flex: 1; padding: 7px 10px; border: 1px solid #d1d5db; border-radius: 7px;
+    font-size: 13px; font-family: monospace; background: #fff; color: #111827;
+  }
+  .api-key-input-row input:focus { outline: none; border-color: #4f6ef7; }
+  .api-key-input-row input::placeholder { font-family: sans-serif; color: #9ca3af; }
+
   /* 기타 드롭다운 그리드 */
   .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
@@ -1345,6 +1364,7 @@
       <button class="settings-sub-btn active" onclick="switchSettingsTab('hierarchy', this)">🔗 매체 구조</button>
       <button class="settings-sub-btn" onclick="switchSettingsTab('dropdown', this)">🏷 드롭다운</button>
       <button class="settings-sub-btn" onclick="switchSettingsTab('tools', this)">🔧 도구</button>
+      <button class="settings-sub-btn" onclick="switchSettingsTab('apikeys', this)">🔑 API 키</button>
     </div>
 
     <!-- 서브패널 1: 매체 계층 -->
@@ -1420,6 +1440,23 @@
           </button>
         </div>
       </div>
+      </div>
+    </div>
+
+    <!-- 서브패널 4: API 키 -->
+    <div class="settings-sub-panel" id="sp-apikeys">
+      <div class="card">
+        <div class="card-header">
+          <span>API 키 관리</span>
+          <button class="btn btn-secondary btn-sm" onclick="loadApiKeys()">↺ 새로고침</button>
+        </div>
+        <div class="card-body" style="padding:16px">
+          <p style="font-size:12px;color:#6b7280;margin-bottom:16px">
+            API 키는 Google Apps Script 스크립트 속성에 안전하게 저장됩니다.<br>
+            저장된 키는 마스킹 처리되어 표시되며 원본 값은 노출되지 않습니다.
+          </p>
+          <div id="apiKeyList"></div>
+        </div>
       </div>
     </div>
 
@@ -1873,9 +1910,71 @@ function switchSettingsTab(tabId, btn) {
   btn.classList.add('active');
 
   if (tabId === 'hierarchy') loadHierarchyPanel();
-
   if (tabId === 'dropdown')  loadSettingsPanel();
+  if (tabId === 'apikeys')   loadApiKeys();
 
+}
+
+// ── API 키 관리 ───────────────────────────────────────────
+function loadApiKeys() {
+  const el = document.getElementById('apiKeyList');
+  el.innerHTML = '<div style="color:#9ca3af;font-size:13px;padding:8px 0">로딩 중...</div>';
+  google.script.run
+    .withSuccessHandler(keys => renderApiKeys(keys))
+    .withFailureHandler(err => { el.innerHTML = `<div style="color:#ef4444">로드 실패: ${escHtml(err.message)}</div>`; })
+    .getApiKeys();
+}
+
+function renderApiKeys(keys) {
+  const el = document.getElementById('apiKeyList');
+  el.innerHTML = keys.map(k => `
+    <div class="api-key-item" id="apikey-item-${k.id}">
+      <div class="api-key-header">
+        <span class="api-key-label">${escHtml(k.label)}</span>
+        <span class="${k.isSet ? 'api-key-badge-set' : 'api-key-badge-unset'}">${k.isSet ? '✓ 설정됨' : '미설정'}</span>
+      </div>
+      <div class="api-key-desc">${escHtml(k.description)}</div>
+      ${k.isSet ? `<div class="api-key-masked">${escHtml(k.masked)}</div>` : ''}
+      <div class="api-key-input-row">
+        <input type="password" id="apikey-input-${k.id}"
+          placeholder="${k.isSet ? '새 키 입력 (변경 시에만)' : 'API 키를 입력하세요'}"
+          autocomplete="off">
+        <button class="btn btn-primary btn-sm" onclick="submitApiKey('${k.id}')">저장</button>
+        ${k.isSet ? `<button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="deleteApiKey('${k.id}')">삭제</button>` : ''}
+      </div>
+      <div id="apikey-msg-${k.id}" style="font-size:12px;margin-top:8px;min-height:18px"></div>
+    </div>
+  `).join('');
+}
+
+function submitApiKey(keyId) {
+  const input = document.getElementById('apikey-input-' + keyId);
+  const value = input.value.trim();
+  const msgEl = document.getElementById('apikey-msg-' + keyId);
+  if (!value) { msgEl.style.color = '#ef4444'; msgEl.textContent = '키 값을 입력하세요.'; return; }
+  msgEl.style.color = '#9ca3af'; msgEl.textContent = '저장 중...';
+  google.script.run
+    .withSuccessHandler(res => {
+      if (res.error) { msgEl.style.color = '#ef4444'; msgEl.textContent = '❌ ' + res.message; return; }
+      msgEl.style.color = '#059669'; msgEl.textContent = '✓ 저장되었습니다.';
+      input.value = '';
+      setTimeout(loadApiKeys, 800);
+    })
+    .withFailureHandler(err => { msgEl.style.color = '#ef4444'; msgEl.textContent = '❌ ' + err.message; })
+    .saveApiKey(keyId, value);
+}
+
+function deleteApiKey(keyId) {
+  if (!confirm('API 키를 삭제하시겠습니까?')) return;
+  const msgEl = document.getElementById('apikey-msg-' + keyId);
+  msgEl.style.color = '#9ca3af'; msgEl.textContent = '삭제 중...';
+  google.script.run
+    .withSuccessHandler(res => {
+      if (res.error) { msgEl.style.color = '#ef4444'; msgEl.textContent = '❌ ' + res.message; return; }
+      loadApiKeys();
+    })
+    .withFailureHandler(err => { msgEl.style.color = '#ef4444'; msgEl.textContent = '❌ ' + err.message; })
+    .saveApiKey(keyId, '');
 }
 
 
