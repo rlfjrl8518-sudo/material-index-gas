@@ -829,6 +829,15 @@
     padding: 2px 8px; font-size: 11px; font-weight: 600;
   }
 
+  /* 지표 탭 */
+  .az-metric-tabs { display:flex; gap:4px; }
+  .az-metric-tab {
+    padding:3px 11px; font-size:11px; border:1px solid #2d3158;
+    background:transparent; color:#64748b; border-radius:20px;
+    cursor:pointer; transition:all .15s; line-height:1.6;
+  }
+  .az-metric-tab.active { background:#4f6ef7; border-color:#4f6ef7; color:#fff; }
+  .az-metric-tab:hover:not(.active) { border-color:#4f6ef7; color:#a5b4fc; }
   /* 차트 그리드 (2열) */
   .az-chart-trio { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
   .az-chart-box { position: relative; }
@@ -1515,49 +1524,61 @@
 
         <!-- 2. 소재유형 -->
         <div class="az-section">
-          <div class="az-section-header">소재유형 분석</div>
-          <div class="az-section-body">
-            <div class="az-chart-trio">
-              <div><div class="az-chart-label">CTR (%)</div><div style="height:150px"><canvas id="az-chart-crtype-ctr"></canvas></div></div>
-              <div><div class="az-chart-label">CVR (%)</div><div style="height:150px"><canvas id="az-chart-crtype-cvr"></canvas></div></div>
-              <div><div class="az-chart-label">CPA (원)</div><div style="height:150px"><canvas id="az-chart-crtype-cpa"></canvas></div></div>
+          <div class="az-section-header">
+            소재유형 분석
+            <div class="az-metric-tabs" data-dim="crtype">
+              <button class="az-metric-tab active" data-metric="ctr" onclick="switchDimMetric('crtype','ctr',this)">CTR</button>
+              <button class="az-metric-tab" data-metric="cvr" onclick="switchDimMetric('crtype','cvr',this)">CVR</button>
+              <button class="az-metric-tab" data-metric="cpa" onclick="switchDimMetric('crtype','cpa',this)">CPA</button>
             </div>
+          </div>
+          <div class="az-section-body">
+            <div id="az-dim-crtype" style="position:relative;min-height:80px"><canvas id="az-chart-crtype"></canvas></div>
           </div>
         </div>
 
         <!-- 3. 소구포인트 -->
         <div class="az-section">
-          <div class="az-section-header">소구포인트 분석</div>
-          <div class="az-section-body">
-            <div class="az-chart-trio">
-              <div><div class="az-chart-label">CTR (%)</div><div style="height:150px"><canvas id="az-chart-appeal-ctr"></canvas></div></div>
-              <div><div class="az-chart-label">CVR (%)</div><div style="height:150px"><canvas id="az-chart-appeal-cvr"></canvas></div></div>
-              <div><div class="az-chart-label">CPA (원)</div><div style="height:150px"><canvas id="az-chart-appeal-cpa"></canvas></div></div>
+          <div class="az-section-header">
+            소구포인트 분석
+            <div class="az-metric-tabs" data-dim="appeal">
+              <button class="az-metric-tab active" data-metric="ctr" onclick="switchDimMetric('appeal','ctr',this)">CTR</button>
+              <button class="az-metric-tab" data-metric="cvr" onclick="switchDimMetric('appeal','cvr',this)">CVR</button>
+              <button class="az-metric-tab" data-metric="cpa" onclick="switchDimMetric('appeal','cpa',this)">CPA</button>
             </div>
+          </div>
+          <div class="az-section-body">
+            <div id="az-dim-appeal" style="position:relative;min-height:80px"><canvas id="az-chart-appeal"></canvas></div>
           </div>
         </div>
 
         <!-- 4. 후킹방식 -->
         <div class="az-section">
-          <div class="az-section-header">후킹방식 분석</div>
-          <div class="az-section-body">
-            <div class="az-chart-trio">
-              <div><div class="az-chart-label">CTR (%)</div><div style="height:150px"><canvas id="az-chart-hook-ctr"></canvas></div></div>
-              <div><div class="az-chart-label">CVR (%)</div><div style="height:150px"><canvas id="az-chart-hook-cvr"></canvas></div></div>
-              <div><div class="az-chart-label">CPA (원)</div><div style="height:150px"><canvas id="az-chart-hook-cpa"></canvas></div></div>
+          <div class="az-section-header">
+            후킹방식 분석
+            <div class="az-metric-tabs" data-dim="hook">
+              <button class="az-metric-tab active" data-metric="ctr" onclick="switchDimMetric('hook','ctr',this)">CTR</button>
+              <button class="az-metric-tab" data-metric="cvr" onclick="switchDimMetric('hook','cvr',this)">CVR</button>
+              <button class="az-metric-tab" data-metric="cpa" onclick="switchDimMetric('hook','cpa',this)">CPA</button>
             </div>
+          </div>
+          <div class="az-section-body">
+            <div id="az-dim-hook" style="position:relative;min-height:80px"><canvas id="az-chart-hook"></canvas></div>
           </div>
         </div>
 
         <!-- 5. 이미지유형 -->
         <div class="az-section">
-          <div class="az-section-header">이미지유형 분석</div>
-          <div class="az-section-body">
-            <div class="az-chart-trio">
-              <div><div class="az-chart-label">CTR (%)</div><div style="height:150px"><canvas id="az-chart-imgtype-ctr"></canvas></div></div>
-              <div><div class="az-chart-label">CVR (%)</div><div style="height:150px"><canvas id="az-chart-imgtype-cvr"></canvas></div></div>
-              <div><div class="az-chart-label">CPA (원)</div><div style="height:150px"><canvas id="az-chart-imgtype-cpa"></canvas></div></div>
+          <div class="az-section-header">
+            이미지유형 분석
+            <div class="az-metric-tabs" data-dim="imgtype">
+              <button class="az-metric-tab active" data-metric="ctr" onclick="switchDimMetric('imgtype','ctr',this)">CTR</button>
+              <button class="az-metric-tab" data-metric="cvr" onclick="switchDimMetric('imgtype','cvr',this)">CVR</button>
+              <button class="az-metric-tab" data-metric="cpa" onclick="switchDimMetric('imgtype','cpa',this)">CPA</button>
             </div>
+          </div>
+          <div class="az-section-body">
+            <div id="az-dim-imgtype" style="position:relative;min-height:80px"><canvas id="az-chart-imgtype"></canvas></div>
           </div>
         </div>
 
@@ -1565,13 +1586,16 @@
 
       <!-- 6. 모델유형 (전폭) -->
       <div class="az-section">
-        <div class="az-section-header">모델유형 분석</div>
-        <div class="az-section-body">
-          <div class="az-chart-trio">
-            <div><div class="az-chart-label">CTR (%)</div><div style="height:180px"><canvas id="az-chart-modeltype-ctr"></canvas></div></div>
-            <div><div class="az-chart-label">CVR (%)</div><div style="height:180px"><canvas id="az-chart-modeltype-cvr"></canvas></div></div>
-            <div><div class="az-chart-label">CPA (원)</div><div style="height:180px"><canvas id="az-chart-modeltype-cpa"></canvas></div></div>
+        <div class="az-section-header">
+          모델유형 분석
+          <div class="az-metric-tabs" data-dim="modeltype">
+            <button class="az-metric-tab active" data-metric="ctr" onclick="switchDimMetric('modeltype','ctr',this)">CTR</button>
+            <button class="az-metric-tab" data-metric="cvr" onclick="switchDimMetric('modeltype','cvr',this)">CVR</button>
+            <button class="az-metric-tab" data-metric="cpa" onclick="switchDimMetric('modeltype','cpa',this)">CPA</button>
           </div>
+        </div>
+        <div class="az-section-body">
+          <div id="az-dim-modeltype" style="position:relative;min-height:80px"><canvas id="az-chart-modeltype"></canvas></div>
         </div>
       </div>
 
@@ -4127,6 +4151,7 @@ let azMasterData = null;   // [헤더행, ...데이터행]
 let azLoaded     = false;
 let azCharts     = {};     // Chart.js 인스턴스 맵
 let azRankTab    = 'ctr';
+let azDimData    = {};     // 차원별 집계 캐시 { crtype:[{k,ctr,cvr,cpa,...}], ... }
 
 // 컬럼 인덱스 (CONSOLIDATED_RAW_HEADERS 기준)
 const AZ = {
@@ -4385,11 +4410,11 @@ function updateDashboard() {
   if (!azLoaded) return;
   const rows = getFilteredRows();
   renderKPI(rows);
-  renderDimChart('crtype',    rows, AZ.CRTYPE,    '#4f6ef7', '#10b981', '#f59e0b');
-  renderDimChart('appeal',    rows, AZ.APPEAL,    '#4f6ef7', '#10b981', '#f59e0b');
-  renderDimChart('hook',      rows, AZ.HOOK,      '#4f6ef7', '#10b981', '#f59e0b');
-  renderDimChart('imgtype',   rows, AZ.IMGTYPE,   '#4f6ef7', '#10b981', '#f59e0b');
-  renderDimChart('modeltype', rows, AZ.MODELTYPE, '#4f6ef7', '#10b981', '#f59e0b');
+  renderDimChart('crtype',    rows, AZ.CRTYPE);
+  renderDimChart('appeal',    rows, AZ.APPEAL);
+  renderDimChart('hook',      rows, AZ.HOOK);
+  renderDimChart('imgtype',   rows, AZ.IMGTYPE);
+  renderDimChart('modeltype', rows, AZ.MODELTYPE);
   renderBojongTable(rows);
   renderRanking(rows);
   renderHeatmap(rows);
@@ -4419,19 +4444,37 @@ function renderKPI(rows) {
   document.getElementById('az-kpi-count').textContent = rows.length.toLocaleString('ko-KR') + '행';
 }
 
-// ── 2~6. 차원별 가로 막대 차트 ────────────────────────────
-function renderDimChart(key, rows, col, ctrColor, cvrColor, cpaColor) {
+// ── 2~6. 차원별 가로 막대 차트 (탭 전환) ─────────────────
+function renderDimChart(key, rows, col) {
   const grouped = azGroup(rows, col);
-  const entries = Object.entries(grouped)
+  azDimData[key] = Object.entries(grouped)
     .map(([k, rs]) => ({ k, ...azKPI(azSum(rs)) }))
     .sort((a, b) => b.ctr - a.ctr);
+  // 탭 UI CTR로 초기화
+  const tabEl = document.querySelector(`.az-metric-tabs[data-dim="${key}"]`);
+  if (tabEl) tabEl.querySelectorAll('.az-metric-tab').forEach(b =>
+    b.classList.toggle('active', b.dataset.metric === 'ctr'));
+  azDrawDim(key, 'ctr');
+}
 
-  const labels = entries.map(e => e.k);
-  const h = Math.max(entries.length * 26 + 40, 80);
+function switchDimMetric(key, metric, btn) {
+  btn.closest('.az-metric-tabs').querySelectorAll('.az-metric-tab')
+    .forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  azDrawDim(key, metric);
+}
 
-  azDrawHBar(`az-chart-${key}-ctr`, labels, entries.map(e => +e.ctr.toFixed(3)), 'CTR (%)',  ctrColor, h);
-  azDrawHBar(`az-chart-${key}-cvr`, labels, entries.map(e => +e.cvr.toFixed(3)), 'CVR (%)',  cvrColor, h);
-  azDrawHBar(`az-chart-${key}-cpa`, labels, entries.map(e => +e.cpa.toFixed(0)), 'CPA (원)', cpaColor, h);
+function azDrawDim(key, metric) {
+  const entries = azDimData[key];
+  if (!entries) return;
+  const colorMap = { ctr:'#4f6ef7', cvr:'#10b981', cpa:'#f59e0b' };
+  const labelMap = { ctr:'CTR (%)',  cvr:'CVR (%)',  cpa:'CPA (원)' };
+  const vals = entries.map(e =>
+    metric === 'ctr' ? +e.ctr.toFixed(3) :
+    metric === 'cvr' ? +e.cvr.toFixed(3) : +e.cpa.toFixed(0)
+  );
+  const h = Math.max(entries.length * 32 + 48, 80);
+  azDrawHBar(`az-chart-${key}`, entries.map(e => e.k), vals, labelMap[metric], colorMap[metric], h);
 }
 
 function azDestroyChart(id) {
