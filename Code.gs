@@ -893,19 +893,33 @@ function detectNewCreatives() {
 // --------------------------------------------------
 // 소재 분석용: 소재_통합RAW 전체 데이터 반환 (1행=헤더 포함)
 // --------------------------------------------------
+// 연결 확인 및 시트 상태 진단 (Index.html에서 testPing() 호출)
+function testPing() {
+  const ss = getSpreadsheet();
+  const sheet = ss.getSheetByName(CONSOLIDATED_RAW_SHEET_NAME);
+  return {
+    status: 'ok',
+    sheetFound: sheet !== null,
+    lastRow: sheet ? sheet.getLastRow() : -1,
+    lookingFor: CONSOLIDATED_RAW_SHEET_NAME,
+    allSheets: ss.getSheets().map(s => s.getName())
+  };
+}
+
 function getAllData() {
   const ss = getSpreadsheet();
-  const allSheetNames = ss.getSheets().map(s => s.getName());
   const sheet = ss.getSheetByName(CONSOLIDATED_RAW_SHEET_NAME);
-  if (!sheet) {
-    // 시트를 찾지 못한 경우 — 클라이언트에서 진단 메시지 표시용
-    return { _notFound: true, looking: CONSOLIDATED_RAW_SHEET_NAME, sheets: allSheetNames };
-  }
+  if (!sheet) return [];
   const lastRow = sheet.getLastRow();
-  if (lastRow < 2) {
-    return { _empty: true, lastRow, sheets: allSheetNames };
-  }
-  return sheet.getRange(1, 1, lastRow, CONSOLIDATED_RAW_HEADERS.length).getValues();
+  if (lastRow < 2) return [];
+  const raw = sheet.getRange(1, 1, lastRow, CONSOLIDATED_RAW_HEADERS.length).getValues();
+  // google.script.run은 Date 객체 직렬화 실패 시 null 반환 → 문자열로 변환
+  return raw.map(row => row.map(cell => {
+    if (cell instanceof Date) {
+      return Utilities.formatDate(cell, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    }
+    return cell;
+  }));
 }
 
 // --------------------------------------------------
