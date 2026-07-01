@@ -4758,7 +4758,10 @@ function renderRanking(rows) {
     return `<tr>
       <td style="color:var(--az-t4);text-align:left">${i+1}</td>
       <td style="text-align:left">${azThumbCell(e.url)}</td>
-      <td style="text-align:left;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.k)}">${esc(e.k)}</td>
+      <td style="text-align:left;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:default"
+          title="${esc(e.k)}" data-url="${esc(e.url)}"
+          onmouseenter="azPreviewShow(this,event)" onmousemove="azPreviewMove(event)" onmouseleave="azPreviewHide()"
+        >${esc(e.k)}</td>
       <td>${azFmt(e.imp)}</td>
       <td>${azPct(e.ctr)}</td>
       <td>${azPct(e.cvr)}</td>
