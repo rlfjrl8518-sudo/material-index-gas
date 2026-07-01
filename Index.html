@@ -957,13 +957,16 @@
 
   <h1>📊 운영 소재 분석</h1>
 
-  <button class="btn btn-detect" id="btnDetect" onclick="runDetect()">
-
-    <span>🔍 신규 소재 감지</span>
-
-    <div class="spinner" id="spinDetect"></div>
-
-  </button>
+  <a id="btn-sheet-link" href="#" target="_blank"
+     style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;
+            font-size:12px;font-weight:500;color:#e2e8f0;background:#1e2035;
+            border:1px solid #2d3158;border-radius:8px;text-decoration:none;
+            transition:background .15s;"
+     onmouseover="this.style.background='#2a2d3e'"
+     onmouseout="this.style.background='#1e2035'">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    구글 시트
+  </a>
 
 </div>
 
@@ -973,9 +976,9 @@
 
   <button class="tab-btn active" onclick="switchTab('register', this)">📝 소재 등록</button>
 
-  <button class="tab-btn" onclick="switchTab('settings', this)">⚙️ 설정 관리</button>
-
   <button class="tab-btn" onclick="switchTab('analyze', this)">📊 소재 분석</button>
+
+  <button class="tab-btn" onclick="switchTab('settings', this)">⚙️ 설정 관리</button>
 
 </div>
 
@@ -1883,6 +1886,13 @@ document.addEventListener('DOMContentLoaded', () => {
   loadSettings();
 
   loadHierarchy();
+
+  // 구글 시트 링크 설정
+  google.script.run
+    .withSuccessHandler(url => {
+      if (url) document.getElementById('btn-sheet-link').href = url;
+    })
+    .getSpreadsheetUrl();
 
 });
 
