@@ -4519,9 +4519,12 @@ function renderRanking(rows) {
     return;
   }
   tbody.innerHTML = top.map((e, i) => {
-    const thumb = e.url
-      ? `<img src="${driveThumb(e.url)}" style="width:40px;height:40px;object-fit:cover;border-radius:4px;cursor:pointer;border:1px solid #2d3158"
-           onclick="window.open('${esc(e.url)}','_blank')" title="원본 보기">`
+    const thumbSrc = e.url ? driveThumb(e.url) : '';
+    const thumb = thumbSrc
+      ? `<img src="${thumbSrc}"
+             style="width:40px;height:40px;object-fit:cover;border-radius:4px;cursor:pointer;border:1px solid #2d3158"
+             onclick="window.open('${esc(e.url)}','_blank')" title="원본 보기"
+             onerror="this.replaceWith(Object.assign(document.createElement('div'),{innerHTML:'🖼',style:'width:40px;height:40px;background:#2a2d3e;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#475569;font-size:18px;cursor:pointer'}))">`
       : `<div style="width:40px;height:40px;background:#2a2d3e;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#475569;font-size:18px">🖼</div>`;
     return `<tr>
       <td style="color:#475569;text-align:left">${i+1}</td>
