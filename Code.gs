@@ -1006,7 +1006,7 @@ ${JSON.stringify(aggregatedData, null, 2)}`;
     contentType: 'application/json',
     headers: { Authorization: 'Bearer ' + apiKey },
     payload: JSON.stringify({
-      model: 'gpt-5',
+      model: 'gpt-5-chat-latest',
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 1200,
       temperature: 0.7
