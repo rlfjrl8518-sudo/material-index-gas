@@ -893,7 +893,8 @@ function detectNewCreatives() {
 // --------------------------------------------------
 // 통합 적재
 // RAW_ 로 시작하는 모든 시트의 A~U열 데이터를 소재_통합RAW에 병합
-// 중복 키: 일(B열) + 매체(A열) + 소재이름(E열)
+// 중복 키: 일(B) + 매체(A) + 캠페인(C) + 광고그룹(D) + 소재이름(E)
+// → 같은 소재가 여러 캠페인/그룹에 운영되는 경우에도 행별로 구분
 // --------------------------------------------------
 function consolidateRawData() {
   try {
@@ -908,12 +909,14 @@ function consolidateRawData() {
       targetSheet.setFrozenRows(1);
     }
 
-    // 기존 데이터로 중복 체크 Set 구성 (일+매체+소재이름)
-    // 컬럼: A=매체(0), B=일(1), E=소재이름(4)
+    // 기존 데이터로 중복 체크 Set 구성
+    // 키: 일(1) + 매체(0) + 캠페인(2) + 광고그룹(3) + 소재이름(4)
     const existingSet = new Set();
     if (targetSheet.getLastRow() >= 2) {
       targetSheet.getRange(2, 1, targetSheet.getLastRow() - 1, 5).getValues()
-        .forEach(r => existingSet.add([String(r[1]), String(r[0]), String(r[4])].join('\x00')));
+        .forEach(r => existingSet.add(
+          [String(r[1]), String(r[0]), String(r[2]), String(r[3]), String(r[4])].join('\x00')
+        ));
     }
 
     // RAW_ 로 시작하는 모든 소스 시트 수집
@@ -925,9 +928,9 @@ function consolidateRawData() {
       if (srcSheet.getLastRow() < 2) return;
       const data = srcSheet.getRange(2, 1, srcSheet.getLastRow() - 1, 21).getValues();
       data.forEach(row => {
-        // 매체·일·소재이름 모두 비어있으면 빈 행으로 판단, 스킵
-        if (!row[0] && !row[1] && !row[4]) return;
-        const key = [String(row[1]), String(row[0]), String(row[4])].join('\x00');
+        // 매체(A) 또는 소재이름(E) 중 하나라도 없으면 불완전한 행으로 스킵
+        if (!row[0] || !row[4]) return;
+        const key = [String(row[1]), String(row[0]), String(row[2]), String(row[3]), String(row[4])].join('\x00');
         if (existingSet.has(key)) return;
         existingSet.add(key);
         rowsToAppend.push(row);
