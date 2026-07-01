@@ -909,13 +909,11 @@
     border-radius: 8px; padding: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.35);
     display: none;
   }
-  #az-img-preview img { display: block; width: 160px; height: 160px; object-fit: contain; border-radius: 4px; }
-  #az-img-preview .az-prev-bundle {
-    width: 160px; height: 160px; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 6px;
-    color: #4f6ef7; font-size: 32px;
-  }
-  #az-img-preview .az-prev-bundle span { font-size: 11px; color: var(--az-t3); }
+  .az-prev-single { display: block; width: 160px; height: 160px; object-fit: contain; border-radius: 4px; }
+  .az-prev-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; width: 188px; }
+  .az-prev-grid img { width: 90px; height: 90px; object-fit: cover; border-radius: 4px; }
+  .az-prev-label { font-size: 10px; color: var(--az-t3); text-align: center; padding-top: 4px; }
+  .az-prev-loading { width: 160px; height: 64px; display: flex; align-items: center; justify-content: center; color: var(--az-t3); font-size: 12px; gap: 6px; }
 
   /* AI 인사이트 */
   .az-insight-btn {
@@ -4645,32 +4643,64 @@ function renderRanking(rows) {
 }
 
 // ── 소재이름 호버 이미지 팝업 ─────────────────────────────
+const _azBundleCache = {};
+
 function azPreviewShow(el, e) {
   const url = el.dataset.url;
-  const popup = document.getElementById('az-img-preview');
-  const img   = document.getElementById('az-img-preview-img');
-  const bundle= document.getElementById('az-img-preview-bundle');
-
   if (!url) return;
 
+  const popup   = document.getElementById('az-img-preview');
+  const content = document.getElementById('az-img-preview-content');
+
   if (/[?&]unit=/.test(url)) {
-    img.style.display    = 'none';
-    bundle.style.display = 'flex';
+    const m = url.match(/[?&]unit=([^&]+)/);
+    const unitCode = m ? decodeURIComponent(m[1]) : '';
+    if (!unitCode) return;
+
+    if (_azBundleCache[unitCode]) {
+      content.innerHTML = _azBundlePreviewHtml(_azBundleCache[unitCode]);
+    } else {
+      content.innerHTML = '<div class="az-prev-loading"><div class="az-big-spinner" style="width:16px;height:16px;border-width:2px"></div>로딩 중...</div>';
+      popup.style.display = 'block';
+      azPreviewMove(e);
+
+      google.script.run
+        .withSuccessHandler(data => {
+          _azBundleCache[unitCode] = data;
+          content.innerHTML = _azBundlePreviewHtml(data);
+          azPreviewMove(e);
+        })
+        .withFailureHandler(() => {
+          content.innerHTML = '<div class="az-prev-loading" style="color:#f87171">로드 실패</div>';
+        })
+        .getBundleData(unitCode);
+      return;
+    }
   } else {
-    img.src = driveThumb(url);
-    img.style.display    = 'block';
-    bundle.style.display = 'none';
-    img.onerror = () => { img.style.display='none'; bundle.style.display='flex'; };
+    content.innerHTML = `<img class="az-prev-single" src="${esc(driveThumb(url))}"
+      onerror="this.className='';this.style='width:160px;height:80px;display:flex;align-items:center;justify-content:center;color:var(--az-t4);font-size:24px';this.textContent='🖼'">`;
   }
 
   popup.style.display = 'block';
   azPreviewMove(e);
 }
+
+function _azBundlePreviewHtml(data) {
+  if (!data) return '<div class="az-prev-loading" style="color:#f87171">데이터 없음</div>';
+  const imgs = (data.images || []).filter(i => i.url && !i.url.includes('/preview')).slice(0, 4);
+  if (!imgs.length) return '<div class="az-prev-loading">이미지 없음</div>';
+  const grid = `<div class="az-prev-grid">${
+    imgs.map(i => `<img src="${esc(driveThumb(i.url))}" alt="${esc(i.code)}" onerror="this.style.opacity='.2'">`).join('')
+  }</div>`;
+  const label = `<div class="az-prev-label">📦 ${esc(data.소재이름||'')} · ${data.이미지수||imgs.length}개</div>`;
+  return grid + label;
+}
+
 function azPreviewMove(e) {
   const popup = document.getElementById('az-img-preview');
   if (popup.style.display === 'none') return;
-  const pw = popup.offsetWidth  || 172;
-  const ph = popup.offsetHeight || 172;
+  const pw = popup.offsetWidth  || 200;
+  const ph = popup.offsetHeight || 200;
   let x = e.clientX + 14;
   let y = e.clientY + 14;
   if (x + pw > window.innerWidth  - 8) x = e.clientX - pw - 14;
@@ -5014,8 +5044,7 @@ async function runAIInsight() {
 
 <!-- 소재이름 호버 이미지 팝업 -->
 <div id="az-img-preview">
-  <img id="az-img-preview-img" src="" alt="">
-  <div class="az-prev-bundle" id="az-img-preview-bundle" style="display:none">📦<span>번들 소재</span></div>
+  <div id="az-img-preview-content"></div>
 </div>
 
 </body>
