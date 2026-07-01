@@ -43,7 +43,7 @@ function doGet(e) {
   template.bundleData = unitCode ? getBundleData(unitCode) : null;
   template.unitCode   = unitCode || '';
   return template.evaluate()
-    .setTitle(unitCode ? '광고단위 소재' : '소재 인덱싱 시스템')
+    .setTitle(unitCode ? '광고단위 소재' : '운영 소재 분석')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .setSandboxMode(HtmlService.SandboxMode.IFRAME);
 }
@@ -885,6 +885,67 @@ function detectNewCreatives() {
       items: newItems.map(r => ({ 매체: r[0], 캠페인: r[1], 그룹: r[2], 소재이름: r[3] })),
       message: `신규 소재 ${newItems.length}건 발견`
     };
+  } catch (e) {
+    return { error: true, message: e.message };
+  }
+}
+
+// --------------------------------------------------
+// 소재 분석용: 소재_통합RAW 전체 데이터 반환 (1행=헤더 포함)
+// --------------------------------------------------
+function getAllData() {
+  const ss = getSpreadsheet();
+  const sheet = ss.getSheetByName(CONSOLIDATED_RAW_SHEET_NAME);
+  if (!sheet || sheet.getLastRow() < 1) return [];
+  return sheet.getRange(1, 1, sheet.getLastRow(), CONSOLIDATED_RAW_HEADERS.length).getValues();
+}
+
+// --------------------------------------------------
+// 소재 분석용: 전매체 인덱스 전체 데이터 반환 (1행=헤더 포함, 생애주기 분석용)
+// --------------------------------------------------
+function getMasterData() {
+  const ss = getSpreadsheet();
+  const sheet = ss.getSheetByName(MASTER_SHEET_NAME);
+  if (!sheet || sheet.getLastRow() < 1) return [];
+  return sheet.getRange(1, 1, sheet.getLastRow(), 16).getValues();
+}
+
+// --------------------------------------------------
+// OpenAI 인사이트 생성
+// PropertiesService 'OPENAI_API_KEY' → gpt-5 호출 → 텍스트 반환
+// --------------------------------------------------
+function getOpenAIInsight(aggregatedData) {
+  const apiKey = PropertiesService.getScriptProperties().getProperty('OPENAI_API_KEY');
+  if (!apiKey) return {
+    error: true,
+    message: 'OPENAI_API_KEY가 설정되지 않았습니다.\nApps Script 편집기 > 프로젝트 설정 > 스크립트 속성에서 OPENAI_API_KEY를 추가하세요.'
+  };
+
+  const prompt = `당신은 한화손해보험 DA 광고 소재 전략 전문가입니다.
+아래는 현재 필터 조건에서 집계된 소재별 성과 데이터입니다.
+광고 운영자가 즉시 활용할 수 있는 인사이트를 3~5개 한국어로 작성하세요.
+단순 수치 나열이 아닌 "~하기 때문에 ~를 검토하세요" 형식으로, 번호를 붙여 줄바꿈으로 구분하세요.
+
+${JSON.stringify(aggregatedData, null, 2)}`;
+
+  const options = {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { Authorization: 'Bearer ' + apiKey },
+    payload: JSON.stringify({
+      model: 'gpt-5',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 1200,
+      temperature: 0.7
+    }),
+    muteHttpExceptions: true
+  };
+
+  try {
+    const resp = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', options);
+    const json = JSON.parse(resp.getContentText());
+    if (json.error) return { error: true, message: json.error.message };
+    return { success: true, text: json.choices[0].message.content };
   } catch (e) {
     return { error: true, message: e.message };
   }
