@@ -895,9 +895,17 @@ function detectNewCreatives() {
 // --------------------------------------------------
 function getAllData() {
   const ss = getSpreadsheet();
+  const allSheetNames = ss.getSheets().map(s => s.getName());
   const sheet = ss.getSheetByName(CONSOLIDATED_RAW_SHEET_NAME);
-  if (!sheet || sheet.getLastRow() < 1) return [];
-  return sheet.getRange(1, 1, sheet.getLastRow(), CONSOLIDATED_RAW_HEADERS.length).getValues();
+  if (!sheet) {
+    // 시트를 찾지 못한 경우 — 클라이언트에서 진단 메시지 표시용
+    return { _notFound: true, looking: CONSOLIDATED_RAW_SHEET_NAME, sheets: allSheetNames };
+  }
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    return { _empty: true, lastRow, sheets: allSheetNames };
+  }
+  return sheet.getRange(1, 1, lastRow, CONSOLIDATED_RAW_HEADERS.length).getValues();
 }
 
 // --------------------------------------------------
