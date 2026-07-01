@@ -62,6 +62,15 @@ function onOpen() {
 }
 
 // --------------------------------------------------
+// 외부 요청 권한 확인용 (편집기에서 한 번 실행 → UrlFetchApp 권한 동의)
+// --------------------------------------------------
+function testExternalFetch() {
+  const res = UrlFetchApp.fetch('https://httpbin.org/get', { muteHttpExceptions: true });
+  Logger.log('status: ' + res.getResponseCode());
+  return 'ok: ' + res.getResponseCode();
+}
+
+// --------------------------------------------------
 // 번들 뷰용 광고단위 데이터 조회
 // --------------------------------------------------
 function getBundleData(unitCode) {
