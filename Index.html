@@ -4161,15 +4161,30 @@ async function loadAnalysisData() {
       gasRun('getAllData'),
       gasRun('getMasterData')
     ]);
-    azRawData    = raw;
-    azMasterData = master;
+    azRawData    = Array.isArray(raw)    ? raw    : [];
+    azMasterData = Array.isArray(master) ? master : [];
     azLoaded     = true;
+    const totalRows = Math.max(0, azRawData.length - 1);
+    console.log(`[분석 대시보드] 로드 완료: RAW ${totalRows}행, MASTER ${Math.max(0,azMasterData.length-1)}행`);
+    if (totalRows === 0) {
+      loadEl.innerHTML = `<div style="color:#f59e0b;font-size:13px;text-align:center">
+        소재_통합RAW 시트에 데이터가 없습니다.<br>
+        <span style="color:#64748b;font-size:11px">Apps Script 메뉴 → 소재 인덱싱 → 통합 적재를 먼저 실행하세요</span>
+      </div>`;
+      return;
+    }
     initFilterDropdowns();
     updateDashboard();
     loadEl.style.display = 'none';
     dashEl.style.display = 'block';
+    document.getElementById('az-kpi-count').textContent =
+      `총 ${totalRows.toLocaleString('ko-KR')}행 중 ${getFilteredRows().length.toLocaleString('ko-KR')}행`;
   } catch (err) {
-    loadEl.innerHTML = `<div style="color:#f87171;font-size:13px">데이터 로드 실패: ${esc(String(err.message||err))}</div>`;
+    const msg = String(err.message || err);
+    const hint = msg.includes('not found') || msg.includes('getAllData')
+      ? '<br><span style="color:#64748b;font-size:11px">Code.gs에 getAllData 함수가 없습니다 — Apps Script를 최신 버전으로 업데이트 후 재배포하세요</span>'
+      : '';
+    loadEl.innerHTML = `<div style="color:#f87171;font-size:13px">데이터 로드 실패: ${esc(msg)}${hint}</div>`;
   } finally {
     btn.disabled = false;
     spinner.classList.remove('show');
@@ -4212,13 +4227,39 @@ function initFilterDropdowns() {
 }
 
 function azDateStr(val) {
-  if (!val) return '';
+  if (val === null || val === undefined || val === '') return '';
+  // Date 객체 (Apps Script getValues() 기본 반환 타입)
   if (val instanceof Date) {
+    if (isNaN(val.getTime())) return '';
     return val.getFullYear() + '-' +
       String(val.getMonth()+1).padStart(2,'0') + '-' +
       String(val.getDate()).padStart(2,'0');
   }
-  return String(val).slice(0,10);
+  // 숫자 → Excel/Sheets 시리얼 날짜 (1900-01-01 = 1)
+  if (typeof val === 'number') {
+    const d = new Date((val - 25569) * 86400000);
+    if (!isNaN(d.getTime()) && d.getFullYear() > 1970) {
+      return d.getFullYear() + '-' +
+        String(d.getMonth()+1).padStart(2,'0') + '-' +
+        String(d.getDate()).padStart(2,'0');
+    }
+    return '';
+  }
+  const s = String(val).trim();
+  // YYYY-MM-DD 또는 YYYY/MM/DD 또는 YYYY.MM.DD
+  const m = s.match(/^(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
+  if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  // YYYYMMDD
+  const m2 = s.match(/^(\d{4})(\d{2})(\d{2})/);
+  if (m2) return `${m2[1]}-${m2[2]}-${m2[3]}`;
+  // 그 외: Date 생성자 시도
+  const d2 = new Date(s);
+  if (!isNaN(d2.getTime())) {
+    return d2.getFullYear() + '-' +
+      String(d2.getMonth()+1).padStart(2,'0') + '-' +
+      String(d2.getDate()).padStart(2,'0');
+  }
+  return '';
 }
 
 // ── 필터 적용 ──────────────────────────────────────────────
@@ -4256,12 +4297,16 @@ function getFilteredRows() {
 }
 
 // ── 집계 헬퍼 ─────────────────────────────────────────────
+function azNum(v) {
+  if (typeof v === 'number') return v;
+  return Number(String(v ?? '').replace(/,/g, '')) || 0;
+}
 function azSum(rows) {
   return rows.reduce((a, r) => ({
-    imp:  a.imp  + (Number(r[AZ.IMP])   || 0),
-    clk:  a.clk  + (Number(r[AZ.CLICK]) || 0),
-    cost: a.cost + (Number(r[AZ.COST])  || 0),
-    conv: a.conv + (Number(r[AZ.CONV])  || 0),
+    imp:  a.imp  + azNum(r[AZ.IMP]),
+    clk:  a.clk  + azNum(r[AZ.CLICK]),
+    cost: a.cost + azNum(r[AZ.COST]),
+    conv: a.conv + azNum(r[AZ.CONV]),
   }), { imp:0, clk:0, cost:0, conv:0 });
 }
 
