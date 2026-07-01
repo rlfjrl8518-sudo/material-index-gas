@@ -1421,6 +1421,7 @@
 
   <!-- 필터 바 (sticky) -->
   <div class="az-filter-bar">
+    <!-- 1행: 기간 + 매체 계층 -->
     <div class="az-filter-row">
       <div class="az-filter-item">
         <label>시작일</label>
@@ -1446,6 +1447,12 @@
         <label>소재이름</label>
         <select id="az-f-creative" class="az-filter-select" onchange="azCascade('az-f-creative')" style="min-width:150px"><option value="">전체</option></select>
       </div>
+      <button class="az-theme-btn" onclick="azToggleTheme(this)" title="테마 전환" style="margin-left:auto">
+        ☀️ 라이트
+      </button>
+    </div>
+    <!-- 2행: 소재 속성 + 로드 버튼 -->
+    <div class="az-filter-row" style="margin-top:7px">
       <div class="az-filter-item">
         <label>보종</label>
         <select id="az-f-bojong" class="az-filter-select" onchange="azCascade(this.id)"><option value="">전체</option></select>
@@ -1477,9 +1484,6 @@
       <button id="az-load-btn" class="az-load-btn" onclick="loadAnalysisData()">
         🔄 데이터 로드
         <div class="spinner" id="az-load-spinner"></div>
-      </button>
-      <button class="az-theme-btn" onclick="azToggleTheme(this)" title="테마 전환">
-        ☀️ 라이트
       </button>
     </div>
   </div>
