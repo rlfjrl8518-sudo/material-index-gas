@@ -52,9 +52,23 @@ function doGet(e) {
 // 커스텀 메뉴 (스프레드시트 열릴 때 자동 등록)
 // [통합 적재] 버튼 대체 수단으로도 활용
 // --------------------------------------------------
+function openDashboard() {
+  const url = ScriptApp.getService().getUrl();
+  if (!url) {
+    SpreadsheetApp.getUi().alert('웹앱이 배포되지 않았습니다.\n배포 후 다시 시도하세요.');
+    return;
+  }
+  const html = HtmlService.createHtmlOutput(
+    `<script>window.open('${url}', '_blank'); google.script.host.close();</script>`
+  ).setHeight(1).setWidth(1);
+  SpreadsheetApp.getUi().showModalDialog(html, '대시보드 열기...');
+}
+
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('소재 인덱싱')
+    .addItem('📊 대시보드 열기', 'openDashboard')
+    .addSeparator()
     .addItem('통합 적재', 'consolidateRawData')
     .addSeparator()
     .addItem('시트 초기화', 'initializeSheets')
