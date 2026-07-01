@@ -925,6 +925,11 @@ function getAllData() {
 // --------------------------------------------------
 // 소재 분석용: 전매체 인덱스 전체 데이터 반환 (1행=헤더 포함, 생애주기 분석용)
 // --------------------------------------------------
+function getSpreadsheetUrl() {
+  return getSpreadsheet().getUrl();
+}
+
+// --------------------------------------------------
 function getMasterData() {
   const ss = getSpreadsheet();
   const sheet = ss.getSheetByName(MASTER_SHEET_NAME);
