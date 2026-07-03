@@ -5781,19 +5781,23 @@ function renderPareto(rows) {
   const cvrGood = cvrDiff > THRESH,  cvrBad = cvrDiff < -THRESH;
   const cpaGood = cpaDiff < -THRESH, cpaBad = cpaDiff > THRESH;
 
+  // 우선순위대로 하나씩 확인해서, 애매하게 뭉뚱그리지 않고
+  // 지금 상황에 맞는 구체적인 원인 하나를 짚어준다.
   let suggestion;
   if (ctrGood && cvrGood && cpaGood) {
-    suggestion = '상위 소재들이 CTR·CVR·CPA 세 지표 모두 평균보다 우수합니다. 효율이 검증된 소재로 예산이 쏠린 정당한 집중이니, 예산을 유지하거나 오히려 확대하는 것을 검토하세요.';
+    suggestion = '상위 소재들이 CTR·CVR·CPA 세 지표 모두 평균보다 좋습니다. 효율이 검증된 소재에 예산이 몰린 것이니, 예산을 유지하거나 더 늘리는 것을 검토하세요.';
   } else if (ctrBad && cvrBad && cpaBad) {
-    suggestion = '상위 소재들이 세 지표 모두 평균보다 저조합니다. 비용은 가장 많이 쓰면서 효율은 떨어지는 비효율적 쏠림이니, 예산 축소나 소재 교체를 우선 검토하세요.';
-  } else if (ctrGood && (cvrBad || cpaBad)) {
-    suggestion = '클릭 유입(CTR)은 좋지만 전환 효율(CVR·CPA)이 평균보다 떨어집니다. 소재 자체보다 랜딩페이지·타겟팅을 점검해보세요.';
-  } else if (!ctrGood && !ctrBad && cvrGood && cpaGood) {
-    suggestion = 'CTR은 평균과 비슷하지만 전환 효율(CVR·CPA)은 우수합니다. 소재를 바꾸기보다 예산을 더 확대하는 편이 유리할 수 있습니다.';
+    suggestion = '상위 소재들이 세 지표 모두 평균보다 나쁩니다. 돈은 가장 많이 쓰는데 효율은 떨어지고 있으니, 예산을 줄이거나 소재를 교체하는 것을 검토하세요.';
   } else if (ctrBad && cvrGood && cpaGood) {
-    suggestion = '클릭률은 평균보다 낮지만 일단 클릭된 후의 전환 효율(CVR·CPA)은 우수합니다. 소재 교체보다는 노출·타겟팅 확대를 검토해볼 만합니다.';
+    suggestion = '클릭률(CTR)은 평균보다 낮지만, 일단 클릭된 뒤의 전환 효율(CVR·CPA)은 오히려 좋습니다. 소재를 바꾸기보다는 노출량을 늘려서 클릭 자체를 더 확보하는 방법을 검토해보세요.';
+  } else if (ctrBad) {
+    suggestion = '클릭률(CTR)이 평균보다 낮습니다. 노출은 많이 받는데 클릭으로 잘 이어지지 않는다는 뜻이니, 썸네일 이미지나 문구를 먼저 점검해보세요.';
+  } else if (cvrBad) {
+    suggestion = '클릭률(CTR)은 평균과 비슷하거나 좋은데, 전환율(CVR)이 평균보다 낮습니다. 클릭까지는 잘 되지만 그 다음(랜딩페이지, 타겟 적합도)에서 이탈이 많다는 뜻이니 그 부분을 점검해보세요.';
+  } else if (cpaBad) {
+    suggestion = 'CTR·CVR은 평균과 비슷하거나 좋은데, 전환 1건당 비용(CPA)은 더 높습니다. 성과는 나쁘지 않지만 상대적으로 비용을 더 쓰고 있다는 뜻이니, 입찰가나 예산 배분을 점검해보세요.';
   } else {
-    suggestion = '지표별로 방향이 엇갈립니다. 위 CTR·CVR·CPA 수치를 참고해 어떤 단계(노출→클릭 vs 클릭→전환)에서 병목이 있는지 개별적으로 점검해보세요.';
+    suggestion = '상위 소재들의 CTR·CVR·CPA가 전체 평균과 큰 차이가 없습니다. 특별히 문제 되는 지표는 없으니 현재 예산 배분을 유지해도 무방합니다.';
   }
 
   summaryEl.innerHTML =
