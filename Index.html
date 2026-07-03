@@ -4706,6 +4706,10 @@ function hideSettingsMessages() {
 let azRawData    = null;   // [헤더행, ...데이터행]
 let azMasterData = null;   // [헤더행, ...데이터행]
 let azLoaded     = false;
+// 소재이름 → 대표 이미지URL. 피맥스/디멘드젠은 소재_통합RAW의 이미지URL이
+// 개별 이미지가 아니라 번들(광고단위) URL이라 썸네일로 못 그리므로,
+// 소재_마스터에서 그 소재이름의 첫 번째 실제 이미지를 대표로 사용한다.
+let azCreativeThumbMap = {};
 let azCharts     = {};     // Chart.js 인스턴스 맵
 let azRankTab    = 'ctr';
 let azDimData    = {};     // 차원별 집계 캐시 { crtype:[{k,ctr,cvr,cpa,...}], ... }
@@ -4845,6 +4849,14 @@ async function loadAnalysisData() {
     azRawData    = raw;
     azMasterData = Array.isArray(master) ? master : [];
     azLoaded     = true;
+
+    // 소재이름 → 대표 이미지URL 맵 (소재_마스터: 5=소재이름, 14=이미지URL)
+    azCreativeThumbMap = {};
+    azMasterData.slice(1).forEach(row => {
+      const name = String(row[5]  || '').trim();
+      const url  = String(row[14] || '').trim();
+      if (name && url && !azCreativeThumbMap[name]) azCreativeThumbMap[name] = url;
+    });
     const totalRows = azRawData.length - 1;
     console.log(`[분석 대시보드] 로드 완료: RAW ${totalRows}행, MASTER ${Math.max(0,azMasterData.length-1)}행`);
     if (totalRows <= 0) {
@@ -5540,7 +5552,8 @@ function cacheCreativeTrendOptions(rows) {
   rows.forEach(r => {
     const name = String(r[AZ.CREATIVE] || '').trim();
     if (!name || map[name]) return;
-    map[name] = { name, url: r[AZ.IMGURL] || '' };
+    const url = azCreativeThumbMap[name] || r[AZ.IMGURL] || '';
+    map[name] = { name, url };
   });
   azCreativeTrendOptions = Object.values(map).sort((a, b) => a.name.localeCompare(b.name));
   if (azCreativeTrendSelectedName && !map[azCreativeTrendSelectedName]) {
