@@ -1670,6 +1670,18 @@
         <label>소재이름</label>
         <select id="az-f-creative" class="az-filter-select" onchange="azCascade('az-f-creative')" style="min-width:150px"><option value="">전체</option></select>
       </div>
+      <div class="az-filter-item">
+        <label>라이브 상태</label>
+        <select id="az-f-livestatus" class="az-filter-select" onchange="azLoaded && updateDashboard()">
+          <option value="">전체</option>
+          <option value="live">라이브중</option>
+          <option value="ended">종료</option>
+        </select>
+      </div>
+      <div class="az-filter-item">
+        <label>기준(일)</label>
+        <input type="number" id="az-live-days" class="az-filter-input" value="3" min="0" style="width:56px" onchange="azLoaded && updateDashboard()">
+      </div>
       <button class="az-filter-more-btn" id="az-filter-more-btn" onclick="toggleAzFilterMore()">🔽 필터 더보기</button>
       <button class="az-theme-btn" onclick="azToggleTheme(this)" title="테마 전환" style="margin-left:auto">
         🌙 다크
@@ -1834,33 +1846,25 @@
           </div>
         </div>
 
-        <!-- 전체 소재 리스트 -->
+        <!-- 소재 현황 (라이브 vs 종료) -->
         <div class="az-section" style="margin-bottom:40px">
-          <div class="az-section-header">전체 소재 리스트</div>
+          <div class="az-section-header">
+            소재 현황 (라이브 vs 종료)
+            <select id="az-status-dim" style="font-size:11px;padding:4px 8px;border-radius:6px;border:1px solid var(--az-bd2);background:var(--az-surf2);color:var(--az-t1)"
+                    onchange="azLoaded && renderStatusChart()">
+              <option value="crtype">소재유형별</option>
+              <option value="appeal">소구포인트별</option>
+              <option value="hook">후킹방식별</option>
+              <option value="imgtype">이미지유형별</option>
+              <option value="bojong">보종별</option>
+              <option value="media">매체별</option>
+            </select>
+          </div>
           <div class="az-section-body">
-            <div class="az-creative-picker">
-              <input type="text" id="az-list-search" class="modal-search" style="width:auto;flex:1;min-width:200px"
-                     placeholder="소재이름 검색..." oninput="azLoaded && renderCreativeList(getFilteredRows())">
-              <span id="az-list-count" style="font-size:11px;color:var(--az-t3)"></span>
-            </div>
-            <div class="az-table-wrap">
-              <table class="az-table" id="az-list-table">
-                <thead>
-                  <tr>
-                    <th style="text-align:left;width:50px">이미지</th>
-                    <th class="sortable" style="text-align:left" data-key="name" onclick="azSortList('name')">소재이름</th>
-                    <th class="sortable" style="text-align:left" data-key="media" onclick="azSortList('media')">매체</th>
-                    <th class="sortable" data-key="imp"  onclick="azSortList('imp')">노출</th>
-                    <th class="sortable" data-key="clk"  onclick="azSortList('clk')">클릭</th>
-                    <th class="sortable" data-key="ctr"  onclick="azSortList('ctr')">CTR</th>
-                    <th class="sortable" data-key="cost" onclick="azSortList('cost')">비용</th>
-                    <th class="sortable" data-key="conv" onclick="azSortList('conv')">전환</th>
-                    <th class="sortable" data-key="cvr"  onclick="azSortList('cvr')">CVR</th>
-                    <th class="sortable" data-key="cpa"  onclick="azSortList('cpa')">CPA</th>
-                  </tr>
-                </thead>
-                <tbody id="az-list-tbody"></tbody>
-              </table>
+            <div id="az-status-summary" style="font-size:12px;color:var(--az-t2);margin-bottom:10px"></div>
+            <div style="height:280px;position:relative">
+              <canvas id="az-status-chart"></canvas>
+              <div id="az-status-nodata" class="az-no-data" style="display:none">데이터 없음</div>
             </div>
           </div>
         </div>
@@ -4993,9 +4997,18 @@ function getFilteredRows() {
   // 연쇄 필터 값 일괄 수집
   const cascadeFilters = AZ_CASCADE.map(({ id, col }) => ({ col, val: document.getElementById(id).value }));
 
+  const liveFilter = document.getElementById('az-f-livestatus').value;
+  const liveInfo = liveFilter ? azComputeLiveInfo() : null;
+
   return rows.filter(r => {
     for (const { col, val } of cascadeFilters) {
       if (!azColMatch(r, col, val)) return false;
+    }
+    if (liveFilter) {
+      const name = String(r[AZ.CREATIVE] || '').trim();
+      const isLive = liveInfo.liveSet.has(name);
+      if (liveFilter === 'live'  && !isLive) return false;
+      if (liveFilter === 'ended' &&  isLive) return false;
     }
     if (fStart || fEnd) {
       const d = azDateStr(r[AZ.DATE]);
@@ -5075,7 +5088,7 @@ function updateDashboard() {
   renderHeatmap(rows);
   renderTrend(rows);
   renderLifecycle(rows);
-  renderCreativeList(rows);
+  renderStatusChart();
   cacheCreativeTrendOptions(rows);
   renderCreativeTrend(rows);
   renderPareto(rows);
@@ -5343,54 +5356,113 @@ function renderRanking(rows) {
   }).join('');
 }
 
-// ── 전체 소재 리스트 (검색 + 정렬) ────────────────────────
-let azListSort = { key: 'imp', dir: 'desc' };
-
-function azSortList(key) {
-  if (azListSort.key === key) azListSort.dir = azListSort.dir === 'desc' ? 'asc' : 'desc';
-  else azListSort = { key, dir: (key === 'name' || key === 'media') ? 'asc' : 'desc' };
-  azLoaded && renderCreativeList(getFilteredRows());
+// ── 라이브/종료 소재 판별 (적재된 데이터 기준, 날짜 필터와 무관) ─
+// 날짜 필터를 걸어놓은 채로 판단하면 "지금 로드된 데이터에서 가장 최근 날짜"가
+// 아니라 필터 종료일 기준으로 잘못 판단하게 되므로, 날짜 필터는 무시하고
+// 다른 속성 필터(매체 등)만 반영한 스코프에서 계산한다.
+function azAllRowsIgnoringDateFilter() {
+  if (!azRawData || azRawData.length < 2) return [];
+  const rows = azRawData.slice(1);
+  const cascadeFilters = AZ_CASCADE.map(({ id, col }) => ({ col, val: document.getElementById(id).value }));
+  return rows.filter(r => {
+    for (const { col, val } of cascadeFilters) { if (!azColMatch(r, col, val)) return false; }
+    return true;
+  });
 }
 
-function renderCreativeList(rows) {
-  const q = (document.getElementById('az-list-search')?.value || '').trim().toLowerCase();
+function azLiveDaysThreshold() {
+  return parseInt(document.getElementById('az-live-days').value) || 0;
+}
 
-  const grouped = {};
-  rows.forEach(r => {
+// 소재(이름)별 마지막 활동일을 구하고, "적재된 데이터의 최신일" 기준
+// N일 이내에 실적이 있으면 라이브로 판단한다.
+function azComputeLiveInfo() {
+  const scope = azAllRowsIgnoringDateFilter();
+  let refDate = '';
+  const lastActive = {}; // name -> { date, row }
+  scope.forEach(r => {
     const name = String(r[AZ.CREATIVE] || '').trim();
-    if (!name) return;
-    const media = String(r[AZ.MEDIA] || '').trim();
-    const key = media + '\x00' + name;
-    if (!grouped[key]) grouped[key] = { name, media, url: r[AZ.IMGURL] || '', rs: [] };
-    grouped[key].rs.push(r);
+    const d = azDateStr(r[AZ.DATE]);
+    if (!name || !d) return;
+    if (d > refDate) refDate = d;
+    if (!lastActive[name] || d > lastActive[name].date) lastActive[name] = { date: d, row: r };
   });
 
-  let entries = Object.values(grouped).map(g => ({ name: g.name, media: g.media, url: g.url, ...azKPI(azSum(g.rs)) }));
-  if (q) entries = entries.filter(e => e.name.toLowerCase().includes(q));
+  if (!refDate) return { liveSet: new Set(), lastActive, refDate: '' };
 
-  const { key, dir } = azListSort;
-  entries.sort((a, b) => {
-    const cmp = typeof a[key] === 'string' ? a[key].localeCompare(b[key]) : a[key] - b[key];
-    return dir === 'asc' ? cmp : -cmp;
+  const cutoff = new Date(refDate);
+  cutoff.setDate(cutoff.getDate() - azLiveDaysThreshold());
+  const cutoffStr = azDateStr(cutoff);
+
+  const liveSet = new Set(Object.keys(lastActive).filter(n => lastActive[n].date >= cutoffStr));
+  return { liveSet, lastActive, refDate };
+}
+
+// ── 소재 현황 (라이브 vs 종료, 차원별 개수) ───────────────
+const STATUS_DIM_MAP = {
+  crtype: AZ.CRTYPE, appeal: AZ.APPEAL, hook: AZ.HOOK, imgtype: AZ.IMGTYPE, bojong: AZ.BOJONG, media: AZ.MEDIA
+};
+
+function renderStatusChart() {
+  const canvas = document.getElementById('az-status-chart');
+  const nodata = document.getElementById('az-status-nodata');
+  const summaryEl = document.getElementById('az-status-summary');
+  const col = STATUS_DIM_MAP[document.getElementById('az-status-dim').value];
+
+  const { liveSet, lastActive, refDate } = azComputeLiveInfo();
+
+  const counts = {}; // category -> {live, ended}
+  Object.entries(lastActive).forEach(([name, info]) => {
+    const cats = azColValues(info.row, col);
+    const keys = cats.length ? cats : ['(미입력)'];
+    const isLive = liveSet.has(name);
+    keys.forEach(k => {
+      if (!counts[k]) counts[k] = { live: 0, ended: 0 };
+      counts[k][isLive ? 'live' : 'ended']++;
+    });
   });
-  azUpdateSortArrows('az-list-table', key, dir);
-  document.getElementById('az-list-count').textContent = entries.length.toLocaleString('ko-KR') + '개 소재';
 
-  const tbody = document.getElementById('az-list-tbody');
-  if (!entries.length) {
-    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--az-t4);padding:20px">데이터 없음</td></tr>';
+  const labels = Object.keys(counts).sort((a, b) => (counts[b].live + counts[b].ended) - (counts[a].live + counts[a].ended));
+
+  azDestroyChart('az-status-chart');
+  if (!labels.length) {
+    canvas.style.display = 'none'; nodata.style.display = 'block'; summaryEl.textContent = '';
     return;
   }
-  tbody.innerHTML = entries.map(e => `<tr>
-    <td style="text-align:left">${azThumbCell(e.url)}</td>
-    <td style="text-align:left;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:default"
-        title="${esc(e.name)}" data-url="${esc(e.url)}"
-        onmouseenter="azPreviewShow(this,event)" onmousemove="azPreviewMove(event)" onmouseleave="azPreviewHide()"
-      >${escHtml(e.name)}</td>
-    <td style="text-align:left">${escHtml(e.media)}</td>
-    <td>${azFmt(e.imp)}</td><td>${azFmt(e.clk)}</td><td>${azPct(e.ctr)}</td>
-    <td>${azWon(e.cost)}</td><td>${azFmt(e.conv)}</td><td>${azPct(e.cvr)}</td><td>${azWon(e.cpa)}</td>
-  </tr>`).join('');
+  canvas.style.display = 'block'; nodata.style.display = 'none';
+
+  const liveVals  = labels.map(k => counts[k].live);
+  const endedVals = labels.map(k => counts[k].ended);
+
+  const c = azChartColors();
+  azCharts['az-status-chart'] = new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: '라이브', data: liveVals,  backgroundColor: '#10b981bb', borderColor: '#10b981' },
+        { label: '종료',   data: endedVals, backgroundColor: '#94a3b8bb', borderColor: '#94a3b8' }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: c.legend } } },
+      scales: {
+        x: { stacked: true, grid: { display: false }, ticks: { color: c.tick, font: { size: 10 } } },
+        y: { stacked: true, grid: { color: c.grid }, ticks: { color: c.tick, precision: 0 } }
+      }
+    }
+  });
+
+  const totalCreatives = Object.keys(lastActive).length;
+  const liveCount  = liveSet.size;
+  const endedCount = totalCreatives - liveCount;
+  const livePct = totalCreatives ? (liveCount / totalCreatives * 100).toFixed(1) : 0;
+
+  summaryEl.innerHTML = refDate
+    ? `데이터 기준일 <b>${esc(refDate)}</b> · 최근 <b>${azLiveDaysThreshold()}일</b> 이내 실적이 있으면 라이브로 판단 · ` +
+      `전체 <b>${totalCreatives}개</b> 소재 중 라이브 <b>${liveCount}개(${livePct}%)</b>, 종료 <b>${endedCount}개</b>`
+    : '';
 }
 
 // ── 목표 임계값 미달 소재 알림 ────────────────────────────
