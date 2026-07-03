@@ -1105,6 +1105,22 @@
   .az-prev-label { font-size: 10px; color: var(--az-t3); text-align: center; padding-top: 4px; }
   .az-prev-loading { width: 160px; height: 64px; display: flex; align-items: center; justify-content: center; color: var(--az-t3); font-size: 12px; gap: 6px; }
 
+  /* 섹션 설명 아이콘 + 호버 툴팁 */
+  .az-info-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 15px; height: 15px; border-radius: 50%; background: var(--az-bd2); color: var(--az-t1);
+    font-size: 10px; font-weight: 800; margin-left: 6px; cursor: help; vertical-align: middle;
+  }
+  .az-info-icon:hover { background: #4f6ef7; color: #fff; }
+  #az-info-tooltip {
+    position: fixed; z-index: 9999; pointer-events: none;
+    width: 320px; max-width: 80vw; background: var(--az-surf); border: 1px solid var(--az-bd2);
+    border-radius: 8px; padding: 12px 14px; box-shadow: 0 8px 24px rgba(0,0,0,.35);
+    font-size: 12px; color: var(--az-t2); line-height: 1.65; display: none;
+  }
+  #az-info-tooltip b { color: var(--az-t1); }
+  #az-info-tooltip .az-info-title { font-size: 12.5px; font-weight: 700; color: var(--az-t1); margin-bottom: 6px; }
+
   /* AI 인사이트 */
   .az-insight-btn {
     display: inline-flex; align-items: center; gap: 7px;
@@ -1983,7 +1999,11 @@
 
         <!-- 예산 쏠림 파레토 -->
         <div class="az-section" style="margin-bottom:40px">
-          <div class="az-section-header">예산 쏠림 파레토 분석</div>
+          <div class="az-section-header">
+            <span>예산 쏠림 파레토 분석
+              <span class="az-info-icon" onmouseenter="azInfoShow(this,event,'pareto')" onmousemove="azInfoMove(event)" onmouseleave="azInfoHide()">!</span>
+            </span>
+          </div>
           <div class="az-section-body">
             <div class="az-chart-label" style="margin-bottom:8px">비용 상위 소재 누적 비중 (막대: 개별 비용비중 · 선: 누적비중) — 소재이름 기준</div>
             <div style="height:280px;position:relative">
@@ -5698,7 +5718,10 @@ function renderPareto(rows) {
   const totalCost = entries.reduce((a, e) => a + e.cost, 0);
   const totalImp  = entries.reduce((a, e) => a + e.imp, 0);
   const totalClk  = entries.reduce((a, e) => a + e.clk, 0);
-  const overallCtr = totalImp > 0 ? totalClk / totalImp * 100 : 0;
+  const totalConv = entries.reduce((a, e) => a + e.conv, 0);
+  const overallCtr = totalImp  > 0 ? totalClk  / totalImp  * 100 : 0;
+  const overallCvr = totalClk  > 0 ? totalConv / totalClk  * 100 : 0;
+  const overallCpa = totalConv > 0 ? totalCost / totalConv        : 0;
 
   const top = entries.slice(0, 15); // 가독성을 위해 상위 15개까지만 시각화
   let cum = 0;
@@ -5735,14 +5758,52 @@ function renderPareto(rows) {
   const top20Cost = top20.reduce((a, e) => a + e.cost, 0);
   const top20Imp  = top20.reduce((a, e) => a + e.imp, 0);
   const top20Clk  = top20.reduce((a, e) => a + e.clk, 0);
-  const top20Ctr  = top20Imp > 0 ? top20Clk / top20Imp * 100 : 0;
+  const top20Conv = top20.reduce((a, e) => a + e.conv, 0);
+  const top20Ctr  = top20Imp > 0 ? top20Clk  / top20Imp * 100 : 0;
+  const top20Cvr  = top20Clk > 0 ? top20Conv / top20Clk * 100 : 0;
+  const top20Cpa  = top20Conv > 0 ? top20Cost / top20Conv       : 0;
   const costShare = totalCost > 0 ? top20Cost / totalCost * 100 : 0;
-  const ctrDiff   = overallCtr > 0 ? (top20Ctr - overallCtr) / overallCtr * 100 : 0;
-  const ctrWord   = ctrDiff >= 0 ? '높음' : '낮음';
+
+  // 지표 diff (%) — CTR·CVR은 높을수록, CPA는 낮을수록 좋음
+  const ctrDiff = overallCtr > 0 ? (top20Ctr - overallCtr) / overallCtr * 100 : 0;
+  const cvrDiff = overallCvr > 0 ? (top20Cvr - overallCvr) / overallCvr * 100 : 0;
+  const cpaDiff = overallCpa > 0 ? (top20Cpa - overallCpa) / overallCpa * 100 : 0;
+
+  function fmtDiff(diff, lowerIsBetter) {
+    const good = lowerIsBetter ? diff < 0 : diff > 0;
+    const word = diff >= 0 ? '높음' : '낮음';
+    const color = Math.abs(diff) < 3 ? 'var(--az-t3)' : (good ? '#10b981' : '#f87171');
+    return `<span style="color:${color};font-weight:700">${diff >= 0 ? '+' : ''}${diff.toFixed(1)}% ${word}</span>`;
+  }
+
+  const THRESH = 3; // 이 이하 차이는 "평균과 비슷"으로 간주
+  const ctrGood = ctrDiff > THRESH,  ctrBad = ctrDiff < -THRESH;
+  const cvrGood = cvrDiff > THRESH,  cvrBad = cvrDiff < -THRESH;
+  const cpaGood = cpaDiff < -THRESH, cpaBad = cpaDiff > THRESH;
+
+  let suggestion;
+  if (ctrGood && cvrGood && cpaGood) {
+    suggestion = '상위 소재들이 CTR·CVR·CPA 세 지표 모두 평균보다 우수합니다. 효율이 검증된 소재로 예산이 쏠린 정당한 집중이니, 예산을 유지하거나 오히려 확대하는 것을 검토하세요.';
+  } else if (ctrBad && cvrBad && cpaBad) {
+    suggestion = '상위 소재들이 세 지표 모두 평균보다 저조합니다. 비용은 가장 많이 쓰면서 효율은 떨어지는 비효율적 쏠림이니, 예산 축소나 소재 교체를 우선 검토하세요.';
+  } else if (ctrGood && (cvrBad || cpaBad)) {
+    suggestion = '클릭 유입(CTR)은 좋지만 전환 효율(CVR·CPA)이 평균보다 떨어집니다. 소재 자체보다 랜딩페이지·타겟팅을 점검해보세요.';
+  } else if (!ctrGood && !ctrBad && cvrGood && cpaGood) {
+    suggestion = 'CTR은 평균과 비슷하지만 전환 효율(CVR·CPA)은 우수합니다. 소재를 바꾸기보다 예산을 더 확대하는 편이 유리할 수 있습니다.';
+  } else if (ctrBad && cvrGood && cpaGood) {
+    suggestion = '클릭률은 평균보다 낮지만 일단 클릭된 후의 전환 효율(CVR·CPA)은 우수합니다. 소재 교체보다는 노출·타겟팅 확대를 검토해볼 만합니다.';
+  } else {
+    suggestion = '지표별로 방향이 엇갈립니다. 위 CTR·CVR·CPA 수치를 참고해 어떤 단계(노출→클릭 vs 클릭→전환)에서 병목이 있는지 개별적으로 점검해보세요.';
+  }
 
   summaryEl.innerHTML =
-    `비용 상위 20%(<b>${top20Count}개</b>) 소재가 전체 비용의 <b>${costShare.toFixed(1)}%</b>를 차지합니다. ` +
-    `이 소재들의 평균 CTR은 <b>${azPct(top20Ctr)}</b>로 전체 평균(${azPct(overallCtr)}) 대비 <b>${Math.abs(ctrDiff).toFixed(1)}% ${ctrWord}</b>습니다.`;
+    `<div style="margin-bottom:6px">비용 상위 20%(<b>${top20Count}개</b>) 소재가 전체 비용의 <b>${costShare.toFixed(1)}%</b>를 차지합니다.</div>` +
+    `<div style="margin-bottom:8px">` +
+      `이 소재들의 평균 CTR <b>${azPct(top20Ctr)}</b>(전체 대비 ${fmtDiff(ctrDiff)}) · ` +
+      `CVR <b>${azPct(top20Cvr)}</b>(전체 대비 ${fmtDiff(cvrDiff)}) · ` +
+      `CPA <b>${azWon(top20Cpa)}</b>(전체 대비 ${fmtDiff(cpaDiff, true)})` +
+    `</div>` +
+    `<div style="padding-top:8px;border-top:1px dashed var(--az-bd2);color:var(--az-t1)">💡 ${suggestion}</div>`;
 }
 
 // ── 소재이름 호버 이미지 팝업 ─────────────────────────────
@@ -5813,6 +5874,41 @@ function azPreviewMove(e) {
 }
 function azPreviewHide() {
   document.getElementById('az-img-preview').style.display = 'none';
+}
+
+// ── 섹션 설명 호버 툴팁 (❗ 아이콘) ───────────────────────
+const AZ_INFO_TEXT = {
+  pareto:
+    '<div class="az-info-title">예산 쏠림 파레토 분석이란?</div>' +
+    '소재별 <b>비용을 큰 순서로 정렬</b>해 상위 15개의 개별 비용 비중(막대)과 누적 비중(꺾은선)을 보여줍니다.<br><br>' +
+    '<b>용도</b><br>' +
+    '예산이 소수 소재에 쏠려 있는지, 그 소재들이 <b>CTR·CVR·CPA</b> 기준으로 실제 효율적인지 함께 확인해서 ' +
+    '예산을 재배분해야 할지 판단하는 데 씁니다.<br><br>' +
+    '<b>이렇게 읽으세요</b><br>' +
+    '· 누적선이 왼쪽에서 빠르게 100%에 가까워질수록 소수 소재에 쏠림이 심하다는 뜻<br>' +
+    '· 아래 요약 문장에서 상위 20% 소재의 CTR·CVR·CPA가 전체 평균보다 나쁘면, 비용 대비 효율이 낮다는 신호이니 예산 축소나 소재 교체를 검토하세요'
+};
+
+function azInfoShow(el, e, key) {
+  const tip = document.getElementById('az-info-tooltip');
+  tip.innerHTML = AZ_INFO_TEXT[key] || '';
+  tip.style.display = 'block';
+  azInfoMove(e);
+}
+function azInfoMove(e) {
+  const tip = document.getElementById('az-info-tooltip');
+  if (tip.style.display === 'none') return;
+  const tw = tip.offsetWidth  || 320;
+  const th = tip.offsetHeight || 100;
+  let x = e.clientX + 14;
+  let y = e.clientY + 14;
+  if (x + tw > window.innerWidth  - 8) x = e.clientX - tw - 14;
+  if (y + th > window.innerHeight - 8) y = e.clientY - th - 14;
+  tip.style.left = x + 'px';
+  tip.style.top  = y + 'px';
+}
+function azInfoHide() {
+  document.getElementById('az-info-tooltip').style.display = 'none';
 }
 
 // ── 이미지 썸네일 헬퍼 ────────────────────────────────────
@@ -6633,6 +6729,9 @@ async function deleteABTestConfirm(testId) {
 <div id="az-img-preview">
   <div id="az-img-preview-content"></div>
 </div>
+
+<!-- 섹션 설명 호버 툴팁 -->
+<div id="az-info-tooltip"></div>
 
 </body>
 
