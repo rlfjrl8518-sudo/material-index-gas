@@ -4706,10 +4706,12 @@ function hideSettingsMessages() {
 let azRawData    = null;   // [헤더행, ...데이터행]
 let azMasterData = null;   // [헤더행, ...데이터행]
 let azLoaded     = false;
-// 소재이름 → 대표 이미지URL. 피맥스/디멘드젠은 소재_통합RAW의 이미지URL이
-// 개별 이미지가 아니라 번들(광고단위) URL이라 썸네일로 못 그리므로,
-// 소재_마스터에서 그 소재이름의 첫 번째 실제 이미지를 대표로 사용한다.
+// 소재이름 → 대표 이미지URL (보조 수단, 소재이름이 일치할 때만 유효)
 let azCreativeThumbMap = {};
+// 광고단위코드(?unit=코드) → 대표 이미지URL — 피맥스/디멘드젠은 소재_통합RAW의
+// 이미지URL이 개별 이미지가 아니라 번들(광고단위) 링크라서 썸네일로 못 그리는데,
+// 이건 소재이름이 아니라 코드로 정확히 매칭하는 주 수단이라 훨씬 안정적이다.
+let azDgpmThumbMap = {};
 let azCharts     = {};     // Chart.js 인스턴스 맵
 let azRankTab    = 'ctr';
 let azDimData    = {};     // 차원별 집계 캐시 { crtype:[{k,ctr,cvr,cpa,...}], ... }
@@ -4835,9 +4837,10 @@ async function loadAnalysisData() {
     }
 
     // ── 2단계: 실데이터 로드 ──
-    const [raw, master] = await Promise.all([
+    const [raw, master, dgpmThumbs] = await Promise.all([
       gasRun('getAllData'),
-      gasRun('getMasterData')
+      gasRun('getMasterData'),
+      gasRun('getDGPMThumbMap').catch(() => ({}))  // 구버전 Code.gs 대응 — 실패해도 나머지는 계속 진행
     ]);
     if (!Array.isArray(raw)) {
       loadEl.innerHTML = `<div style="color:#f87171;font-size:13px">
@@ -4849,8 +4852,9 @@ async function loadAnalysisData() {
     azRawData    = raw;
     azMasterData = Array.isArray(master) ? master : [];
     azLoaded     = true;
+    azDgpmThumbMap = (dgpmThumbs && typeof dgpmThumbs === 'object') ? dgpmThumbs : {};
 
-    // 소재이름 → 대표 이미지URL 맵 (소재_마스터: 5=소재이름, 14=이미지URL)
+    // 소재이름 → 대표 이미지URL 맵 (소재_마스터: 5=소재이름, 14=이미지URL) — 보조 수단
     azCreativeThumbMap = {};
     azMasterData.slice(1).forEach(row => {
       const name = String(row[5]  || '').trim();
@@ -5552,7 +5556,8 @@ function cacheCreativeTrendOptions(rows) {
   rows.forEach(r => {
     const name = String(r[AZ.CREATIVE] || '').trim();
     if (!name || map[name]) return;
-    const url = azCreativeThumbMap[name] || r[AZ.IMGURL] || '';
+    const rawUrl = String(r[AZ.IMGURL] || '');
+    const url = /[?&]unit=/.test(rawUrl) ? (azResolveBundleThumb(rawUrl, name) || rawUrl) : rawUrl;
     map[name] = { name, url };
   });
   azCreativeTrendOptions = Object.values(map).sort((a, b) => a.name.localeCompare(b.name));
@@ -5940,15 +5945,26 @@ function azImgFail(img) {
   img.replaceWith(div);
 }
 
+// 번들(?unit=코드) URL에서 대표 이미지를 찾는다.
+// 1순위: 광고단위코드로 정확히 매칭(azDgpmThumbMap) — 같은 코드베이스가 생성한 값이라 항상 정확
+// 2순위: 소재이름으로 매칭(azCreativeThumbMap) — RAW와 마스터의 소재이름이 다르면 실패할 수 있는 보조 수단
+function azResolveBundleThumb(url, name) {
+  const m = url.match(/[?&]unit=([^&]+)/);
+  const unitCode = m ? decodeURIComponent(m[1]) : '';
+  if (unitCode && azDgpmThumbMap[unitCode]) return azDgpmThumbMap[unitCode];
+  if (name && azCreativeThumbMap[name]) return azCreativeThumbMap[name];
+  return '';
+}
+
 function azThumbCell(url, name) {
   const base = 'width:40px;height:40px;border-radius:4px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;flex-shrink:0;';
   if (!url) {
     return `<div style="${base}background:var(--az-surf2);color:var(--az-t4)">🖼</div>`;
   }
-  // 번들 URL (디멘드젠/피맥스): ?unit= 패턴 — 소재_마스터에서 대표 이미지를 찾을 수 있으면
+  // 번들 URL (디멘드젠/피맥스): ?unit= 패턴 — 대표 이미지를 찾을 수 있으면
   // 그 썸네일을 보여주고(클릭하면 번들 전체 보기), 못 찾으면 기존처럼 📦 아이콘만 표시
   if (/[?&]unit=/.test(url)) {
-    const repUrl = name ? azCreativeThumbMap[name] : '';
+    const repUrl = azResolveBundleThumb(url, name);
     if (repUrl) {
       const thumbSrc = driveThumb(repUrl);
       return `<div style="position:relative;width:40px;height:40px;flex-shrink:0">

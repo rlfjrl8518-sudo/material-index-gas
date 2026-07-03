@@ -887,6 +887,43 @@ function getDGPMList(매체필터) {
 }
 
 // --------------------------------------------------
+// DG/PM 광고단위코드 → 대표 이미지URL 맵
+// 소재_통합RAW의 이미지URL은 개별 이미지가 아니라 번들(?unit=코드) 링크라서,
+// 그 unitCode로 DG_PM_광고단위의 이미지코드목록 중 첫 번째 코드를 찾고
+// 소재_마스터에서 그 코드의 실제 이미지URL을 붙여 대표 이미지로 쓴다.
+// (소재이름으로 매칭하면 RAW의 소재이름과 소재_마스터 소재이름이 다를 수 있어 불안정하므로
+//  같은 코드베이스 안에서 생성된 광고단위코드로 정확히 매칭한다)
+// --------------------------------------------------
+function getDGPMThumbMap() {
+  const ss = getSpreadsheet();
+  const dgpmSheet = ss.getSheetByName(DGPM_SHEET_NAME);
+  const masterSheet = ss.getSheetByName(MASTER_SHEET_NAME);
+  if (!dgpmSheet || dgpmSheet.getLastRow() < 2) return {};
+
+  const codeToUrl = {};
+  if (masterSheet && masterSheet.getLastRow() >= 2) {
+    const data = masterSheet.getRange(2, 1, masterSheet.getLastRow() - 1, 15).getValues();
+    data.forEach(row => {
+      const code = String(row[0]  || '').trim();
+      const url  = String(row[14] || '').trim();
+      if (code && url && !codeToUrl[code]) codeToUrl[code] = url;
+    });
+  }
+
+  const rows = dgpmSheet.getRange(2, 1, dgpmSheet.getLastRow() - 1, DGPM_HEADERS.length).getValues();
+  const result = {};
+  rows.forEach(row => {
+    const unitCode = String(row[DGPM_COL['광고단위코드']] || '').trim();
+    if (!unitCode) return;
+    const codes = _splitList(row[DGPM_COL['이미지코드목록']]);
+    for (const code of codes) {
+      if (codeToUrl[code]) { result[unitCode] = codeToUrl[code]; break; }
+    }
+  });
+  return result;
+}
+
+// --------------------------------------------------
 // 신규 소재 감지
 // --------------------------------------------------
 function detectNewCreatives() {
