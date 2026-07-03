@@ -993,9 +993,20 @@
   /* 소재 선택 (개별 추이) */
   .az-creative-picker { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
   .az-creative-picker select {
-    flex: 1; min-width: 220px; background: var(--az-surf2); border: 1px solid var(--az-bd2);
+    background: var(--az-surf2); border: 1px solid var(--az-bd2);
     color: var(--az-t1); border-radius: 6px; padding: 6px 10px; font-size: 12px;
   }
+  .az-ct-selected {
+    display: flex; align-items: center; gap: 8px; cursor: pointer;
+    flex: 1; min-width: 220px; background: var(--az-surf2); border: 1px solid var(--az-bd2);
+    color: var(--az-t2); border-radius: 6px; padding: 5px 10px 5px 5px; font-size: 12px; transition: border-color .15s;
+  }
+  .az-ct-selected:hover { border-color: #4f6ef7; }
+  .az-ct-thumb {
+    width: 32px; height: 32px; border-radius: 4px; overflow: hidden; flex-shrink: 0;
+    background: var(--az-bd); display: flex; align-items: center; justify-content: center; font-size: 14px;
+  }
+  .az-ct-thumb img { width: 100%; height: 100%; object-fit: cover; }
 
   /* 파레토 */
   .az-pareto-summary { font-size: 12px; color: var(--az-t2); margin-top: 8px; }
@@ -1836,6 +1847,7 @@
               <table class="az-table" id="az-list-table">
                 <thead>
                   <tr>
+                    <th style="text-align:left;width:50px">이미지</th>
                     <th class="sortable" style="text-align:left" data-key="name" onclick="azSortList('name')">소재이름</th>
                     <th class="sortable" style="text-align:left" data-key="media" onclick="azSortList('media')">매체</th>
                     <th class="sortable" data-key="imp"  onclick="azSortList('imp')">노출</th>
@@ -2008,9 +2020,10 @@
           <div class="az-section-header">개별 소재 추이</div>
           <div class="az-section-body">
             <div class="az-creative-picker">
-              <select id="az-creative-trend-select" onchange="azLoaded && renderCreativeTrend(getFilteredRows())">
-                <option value="">소재를 선택하세요</option>
-              </select>
+              <div class="az-ct-selected" id="az-ct-selected" onclick="openCreativeTrendPicker()">
+                <div class="az-ct-thumb" id="az-ct-thumb"><span>🔍</span></div>
+                <span id="az-ct-selected-name">소재를 선택하세요 (이미지로 검색)</span>
+              </div>
               <label style="margin-left:4px">지표</label>
               <select id="az-creative-trend-metric" onchange="azLoaded && renderCreativeTrend(getFilteredRows())">
                 <option>CTR</option><option>CVR</option><option>CPA</option>
@@ -5063,7 +5076,7 @@ function updateDashboard() {
   renderTrend(rows);
   renderLifecycle(rows);
   renderCreativeList(rows);
-  populateCreativeTrendSelect(rows);
+  cacheCreativeTrendOptions(rows);
   renderCreativeTrend(rows);
   renderPareto(rows);
   renderThresholdAlerts(rows);
@@ -5352,7 +5365,7 @@ function renderCreativeList(rows) {
     grouped[key].rs.push(r);
   });
 
-  let entries = Object.values(grouped).map(g => ({ name: g.name, media: g.media, ...azKPI(azSum(g.rs)) }));
+  let entries = Object.values(grouped).map(g => ({ name: g.name, media: g.media, url: g.url, ...azKPI(azSum(g.rs)) }));
   if (q) entries = entries.filter(e => e.name.toLowerCase().includes(q));
 
   const { key, dir } = azListSort;
@@ -5365,11 +5378,15 @@ function renderCreativeList(rows) {
 
   const tbody = document.getElementById('az-list-tbody');
   if (!entries.length) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--az-t4);padding:20px">데이터 없음</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--az-t4);padding:20px">데이터 없음</td></tr>';
     return;
   }
   tbody.innerHTML = entries.map(e => `<tr>
-    <td style="text-align:left">${escHtml(e.name)}</td>
+    <td style="text-align:left">${azThumbCell(e.url)}</td>
+    <td style="text-align:left;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:default"
+        title="${esc(e.name)}" data-url="${esc(e.url)}"
+        onmouseenter="azPreviewShow(this,event)" onmousemove="azPreviewMove(event)" onmouseleave="azPreviewHide()"
+      >${escHtml(e.name)}</td>
     <td style="text-align:left">${escHtml(e.media)}</td>
     <td>${azFmt(e.imp)}</td><td>${azFmt(e.clk)}</td><td>${azPct(e.ctr)}</td>
     <td>${azWon(e.cost)}</td><td>${azFmt(e.conv)}</td><td>${azPct(e.cvr)}</td><td>${azWon(e.cpa)}</td>
@@ -5420,17 +5437,111 @@ function renderThresholdAlerts(rows) {
 }
 
 // ── 개별 소재 일별 추이 ───────────────────────────────────
-function populateCreativeTrendSelect(rows) {
-  const sel = document.getElementById('az-creative-trend-select');
-  const prev = sel.value;
-  const names = azColDistinctValues(rows, AZ.CREATIVE);
-  sel.innerHTML = '<option value="">소재를 선택하세요</option>' +
-    names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
-  sel.value = names.includes(prev) ? prev : '';
+// 소재명만 나열하면 규칙 없는 이름들 사이에서 뭐가 뭔지 알기 어려우므로
+// 썸네일 이미지로 검색/선택하는 피커를 사용한다 (네이티브 select는 이미지를 못 담음)
+let azCreativeTrendOptions     = [];  // [{name, url}]
+let azCreativeTrendSelectedName = '';
+let azCreativeTrendSelectedUrl  = '';
+
+function cacheCreativeTrendOptions(rows) {
+  const map = {};
+  rows.forEach(r => {
+    const name = String(r[AZ.CREATIVE] || '').trim();
+    if (!name || map[name]) return;
+    map[name] = { name, url: r[AZ.IMGURL] || '' };
+  });
+  azCreativeTrendOptions = Object.values(map).sort((a, b) => a.name.localeCompare(b.name));
+  if (azCreativeTrendSelectedName && !map[azCreativeTrendSelectedName]) {
+    azCreativeTrendSelectedName = '';
+    azCreativeTrendSelectedUrl  = '';
+  }
+  updateCreativeTrendSelectedUI();
+}
+
+function updateCreativeTrendSelectedUI() {
+  const nameEl  = document.getElementById('az-ct-selected-name');
+  const thumbEl = document.getElementById('az-ct-thumb');
+  if (!azCreativeTrendSelectedName) {
+    nameEl.textContent = '소재를 선택하세요 (이미지로 검색)';
+    thumbEl.innerHTML = '<span>🔍</span>';
+    return;
+  }
+  nameEl.textContent = azCreativeTrendSelectedName;
+  thumbEl.innerHTML = azCreativeTrendSelectedUrl
+    ? `<img src="${esc(driveThumbnail(azCreativeTrendSelectedUrl))}" onerror="this.style.display='none'">`
+    : '<span>🖼️</span>';
+}
+
+function ensureCreativeTrendModal() {
+  if (document.getElementById('azCtModalOverlay')) return;
+  const overlay = document.createElement('div');
+  overlay.id = 'azCtModalOverlay';
+  overlay.className = 'modal-overlay';
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeCreativeTrendPicker(); });
+
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.innerHTML =
+    '<div class="modal-header">' +
+      '<span class="modal-title">소재 선택</span>' +
+      '<div style="display:flex;gap:8px;align-items:center;">' +
+        '<input type="text" class="modal-search" id="ctPickerSearch" placeholder="소재명 검색...">' +
+        '<button class="btn btn-ghost btn-sm" id="ctPickerCloseBtn">닫기</button>' +
+      '</div>' +
+    '</div>' +
+    '<div class="modal-body"><div class="img-picker-grid" id="ctPickerGrid"></div></div>';
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  document.getElementById('ctPickerSearch').addEventListener('input', filterCreativeTrendPicker);
+  document.getElementById('ctPickerCloseBtn').addEventListener('click', closeCreativeTrendPicker);
+  document.getElementById('ctPickerGrid').addEventListener('click', e => {
+    const item = e.target.closest('.img-pick-item');
+    if (!item) return;
+    azCreativeTrendSelectedName = item.dataset.name;
+    azCreativeTrendSelectedUrl  = item.dataset.url;
+    updateCreativeTrendSelectedUI();
+    closeCreativeTrendPicker();
+    azLoaded && renderCreativeTrend(getFilteredRows());
+  });
+}
+
+function openCreativeTrendPicker() {
+  ensureCreativeTrendModal();
+  document.getElementById('ctPickerSearch').value = '';
+  document.getElementById('azCtModalOverlay').classList.add('open');
+  renderCreativeTrendPickerGrid(azCreativeTrendOptions);
+}
+
+function closeCreativeTrendPicker() {
+  document.getElementById('azCtModalOverlay')?.classList.remove('open');
+}
+
+function filterCreativeTrendPicker() {
+  const q = (document.getElementById('ctPickerSearch').value || '').trim().toLowerCase();
+  const filtered = !q ? azCreativeTrendOptions : azCreativeTrendOptions.filter(o => o.name.toLowerCase().includes(q));
+  renderCreativeTrendPickerGrid(filtered);
+}
+
+function renderCreativeTrendPickerGrid(options) {
+  const grid = document.getElementById('ctPickerGrid');
+  if (!options.length) { grid.innerHTML = '<div class="modal-empty">검색 결과가 없습니다.</div>'; return; }
+  grid.innerHTML = options.map(o => {
+    const thumbUrl = driveThumbnail(o.url);
+    const media = thumbUrl
+      ? `<img class="img-pick-thumb" src="${esc(thumbUrl)}" loading="lazy" style="pointer-events:none"
+           onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+         <div class="img-pick-placeholder" style="display:none;pointer-events:none">🖼️</div>`
+      : '<div class="img-pick-placeholder" style="pointer-events:none">🖼️</div>';
+    return `<div class="img-pick-item" data-name="${esc(o.name)}" data-url="${esc(o.url)}">
+      ${media}
+      <div class="img-pick-info"><div class="img-pick-name">${escHtml(o.name)}</div></div>
+    </div>`;
+  }).join('');
 }
 
 function renderCreativeTrend(rows) {
-  const name    = document.getElementById('az-creative-trend-select').value;
+  const name    = azCreativeTrendSelectedName;
   const metric  = document.getElementById('az-creative-trend-metric').value;
   const canvas  = document.getElementById('az-creative-trend-chart');
   const nodata  = document.getElementById('az-creative-trend-nodata');
