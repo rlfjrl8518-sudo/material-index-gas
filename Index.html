@@ -1770,7 +1770,9 @@
       <!-- KPI 요약 (서브탭과 무관하게 항상 표시) -->
       <div class="az-section">
         <div class="az-section-header">
-          <span>KPI 요약</span>
+          <span>KPI 요약
+            <span class="az-info-icon" onmouseenter="azInfoShow(this,event,'kpiDelta')" onmousemove="azInfoMove(event)" onmouseleave="azInfoHide()">!</span>
+          </span>
           <span id="az-kpi-count" class="az-count-badge"></span>
         </div>
         <div id="az-kpi-grid" class="az-kpi-grid"></div>
@@ -2070,7 +2072,11 @@
         </div>
 
         <div class="az-section">
-          <div class="az-section-header">소재 생애주기 분석</div>
+          <div class="az-section-header">
+            <span>소재 생애주기 분석
+              <span class="az-info-icon" onmouseenter="azInfoShow(this,event,'lifecycle')" onmousemove="azInfoMove(event)" onmouseleave="azInfoHide()">!</span>
+            </span>
+          </div>
           <div class="az-section-body">
             <div class="az-two-col">
               <div>
@@ -5917,7 +5923,28 @@ const AZ_INFO_TEXT = {
     '예산을 재배분해야 할지 판단하는 데 씁니다.<br><br>' +
     '<b>이렇게 읽으세요</b><br>' +
     '· 누적선이 왼쪽에서 빠르게 100%에 가까워질수록 소수 소재에 쏠림이 심하다는 뜻<br>' +
-    '· 아래 요약 문장에서 상위 20% 소재의 CTR·CVR·CPA가 전체 평균보다 나쁘면, 비용 대비 효율이 낮다는 신호이니 예산 축소나 소재 교체를 검토하세요'
+    '· 아래 요약 문장에서 상위 20% 소재의 CTR·CVR·CPA가 전체 평균보다 나쁘면, 비용 대비 효율이 낮다는 신호이니 예산 축소나 소재 교체를 검토하세요',
+
+  kpiDelta:
+    '<div class="az-info-title">전기간 대비란?</div>' +
+    '지금 설정한 기간과 <b>정확히 같은 길이</b>의 바로 직전 기간과 비교합니다.<br>' +
+    '예: 기간을 7/1~7/7(7일)로 잡으면 → 전기간은 6/24~6/30(마찬가지로 7일)입니다.<br><br>' +
+    '<b>다른 필터는 그대로 유지</b><br>' +
+    '매체·소재유형 등 나머지 필터는 전기간 계산에도 동일하게 적용됩니다.<br>' +
+    '단, <b>"라이브 상태" 필터는 전기간 비교에는 적용되지 않습니다</b> — 라이브중만 걸어놔도 비교 대상 기간은 그때 있던 소재 전체 기준입니다.<br><br>' +
+    '<b>색상 기준</b><br>' +
+    '노출·클릭·CTR·전환·CVR은 오르면 초록·내리면 빨강, 비용·CPC·CPA는 반대로 내리면 초록·오르면 빨강입니다(적게 쓸수록 좋으니까). ' +
+    '차이가 ±0.5% 미만이면 회색으로 표시합니다.',
+
+  lifecycle:
+    '<div class="az-info-title">초기·중기·후기는 무슨 기준?</div>' +
+    '소재별로 <b>"현재 필터 범위 안에서 가장 이른 노출일"</b>을 첫 노출일로 보고, ' +
+    '<b>오늘 날짜 기준</b>으로 그날로부터 며칠 지났는지(경과일수)를 계산합니다.<br><br>' +
+    '· 초기: 경과 1~14일<br>' +
+    '· 중기: 경과 15~28일<br>' +
+    '· 후기: 경과 29일 이상<br><br>' +
+    '⚠️ 경과일수는 <b>기간 필터의 종료일이 아니라 실제 오늘 날짜</b> 기준이라, 지난 데이터만 필터링해서 봐도 경과일수는 오늘 기준으로 크게 나올 수 있습니다.<br><br>' +
+    '<b>교체 검토 소재</b>는 후기 단계이면서 CPA가 전체 평균보다 20% 이상 높은 소재입니다.'
 };
 
 function azInfoShow(el, e, key) {
