@@ -5252,7 +5252,7 @@ function azDrawDim(key, metric) {
     metric === 'cvr' ? +e.cvr.toFixed(3) : +e.cpa.toFixed(0)
   );
   const h = Math.max(entries.length * 32 + 48, 80);
-  azDrawHBar(`az-chart-${key}`, entries.map(e => e.k), vals, labelMap[metric], colorMap[metric], h);
+  azDrawHBar(`az-chart-${key}`, entries.map(e => e.k), vals, labelMap[metric], colorMap[metric], h, key);
 }
 
 function azDestroyChart(id) {
@@ -5272,7 +5272,7 @@ function azChartColors() {
   };
 }
 
-function azDrawHBar(canvasId, labels, data, label, color, height) {
+function azDrawHBar(canvasId, labels, data, label, color, height, dimKey) {
   azDestroyChart(canvasId);
   const el = document.getElementById(canvasId);
   if (!el) return;
@@ -5287,9 +5287,21 @@ function azDrawHBar(canvasId, labels, data, label, color, height) {
     },
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      onClick: dimKey ? (evt, elements) => {
+        if (!elements.length) return;
+        azOpenDimDrill(dimKey, labels[elements[0].index]);
+      } : undefined,
+      onHover: dimKey ? (evt, elements) => {
+        evt.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+      } : undefined,
       plugins: {
         legend: { display: false },
-        tooltip: { callbacks: { label: ctx => ' ' + Number(ctx.parsed.x).toLocaleString('ko-KR') } }
+        tooltip: {
+          callbacks: {
+            label: ctx => ' ' + Number(ctx.parsed.x).toLocaleString('ko-KR'),
+            footer: dimKey ? () => '클릭하면 해당 소재 목록 보기' : undefined
+          }
+        }
       },
       scales: {
         x: { grid: { color: c.grid }, ticks: { color: c.tick, font: { size: 10 } } },
@@ -6142,13 +6154,10 @@ function closeAzDrillModal() {
   document.getElementById('azDrillModalOverlay')?.classList.remove('open');
 }
 
-function azOpenHeatmapDrill(y, x) {
-  if (!azHeatmapCtx) return;
-  const cell = azHeatmapCtx.mat[y] && azHeatmapCtx.mat[y][x];
-  if (!cell || !cell.rows.length) return;
-
+// 소재이름으로 묶어 이미지·KPI 테이블을 드릴다운 모달에 그린다 (히트맵 셀 클릭·차원별 막대 클릭 공용)
+function azRenderDrillModal(title, matchedRows) {
   const grouped = {};
-  cell.rows.forEach(r => {
+  matchedRows.forEach(r => {
     const name = String(r[AZ.CREATIVE] || '').trim() || '(이름 없음)';
     if (!grouped[name]) grouped[name] = { name, url: r[AZ.IMGURL] || '', rs: [] };
     grouped[name].rs.push(r);
@@ -6158,7 +6167,7 @@ function azOpenHeatmapDrill(y, x) {
     .sort((a, b) => b.imp - a.imp);
 
   ensureAzDrillModal();
-  document.getElementById('azDrillTitle').textContent = `${azHeatmapCtx.yKey}: ${y}  ×  ${azHeatmapCtx.xKey}: ${x}`;
+  document.getElementById('azDrillTitle').textContent = title;
   document.getElementById('azDrillCount').textContent = entries.length.toLocaleString('ko-KR') + '개 소재';
   document.getElementById('azDrillBody').innerHTML = entries.length
     ? `<table class="az-table"><thead><tr>
@@ -6172,6 +6181,29 @@ function azOpenHeatmapDrill(y, x) {
        </tr>`).join('')}</tbody></table>`
     : '<div class="az-no-data">데이터 없음</div>';
   document.getElementById('azDrillModalOverlay').classList.add('open');
+}
+
+function azOpenHeatmapDrill(y, x) {
+  if (!azHeatmapCtx) return;
+  const cell = azHeatmapCtx.mat[y] && azHeatmapCtx.mat[y][x];
+  if (!cell || !cell.rows.length) return;
+  azRenderDrillModal(`${azHeatmapCtx.yKey}: ${y}  ×  ${azHeatmapCtx.xKey}: ${x}`, cell.rows);
+}
+
+// ── 차원별 막대 클릭 → 그 카테고리에 해당하는 소재 목록 드릴다운 ──
+const AZ_DIM_COL_MAP   = { crtype: AZ.CRTYPE, appeal: AZ.APPEAL, hook: AZ.HOOK, imgtype: AZ.IMGTYPE, modeltype: AZ.MODELTYPE, bojong: AZ.BOJONG };
+const AZ_DIM_LABEL_MAP = { crtype: '소재유형', appeal: '소구포인트', hook: '후킹방식', imgtype: '이미지유형', modeltype: '모델유형', bojong: '보종' };
+
+function azOpenDimDrill(dimKey, label) {
+  const col = AZ_DIM_COL_MAP[dimKey];
+  if (col === undefined) return;
+  const rows = getFilteredRows();
+  // modeltype은 조합 그룹핑 기준이라 정확히 같은 조합만, 나머지는 explode 포함 여부로 매칭
+  const matched = dimKey === 'modeltype'
+    ? rows.filter(r => azModelCombo(r) === label)
+    : rows.filter(r => azColValues(r, col).includes(label));
+  if (!matched.length) return;
+  azRenderDrillModal(`${AZ_DIM_LABEL_MAP[dimKey] || dimKey}: ${label}`, matched);
 }
 
 // ── 10. 기간별 추이 라인 차트 ─────────────────────────────
