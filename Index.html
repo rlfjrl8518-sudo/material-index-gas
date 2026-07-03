@@ -911,7 +911,10 @@
     background: var(--az-surf); border-bottom: 1px solid var(--az-bd);
     position: sticky; top: 56px; z-index: 90; padding: 10px 24px;
   }
-  .az-filter-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+  .az-filter-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; row-gap: 10px; }
+  .az-filter-group { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; padding-left: 12px; border-left: 1px solid var(--az-bd2); }
+  .az-filter-group:first-child { padding-left: 0; border-left: none; }
+  .az-filter-actions { display: flex; gap: 8px; align-items: flex-end; margin-left: auto; }
   .az-filter-item { display: flex; flex-direction: column; gap: 3px; }
   .az-filter-item label { font-size: 10px; font-weight: 600; color: var(--az-t3); text-transform: uppercase; letter-spacing: .4px; }
   .az-filter-input, .az-filter-select {
@@ -979,7 +982,10 @@
     border-radius: 6px; padding: 6px 12px; font-size: 11px; cursor: pointer; white-space: nowrap;
   }
   .az-filter-more-btn:hover { border-color: #4f6ef7; color: #4f6ef7; }
-  .az-filter-row-2 { display: none; }
+  .az-filter-row-2 {
+    display: none; margin-top: 10px !important; padding: 10px 12px 8px;
+    background: var(--az-in-bg); border: 1px dashed var(--az-bd2); border-radius: 8px;
+  }
   .az-filter-row-2.show { display: flex; }
 
   /* 목표 임계값 알림 */
@@ -1669,51 +1675,63 @@
 
   <!-- 필터 바 (sticky) -->
   <div class="az-filter-bar">
-    <!-- 1행: 기간 + 매체 계층 -->
+    <!-- 1행: 기간 + 매체 계층 + 라이브 상태 + 액션 버튼 (항상 표시) -->
     <div class="az-filter-row">
-      <div class="az-filter-item">
-        <label>기간</label>
-        <div style="display:flex;align-items:center;gap:4px">
-          <input type="date" id="az-f-start" class="az-filter-input" style="width:118px" onchange="azDateChange()">
-          <span style="color:var(--az-t3);font-size:11px;flex-shrink:0">~</span>
-          <input type="date" id="az-f-end" class="az-filter-input" style="width:118px" onchange="azDateChange()">
+      <div class="az-filter-group">
+        <div class="az-filter-item">
+          <label>기간</label>
+          <div style="display:flex;align-items:center;gap:4px">
+            <input type="date" id="az-f-start" class="az-filter-input" style="width:118px" onchange="azDateChange()">
+            <span style="color:var(--az-t3);font-size:11px;flex-shrink:0">~</span>
+            <input type="date" id="az-f-end" class="az-filter-input" style="width:118px" onchange="azDateChange()">
+          </div>
         </div>
       </div>
-      <div class="az-filter-item">
-        <label>매체</label>
-        <select id="az-f-media" class="az-filter-select" onchange="azCascade('az-f-media')"><option value="">전체</option></select>
+      <div class="az-filter-group">
+        <div class="az-filter-item">
+          <label>매체</label>
+          <select id="az-f-media" class="az-filter-select" onchange="azCascade('az-f-media')"><option value="">전체</option></select>
+        </div>
+        <div class="az-filter-item">
+          <label>캠페인</label>
+          <select id="az-f-campaign" class="az-filter-select" onchange="azCascade('az-f-campaign')" style="min-width:130px"><option value="">전체</option></select>
+        </div>
+        <div class="az-filter-item">
+          <label>광고그룹</label>
+          <select id="az-f-group" class="az-filter-select" onchange="azCascade('az-f-group')" style="min-width:130px"><option value="">전체</option></select>
+        </div>
+        <div class="az-filter-item">
+          <label>소재이름</label>
+          <select id="az-f-creative" class="az-filter-select" onchange="azCascade('az-f-creative')" style="min-width:150px"><option value="">전체</option></select>
+        </div>
       </div>
-      <div class="az-filter-item">
-        <label>캠페인</label>
-        <select id="az-f-campaign" class="az-filter-select" onchange="azCascade('az-f-campaign')" style="min-width:130px"><option value="">전체</option></select>
+      <div class="az-filter-group">
+        <div class="az-filter-item">
+          <label>라이브 상태</label>
+          <div style="display:flex;align-items:center;gap:5px">
+            <select id="az-f-livestatus" class="az-filter-select" style="min-width:84px" onchange="azLoaded && updateDashboard()">
+              <option value="">전체</option>
+              <option value="live">라이브중</option>
+              <option value="ended">종료</option>
+            </select>
+            <input type="number" id="az-live-days" class="az-filter-input" value="3" min="0" style="width:44px" title="라이브 판정 기준일" onchange="azLoaded && updateDashboard()">
+            <span style="font-size:11px;color:var(--az-t4);white-space:nowrap">일 기준</span>
+          </div>
+        </div>
       </div>
-      <div class="az-filter-item">
-        <label>광고그룹</label>
-        <select id="az-f-group" class="az-filter-select" onchange="azCascade('az-f-group')" style="min-width:130px"><option value="">전체</option></select>
+      <div class="az-filter-actions">
+        <button class="az-filter-more-btn" id="az-filter-more-btn" onclick="toggleAzFilterMore()">🔽 필터 더보기</button>
+        <button id="az-load-btn" class="az-load-btn" onclick="loadAnalysisData()">
+          🔄 데이터 로드
+          <div class="spinner" id="az-load-spinner"></div>
+        </button>
+        <button class="az-theme-btn" onclick="azToggleTheme(this)" title="테마 전환">
+          🌙 다크
+        </button>
       </div>
-      <div class="az-filter-item">
-        <label>소재이름</label>
-        <select id="az-f-creative" class="az-filter-select" onchange="azCascade('az-f-creative')" style="min-width:150px"><option value="">전체</option></select>
-      </div>
-      <div class="az-filter-item">
-        <label>라이브 상태</label>
-        <select id="az-f-livestatus" class="az-filter-select" onchange="azLoaded && updateDashboard()">
-          <option value="">전체</option>
-          <option value="live">라이브중</option>
-          <option value="ended">종료</option>
-        </select>
-      </div>
-      <div class="az-filter-item">
-        <label>기준(일)</label>
-        <input type="number" id="az-live-days" class="az-filter-input" value="3" min="0" style="width:56px" onchange="azLoaded && updateDashboard()">
-      </div>
-      <button class="az-filter-more-btn" id="az-filter-more-btn" onclick="toggleAzFilterMore()">🔽 필터 더보기</button>
-      <button class="az-theme-btn" onclick="azToggleTheme(this)" title="테마 전환" style="margin-left:auto">
-        🌙 다크
-      </button>
     </div>
-    <!-- 2행: 소재 속성 + 로드 버튼 (기본 접힘) -->
-    <div class="az-filter-row az-filter-row-2" id="az-filter-row-2" style="margin-top:7px">
+    <!-- 2행: 소재 속성 필터 (기본 접힘) -->
+    <div class="az-filter-row az-filter-row-2" id="az-filter-row-2">
       <div class="az-filter-item">
         <label>보종</label>
         <select id="az-f-bojong" class="az-filter-select" onchange="azCascade(this.id)"><option value="">전체</option></select>
@@ -1742,10 +1760,6 @@
         <label>모델유형</label>
         <select id="az-f-model" class="az-filter-select" onchange="azCascade(this.id)"><option value="">전체</option></select>
       </div>
-      <button id="az-load-btn" class="az-load-btn" onclick="loadAnalysisData()">
-        🔄 데이터 로드
-        <div class="spinner" id="az-load-spinner"></div>
-      </button>
     </div>
   </div>
 
@@ -1998,9 +2012,9 @@
               <select id="az-hm-metric" onchange="azLoaded && renderHeatmap(getFilteredRows())">
                 <option>CTR</option><option>CVR</option><option>CPA</option>
               </select>
-              <span style="font-size:11px;color:#475569">🟢 진할수록 성과 좋음 &nbsp;·&nbsp; ⬜ 회색=데이터 없음</span>
+              <span style="font-size:11px;color:var(--az-t3)">🔴 나쁨 → 🟡 보통 → 🟢 좋음 &nbsp;(진할수록 평균과 차이 큼)&nbsp;·&nbsp; 회색=데이터 없음</span>
             </div>
-            <div style="font-size:11px;color:#94a3b8;margin:-4px 0 10px">
+            <div style="font-size:11px;color:var(--az-t3);margin:-4px 0 10px">
               💡 X축·Y축을 둘 다 <b>모델유형</b>으로 설정하면 "20대남자 × 20대여자"처럼 유형 조합별 성과를 한 눈에 비교할 수 있습니다.
               셀을 클릭하면 해당 조합의 소재 목록을 볼 수 있습니다.
             </div>
@@ -6085,22 +6099,41 @@ function renderHeatmap(rows) {
   const minV = allVals.length ? Math.min(...allVals) : 0;
   const maxV = allVals.length ? Math.max(...allVals) : 1;
   const lowerBetter = metric === 'CPA';
-  // 모든 지표 초록(좋을수록 진함), 데이터 없음 → 회색
-  const [baseR, baseG, baseB] = [22, 163, 74];
+
+  // 성과 고저를 색으로 뚜렷하게 구분: 나쁨(빨강) → 보통(주황) → 좋음(초록) 3색 그라데이션.
+  // 평균(중간값)에서 멀어질수록(=성과가 극단적일수록) 알파를 높여 더 진하게 보이도록 이중으로 강조한다.
+  const RED = [239, 68, 68], AMBER = [245, 158, 11], GREEN = [16, 185, 129];
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function heatRGB(good) {
+    const [c1, c2, t] = good < 0.5 ? [RED, AMBER, good / 0.5] : [AMBER, GREEN, (good - 0.5) / 0.5];
+    return [Math.round(lerp(c1[0], c2[0], t)), Math.round(lerp(c1[1], c2[1], t)), Math.round(lerp(c1[2], c2[2], t))];
+  }
+  // 텍스트 명암비 계산용 배경 근사값(.az-section의 --az-surf) — 다크모드에서도 읽히도록
+  const surfRGB = azIsLight() ? [255, 255, 255] : [26, 29, 46];
 
   function cellBg(v) {
-    if (!v || v <= 0 || !allVals.length) return '#e5e7eb';
+    if (!v || v <= 0 || !allVals.length) return 'var(--az-bd2)';
     const pct  = (v - minV) / ((maxV - minV) || 1);
     const good = lowerBetter ? 1 - pct : pct;
-    const alpha = 0.12 + good * 0.82;
-    return `rgba(${baseR},${baseG},${baseB},${alpha.toFixed(2)})`;
+    const [r, g, b] = heatRGB(good);
+    const dist  = Math.abs(good - 0.5) * 2;
+    const alpha = 0.35 + dist * 0.55;
+    return `rgba(${r},${g},${b},${alpha.toFixed(2)})`;
   }
 
   function cellTextColor(v) {
-    if (!v || v <= 0) return '#9ca3af';
+    if (!v || v <= 0) return 'var(--az-t4)';
     const pct  = (v - minV) / ((maxV - minV) || 1);
     const good = lowerBetter ? 1 - pct : pct;
-    return good > 0.5 ? '#ffffff' : '#374151';
+    const [r, g, b] = heatRGB(good);
+    const dist  = Math.abs(good - 0.5) * 2;
+    const alpha = 0.35 + dist * 0.55;
+    // 셀 색이 테마 배경과 알파 블렌딩된 후의 인지 밝기를 계산해 대비되는 글자색을 고른다
+    const compR = r * alpha + surfRGB[0] * (1 - alpha);
+    const compG = g * alpha + surfRGB[1] * (1 - alpha);
+    const compB = b * alpha + surfRGB[2] * (1 - alpha);
+    const luminance = (0.299 * compR + 0.587 * compG + 0.114 * compB) / 255;
+    return luminance > 0.55 ? '#1a1a2e' : '#ffffff';
   }
 
   if (!xVals.length || !yVals.length) {
