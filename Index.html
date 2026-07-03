@@ -947,6 +947,60 @@
   /* 대시보드 래퍼 */
   .az-dash-wrap { max-width: 1400px; margin: 0 auto; padding: 20px 24px; }
 
+  /* 분석 탭 서브탭 */
+  .az-sub-nav {
+    display: flex; gap: 4px; margin-bottom: 18px; flex-wrap: wrap;
+    background: var(--az-surf2); border: 1px solid var(--az-bd); border-radius: 9px; padding: 4px;
+  }
+  .az-sub-btn {
+    flex: 1; min-width: 110px; padding: 8px 10px; font-size: 12px; font-weight: 700;
+    color: var(--az-t3); border: none; background: none; border-radius: 6px;
+    cursor: pointer; transition: all .15s; white-space: nowrap;
+  }
+  .az-sub-btn.active { background: var(--az-surf); color: var(--az-t1); box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+  .az-sub-btn:hover:not(.active) { color: var(--az-t1); }
+  .az-sub-panel { display: none; }
+  .az-sub-panel.active { display: block; }
+
+  /* 정렬 가능한 테이블 헤더 */
+  .az-table th.sortable { cursor: pointer; user-select: none; }
+  .az-table th.sortable:hover { color: var(--az-t1); }
+  .az-sort-arrow { font-size: 9px; margin-left: 3px; opacity: .7; }
+
+  /* KPI 전기간 대비 증감 */
+  .az-kpi-delta { font-size: 11px; font-weight: 700; margin-top: 1px; }
+  .az-kpi-delta.up   { color: #10b981; }
+  .az-kpi-delta.down { color: #f87171; }
+  .az-kpi-delta.flat { color: var(--az-t4); }
+
+  /* 필터 더보기 */
+  .az-filter-more-btn {
+    background: none; border: 1px dashed var(--az-bd2); color: var(--az-t3);
+    border-radius: 6px; padding: 6px 12px; font-size: 11px; cursor: pointer; white-space: nowrap;
+  }
+  .az-filter-more-btn:hover { border-color: #4f6ef7; color: #4f6ef7; }
+  .az-filter-row-2 { display: none; }
+  .az-filter-row-2.show { display: flex; }
+
+  /* 목표 임계값 알림 */
+  .az-threshold-bar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+  .az-threshold-bar label { font-size: 11px; color: var(--az-t3); }
+  .az-threshold-bar input {
+    width: 90px; background: var(--az-surf2); border: 1px solid var(--az-bd2); color: var(--az-t1);
+    border-radius: 6px; padding: 5px 9px; font-size: 12px;
+  }
+
+  /* 소재 선택 (개별 추이) */
+  .az-creative-picker { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+  .az-creative-picker select {
+    flex: 1; min-width: 220px; background: var(--az-surf2); border: 1px solid var(--az-bd2);
+    color: var(--az-t1); border-radius: 6px; padding: 6px 10px; font-size: 12px;
+  }
+
+  /* 파레토 */
+  .az-pareto-summary { font-size: 12px; color: var(--az-t2); margin-top: 8px; }
+  .az-pareto-summary b { color: var(--az-t1); }
+
   /* 섹션 카드 */
   .az-section { background: var(--az-surf); border: 1px solid var(--az-bd); border-radius: 12px; margin-bottom: 20px; overflow: hidden; }
   .az-section-header {
@@ -1605,12 +1659,13 @@
         <label>소재이름</label>
         <select id="az-f-creative" class="az-filter-select" onchange="azCascade('az-f-creative')" style="min-width:150px"><option value="">전체</option></select>
       </div>
+      <button class="az-filter-more-btn" id="az-filter-more-btn" onclick="toggleAzFilterMore()">🔽 필터 더보기</button>
       <button class="az-theme-btn" onclick="azToggleTheme(this)" title="테마 전환" style="margin-left:auto">
         🌙 다크
       </button>
     </div>
-    <!-- 2행: 소재 속성 + 로드 버튼 -->
-    <div class="az-filter-row" style="margin-top:7px">
+    <!-- 2행: 소재 속성 + 로드 버튼 (기본 접힘) -->
+    <div class="az-filter-row az-filter-row-2" id="az-filter-row-2" style="margin-top:7px">
       <div class="az-filter-item">
         <label>보종</label>
         <select id="az-f-bojong" class="az-filter-select" onchange="azCascade(this.id)"><option value="">전체</option></select>
@@ -1664,7 +1719,7 @@
   <div id="az-dashboard" style="display:none">
     <div class="az-dash-wrap">
 
-      <!-- 1. KPI 요약 -->
+      <!-- KPI 요약 (서브탭과 무관하게 항상 표시) -->
       <div class="az-section">
         <div class="az-section-header">
           <span>KPI 요약</span>
@@ -1673,225 +1728,337 @@
         <div id="az-kpi-grid" class="az-kpi-grid"></div>
       </div>
 
-      <!-- 2~5. 차원별 분석 (2열 그리드) -->
-      <div class="az-two-col">
+      <!-- 서브탭 네비게이션 -->
+      <div class="az-sub-nav">
+        <button class="az-sub-btn active" onclick="switchAzSubTab('summary', this)">📋 요약</button>
+        <button class="az-sub-btn" onclick="switchAzSubTab('dims', this)">📊 차원별 분석</button>
+        <button class="az-sub-btn" onclick="switchAzSubTab('cross', this)">🔀 교차 분석</button>
+        <button class="az-sub-btn" onclick="switchAzSubTab('trend', this)">📈 추이·생애주기</button>
+        <button class="az-sub-btn" onclick="switchAzSubTab('ai', this)">✨ AI 인사이트</button>
+      </div>
 
-        <!-- 2. 소재유형 -->
+      <!-- ============ 요약 ============ -->
+      <div class="az-sub-panel active" id="az-sub-summary">
+
+        <!-- 목표 임계값 알림 -->
         <div class="az-section">
+          <div class="az-section-header">🎯 목표 임계값 미달 소재</div>
+          <div class="az-section-body">
+            <div class="az-threshold-bar">
+              <label>목표 CTR ≥</label>
+              <input type="number" id="az-th-ctr" step="0.01" placeholder="예: 1.5">
+              <span style="font-size:11px;color:var(--az-t4)">%</span>
+              <label style="margin-left:6px">목표 CPA ≤</label>
+              <input type="number" id="az-th-cpa" step="100" placeholder="예: 20000">
+              <span style="font-size:11px;color:var(--az-t4)">원</span>
+              <label style="margin-left:6px">최소 노출</label>
+              <input type="number" id="az-th-imp" value="1000" min="0">
+              <button class="btn btn-primary btn-sm" onclick="azLoaded && renderThresholdAlerts(getFilteredRows())">적용</button>
+            </div>
+            <div id="az-threshold-result">
+              <div class="az-no-data">목표 CTR 또는 CPA를 입력하고 "적용"을 누르세요.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 보종 분석 테이블 -->
+        <div class="az-section">
+          <div class="az-section-header">보종 분석</div>
+          <div class="az-section-body" style="padding:0">
+            <div class="az-table-wrap">
+              <table class="az-table" id="az-bojong-table">
+                <thead>
+                  <tr>
+                    <th class="sortable" style="text-align:left" data-key="k" onclick="azSortBojong('k')">보종</th>
+                    <th class="sortable" data-key="imp"  onclick="azSortBojong('imp')">노출</th>
+                    <th class="sortable" data-key="clk"  onclick="azSortBojong('clk')">클릭</th>
+                    <th class="sortable" data-key="ctr"  onclick="azSortBojong('ctr')">CTR</th>
+                    <th class="sortable" data-key="cost" onclick="azSortBojong('cost')">비용</th>
+                    <th class="sortable" data-key="conv" onclick="azSortBojong('conv')">전환</th>
+                    <th class="sortable" data-key="cvr"  onclick="azSortBojong('cvr')">CVR</th>
+                    <th class="sortable" data-key="cpa"  onclick="azSortBojong('cpa')">CPA</th>
+                  </tr>
+                </thead>
+                <tbody id="az-bojong-tbody">
+                  <tr><td colspan="8" style="text-align:center;color:#334155;padding:20px">데이터 없음</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- TOP 소재 랭킹 -->
+        <div class="az-section">
+          <div class="az-section-header">TOP 소재 랭킹</div>
+          <div class="az-section-body">
+            <div class="az-rank-tabs">
+              <button class="az-rank-tab active" data-tab="ctr"  onclick="switchRankTab('ctr')">CTR TOP 10</button>
+              <button class="az-rank-tab" data-tab="cvr"  onclick="switchRankTab('cvr')">CVR TOP 10</button>
+              <button class="az-rank-tab" data-tab="cpa"  onclick="switchRankTab('cpa')">CPA TOP 10 ↑낮은순</button>
+              <button class="az-rank-tab" data-tab="clk"  onclick="switchRankTab('clk')">클릭 TOP 10</button>
+              <button class="az-rank-tab" data-tab="conv" onclick="switchRankTab('conv')">전환 TOP 10</button>
+            </div>
+            <div class="az-rank-min-row">
+              <span>최소 모수:</span>
+              <span>노출</span>
+              <input type="number" id="az-rank-min-imp" value="1000" min="0" onchange="azLoaded && renderRanking(getFilteredRows())">
+              <span>이상 &amp;</span>
+              <span>클릭</span>
+              <input type="number" id="az-rank-min-clk" value="50" min="0" onchange="azLoaded && renderRanking(getFilteredRows())">
+              <span>이상</span>
+            </div>
+            <div class="az-table-wrap">
+              <table class="az-table">
+                <thead>
+                  <tr>
+                    <th style="text-align:left;width:32px">#</th>
+                    <th style="text-align:left;width:50px">이미지</th>
+                    <th style="text-align:left">소재이름</th>
+                    <th>노출</th><th>CTR</th><th>CVR</th><th>CPA</th>
+                  </tr>
+                </thead>
+                <tbody id="az-rank-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- 전체 소재 리스트 -->
+        <div class="az-section" style="margin-bottom:40px">
+          <div class="az-section-header">전체 소재 리스트</div>
+          <div class="az-section-body">
+            <div class="az-creative-picker">
+              <input type="text" id="az-list-search" class="modal-search" style="width:auto;flex:1;min-width:200px"
+                     placeholder="소재이름 검색..." oninput="azLoaded && renderCreativeList(getFilteredRows())">
+              <span id="az-list-count" style="font-size:11px;color:var(--az-t3)"></span>
+            </div>
+            <div class="az-table-wrap">
+              <table class="az-table" id="az-list-table">
+                <thead>
+                  <tr>
+                    <th class="sortable" style="text-align:left" data-key="name" onclick="azSortList('name')">소재이름</th>
+                    <th class="sortable" style="text-align:left" data-key="media" onclick="azSortList('media')">매체</th>
+                    <th class="sortable" data-key="imp"  onclick="azSortList('imp')">노출</th>
+                    <th class="sortable" data-key="clk"  onclick="azSortList('clk')">클릭</th>
+                    <th class="sortable" data-key="ctr"  onclick="azSortList('ctr')">CTR</th>
+                    <th class="sortable" data-key="cost" onclick="azSortList('cost')">비용</th>
+                    <th class="sortable" data-key="conv" onclick="azSortList('conv')">전환</th>
+                    <th class="sortable" data-key="cvr"  onclick="azSortList('cvr')">CVR</th>
+                    <th class="sortable" data-key="cpa"  onclick="azSortList('cpa')">CPA</th>
+                  </tr>
+                </thead>
+                <tbody id="az-list-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /#az-sub-summary -->
+
+      <!-- ============ 차원별 분석 ============ -->
+      <div class="az-sub-panel" id="az-sub-dims">
+
+        <div class="az-two-col">
+
+          <div class="az-section">
+            <div class="az-section-header">
+              소재유형 분석
+              <div class="az-metric-tabs" data-dim="crtype">
+                <button class="az-metric-tab active" data-metric="ctr" onclick="switchDimMetric('crtype','ctr',this)">CTR</button>
+                <button class="az-metric-tab" data-metric="cvr" onclick="switchDimMetric('crtype','cvr',this)">CVR</button>
+                <button class="az-metric-tab" data-metric="cpa" onclick="switchDimMetric('crtype','cpa',this)">CPA</button>
+              </div>
+            </div>
+            <div class="az-section-body">
+              <div id="az-dim-crtype" style="position:relative;min-height:80px"><canvas id="az-chart-crtype"></canvas></div>
+            </div>
+          </div>
+
+          <div class="az-section">
+            <div class="az-section-header">
+              소구포인트 분석
+              <div class="az-metric-tabs" data-dim="appeal">
+                <button class="az-metric-tab active" data-metric="ctr" onclick="switchDimMetric('appeal','ctr',this)">CTR</button>
+                <button class="az-metric-tab" data-metric="cvr" onclick="switchDimMetric('appeal','cvr',this)">CVR</button>
+                <button class="az-metric-tab" data-metric="cpa" onclick="switchDimMetric('appeal','cpa',this)">CPA</button>
+              </div>
+            </div>
+            <div class="az-section-body">
+              <div id="az-dim-appeal" style="position:relative;min-height:80px"><canvas id="az-chart-appeal"></canvas></div>
+            </div>
+          </div>
+
+          <div class="az-section">
+            <div class="az-section-header">
+              후킹방식 분석
+              <div class="az-metric-tabs" data-dim="hook">
+                <button class="az-metric-tab active" data-metric="ctr" onclick="switchDimMetric('hook','ctr',this)">CTR</button>
+                <button class="az-metric-tab" data-metric="cvr" onclick="switchDimMetric('hook','cvr',this)">CVR</button>
+                <button class="az-metric-tab" data-metric="cpa" onclick="switchDimMetric('hook','cpa',this)">CPA</button>
+              </div>
+            </div>
+            <div class="az-section-body">
+              <div id="az-dim-hook" style="position:relative;min-height:80px"><canvas id="az-chart-hook"></canvas></div>
+            </div>
+          </div>
+
+          <div class="az-section">
+            <div class="az-section-header">
+              이미지유형 분석
+              <div class="az-metric-tabs" data-dim="imgtype">
+                <button class="az-metric-tab active" data-metric="ctr" onclick="switchDimMetric('imgtype','ctr',this)">CTR</button>
+                <button class="az-metric-tab" data-metric="cvr" onclick="switchDimMetric('imgtype','cvr',this)">CVR</button>
+                <button class="az-metric-tab" data-metric="cpa" onclick="switchDimMetric('imgtype','cpa',this)">CPA</button>
+              </div>
+            </div>
+            <div class="az-section-body">
+              <div id="az-dim-imgtype" style="position:relative;min-height:80px"><canvas id="az-chart-imgtype"></canvas></div>
+            </div>
+          </div>
+
+        </div><!-- /.az-two-col -->
+
+        <div class="az-section" style="margin-bottom:40px">
           <div class="az-section-header">
-            소재유형 분석
-            <div class="az-metric-tabs" data-dim="crtype">
-              <button class="az-metric-tab active" data-metric="ctr" onclick="switchDimMetric('crtype','ctr',this)">CTR</button>
-              <button class="az-metric-tab" data-metric="cvr" onclick="switchDimMetric('crtype','cvr',this)">CVR</button>
-              <button class="az-metric-tab" data-metric="cpa" onclick="switchDimMetric('crtype','cpa',this)">CPA</button>
+            모델유형 분석 <span style="font-weight:400;font-size:11px;color:#94a3b8">— 조합별 (예: 20대남자+20대여자)</span>
+            <div class="az-metric-tabs" data-dim="modeltype">
+              <button class="az-metric-tab active" data-metric="ctr" onclick="switchDimMetric('modeltype','ctr',this)">CTR</button>
+              <button class="az-metric-tab" data-metric="cvr" onclick="switchDimMetric('modeltype','cvr',this)">CVR</button>
+              <button class="az-metric-tab" data-metric="cpa" onclick="switchDimMetric('modeltype','cpa',this)">CPA</button>
             </div>
           </div>
           <div class="az-section-body">
-            <div id="az-dim-crtype" style="position:relative;min-height:80px"><canvas id="az-chart-crtype"></canvas></div>
+            <div id="az-dim-modeltype" style="position:relative;min-height:80px"><canvas id="az-chart-modeltype"></canvas></div>
           </div>
         </div>
 
-        <!-- 3. 소구포인트 -->
+      </div><!-- /#az-sub-dims -->
+
+      <!-- ============ 교차 분석 ============ -->
+      <div class="az-sub-panel" id="az-sub-cross">
+
         <div class="az-section">
-          <div class="az-section-header">
-            소구포인트 분석
-            <div class="az-metric-tabs" data-dim="appeal">
-              <button class="az-metric-tab active" data-metric="ctr" onclick="switchDimMetric('appeal','ctr',this)">CTR</button>
-              <button class="az-metric-tab" data-metric="cvr" onclick="switchDimMetric('appeal','cvr',this)">CVR</button>
-              <button class="az-metric-tab" data-metric="cpa" onclick="switchDimMetric('appeal','cpa',this)">CPA</button>
+          <div class="az-section-header">교차 분석 히트맵</div>
+          <div class="az-section-body">
+            <div class="az-hm-controls">
+              <label>X축</label>
+              <select id="az-hm-x" onchange="azLoaded && renderHeatmap(getFilteredRows())">
+                <option>소재유형</option><option>소구포인트</option><option>후킹방식</option>
+                <option>이미지유형</option><option>모델유형</option><option>보종</option>
+              </select>
+              <label>Y축</label>
+              <select id="az-hm-y" onchange="azLoaded && renderHeatmap(getFilteredRows())">
+                <option>보종</option><option>소재유형</option><option>소구포인트</option>
+                <option>후킹방식</option><option>이미지유형</option><option>모델유형</option>
+              </select>
+              <label>지표</label>
+              <select id="az-hm-metric" onchange="azLoaded && renderHeatmap(getFilteredRows())">
+                <option>CTR</option><option>CVR</option><option>CPA</option>
+              </select>
+              <span style="font-size:11px;color:#475569">🟢 진할수록 성과 좋음 &nbsp;·&nbsp; ⬜ 회색=데이터 없음</span>
             </div>
+            <div style="font-size:11px;color:#94a3b8;margin:-4px 0 10px">
+              💡 X축·Y축을 둘 다 <b>모델유형</b>으로 설정하면 "20대남자 × 20대여자"처럼 유형 조합별 성과를 한 눈에 비교할 수 있습니다.
+              셀을 클릭하면 해당 조합의 소재 목록을 볼 수 있습니다.
+            </div>
+            <div id="az-heatmap"></div>
+          </div>
+        </div>
+
+        <!-- 예산 쏠림 파레토 -->
+        <div class="az-section" style="margin-bottom:40px">
+          <div class="az-section-header">예산 쏠림 파레토 분석</div>
+          <div class="az-section-body">
+            <div class="az-chart-label" style="margin-bottom:8px">비용 상위 소재 누적 비중 (막대: 개별 비용비중 · 선: 누적비중) — 소재이름 기준</div>
+            <div style="height:280px;position:relative">
+              <canvas id="az-pareto-chart"></canvas>
+              <div id="az-pareto-nodata" class="az-no-data" style="display:none">데이터 없음</div>
+            </div>
+            <div id="az-pareto-summary" class="az-pareto-summary"></div>
+          </div>
+        </div>
+
+      </div><!-- /#az-sub-cross -->
+
+      <!-- ============ 추이·생애주기 ============ -->
+      <div class="az-sub-panel" id="az-sub-trend">
+
+        <div class="az-section">
+          <div class="az-section-header">기간별 성과 추이</div>
+          <div class="az-section-body">
+            <div class="az-trend-controls">
+              <label>단위</label>
+              <select id="az-trend-unit" onchange="azLoaded && renderTrend(getFilteredRows())">
+                <option value="day">일별</option>
+                <option value="week" selected>주별</option>
+                <option value="month">월별</option>
+              </select>
+              <label>지표</label>
+              <select id="az-trend-metric" onchange="azLoaded && renderTrend(getFilteredRows())">
+                <option>CTR</option><option>CVR</option><option>CPA</option>
+                <option>비용</option><option>전환</option>
+              </select>
+            </div>
+            <div style="height:280px"><canvas id="az-trend-chart"></canvas></div>
+          </div>
+        </div>
+
+        <!-- 개별 소재 추이 -->
+        <div class="az-section">
+          <div class="az-section-header">개별 소재 추이</div>
+          <div class="az-section-body">
+            <div class="az-creative-picker">
+              <select id="az-creative-trend-select" onchange="azLoaded && renderCreativeTrend(getFilteredRows())">
+                <option value="">소재를 선택하세요</option>
+              </select>
+              <label style="margin-left:4px">지표</label>
+              <select id="az-creative-trend-metric" onchange="azLoaded && renderCreativeTrend(getFilteredRows())">
+                <option>CTR</option><option>CVR</option><option>CPA</option>
+              </select>
+            </div>
+            <div style="height:240px;position:relative">
+              <canvas id="az-creative-trend-chart" style="display:none"></canvas>
+              <div id="az-creative-trend-nodata" class="az-no-data">소재를 선택하면 일별 추이를 볼 수 있습니다.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="az-section">
+          <div class="az-section-header">소재 생애주기 분석</div>
+          <div class="az-section-body">
+            <div class="az-two-col">
+              <div>
+                <div class="az-chart-label" style="margin-bottom:8px">구간별 평균 성과 (초기 1~14일 / 중기 15~28일 / 후기 29일+)</div>
+                <div style="height:200px"><canvas id="az-lifecycle-chart"></canvas></div>
+              </div>
+              <div>
+                <div class="az-chart-label" style="margin-bottom:8px;color:#f59e0b">⚠️ 교체 검토 소재 (후기 &amp; CPA 전체평균 +20% 초과)</div>
+                <div id="az-lifecycle-flags" style="max-height:200px;overflow-y:auto"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /#az-sub-trend -->
+
+      <!-- ============ AI 인사이트 ============ -->
+      <div class="az-sub-panel" id="az-sub-ai">
+        <div class="az-section" style="margin-bottom:40px">
+          <div class="az-section-header">
+            <span>✨ AI 자동 인사이트</span>
+            <span style="font-size:11px;color:#475569">현재 필터 기준 집계 → GPT-5 분석</span>
           </div>
           <div class="az-section-body">
-            <div id="az-dim-appeal" style="position:relative;min-height:80px"><canvas id="az-chart-appeal"></canvas></div>
-          </div>
-        </div>
-
-        <!-- 4. 후킹방식 -->
-        <div class="az-section">
-          <div class="az-section-header">
-            후킹방식 분석
-            <div class="az-metric-tabs" data-dim="hook">
-              <button class="az-metric-tab active" data-metric="ctr" onclick="switchDimMetric('hook','ctr',this)">CTR</button>
-              <button class="az-metric-tab" data-metric="cvr" onclick="switchDimMetric('hook','cvr',this)">CVR</button>
-              <button class="az-metric-tab" data-metric="cpa" onclick="switchDimMetric('hook','cpa',this)">CPA</button>
-            </div>
-          </div>
-          <div class="az-section-body">
-            <div id="az-dim-hook" style="position:relative;min-height:80px"><canvas id="az-chart-hook"></canvas></div>
-          </div>
-        </div>
-
-        <!-- 5. 이미지유형 -->
-        <div class="az-section">
-          <div class="az-section-header">
-            이미지유형 분석
-            <div class="az-metric-tabs" data-dim="imgtype">
-              <button class="az-metric-tab active" data-metric="ctr" onclick="switchDimMetric('imgtype','ctr',this)">CTR</button>
-              <button class="az-metric-tab" data-metric="cvr" onclick="switchDimMetric('imgtype','cvr',this)">CVR</button>
-              <button class="az-metric-tab" data-metric="cpa" onclick="switchDimMetric('imgtype','cpa',this)">CPA</button>
-            </div>
-          </div>
-          <div class="az-section-body">
-            <div id="az-dim-imgtype" style="position:relative;min-height:80px"><canvas id="az-chart-imgtype"></canvas></div>
-          </div>
-        </div>
-
-      </div><!-- /.az-two-col -->
-
-      <!-- 6. 모델유형 (전폭) -->
-      <div class="az-section">
-        <div class="az-section-header">
-          모델유형 분석 <span style="font-weight:400;font-size:11px;color:#94a3b8">— 조합별 (예: 20대남자+20대여자)</span>
-          <div class="az-metric-tabs" data-dim="modeltype">
-            <button class="az-metric-tab active" data-metric="ctr" onclick="switchDimMetric('modeltype','ctr',this)">CTR</button>
-            <button class="az-metric-tab" data-metric="cvr" onclick="switchDimMetric('modeltype','cvr',this)">CVR</button>
-            <button class="az-metric-tab" data-metric="cpa" onclick="switchDimMetric('modeltype','cpa',this)">CPA</button>
-          </div>
-        </div>
-        <div class="az-section-body">
-          <div id="az-dim-modeltype" style="position:relative;min-height:80px"><canvas id="az-chart-modeltype"></canvas></div>
-        </div>
-      </div>
-
-      <!-- 7. 보종 분석 테이블 -->
-      <div class="az-section">
-        <div class="az-section-header">보종 분석</div>
-        <div class="az-section-body" style="padding:0">
-          <div class="az-table-wrap">
-            <table class="az-table">
-              <thead>
-                <tr>
-                  <th style="text-align:left">보종</th>
-                  <th>노출</th><th>클릭</th><th>CTR</th>
-                  <th>비용</th><th>전환</th><th>CVR</th><th>CPA</th>
-                </tr>
-              </thead>
-              <tbody id="az-bojong-tbody">
-                <tr><td colspan="8" style="text-align:center;color:#334155;padding:20px">데이터 없음</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <!-- 8. TOP 소재 랭킹 -->
-      <div class="az-section">
-        <div class="az-section-header">TOP 소재 랭킹</div>
-        <div class="az-section-body">
-          <div class="az-rank-tabs">
-            <button class="az-rank-tab active" data-tab="ctr"  onclick="switchRankTab('ctr')">CTR TOP 10</button>
-            <button class="az-rank-tab" data-tab="cvr"  onclick="switchRankTab('cvr')">CVR TOP 10</button>
-            <button class="az-rank-tab" data-tab="cpa"  onclick="switchRankTab('cpa')">CPA TOP 10 ↑낮은순</button>
-            <button class="az-rank-tab" data-tab="clk"  onclick="switchRankTab('clk')">클릭 TOP 10</button>
-            <button class="az-rank-tab" data-tab="conv" onclick="switchRankTab('conv')">전환 TOP 10</button>
-          </div>
-          <div class="az-rank-min-row">
-            <span>최소 모수:</span>
-            <span>노출</span>
-            <input type="number" id="az-rank-min-imp" value="1000" min="0" onchange="azLoaded && renderRanking(getFilteredRows())">
-            <span>이상 &amp;</span>
-            <span>클릭</span>
-            <input type="number" id="az-rank-min-clk" value="50" min="0" onchange="azLoaded && renderRanking(getFilteredRows())">
-            <span>이상</span>
-          </div>
-          <div class="az-table-wrap">
-            <table class="az-table">
-              <thead>
-                <tr>
-                  <th style="text-align:left;width:32px">#</th>
-                  <th style="text-align:left;width:50px">이미지</th>
-                  <th style="text-align:left">소재이름</th>
-                  <th>노출</th><th>CTR</th><th>CVR</th><th>CPA</th>
-                </tr>
-              </thead>
-              <tbody id="az-rank-tbody"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <!-- 9. 교차 분석 히트맵 -->
-      <div class="az-section">
-        <div class="az-section-header">교차 분석 히트맵</div>
-        <div class="az-section-body">
-          <div class="az-hm-controls">
-            <label>X축</label>
-            <select id="az-hm-x" onchange="azLoaded && renderHeatmap(getFilteredRows())">
-              <option>소재유형</option><option>소구포인트</option><option>후킹방식</option>
-              <option>이미지유형</option><option>모델유형</option><option>보종</option>
-            </select>
-            <label>Y축</label>
-            <select id="az-hm-y" onchange="azLoaded && renderHeatmap(getFilteredRows())">
-              <option>보종</option><option>소재유형</option><option>소구포인트</option>
-              <option>후킹방식</option><option>이미지유형</option><option>모델유형</option>
-            </select>
-            <label>지표</label>
-            <select id="az-hm-metric" onchange="azLoaded && renderHeatmap(getFilteredRows())">
-              <option>CTR</option><option>CVR</option><option>CPA</option>
-            </select>
-            <span style="font-size:11px;color:#475569">🟢 진할수록 성과 좋음 &nbsp;·&nbsp; ⬜ 회색=데이터 없음</span>
-          </div>
-          <div style="font-size:11px;color:#94a3b8;margin:-4px 0 10px">
-            💡 X축·Y축을 둘 다 <b>모델유형</b>으로 설정하면 "20대남자 × 20대여자"처럼 유형 조합별 성과를 한 눈에 비교할 수 있습니다.
-          </div>
-          <div id="az-heatmap"></div>
-        </div>
-      </div>
-
-      <!-- 10. 기간별 추이 -->
-      <div class="az-section">
-        <div class="az-section-header">기간별 성과 추이</div>
-        <div class="az-section-body">
-          <div class="az-trend-controls">
-            <label>단위</label>
-            <select id="az-trend-unit" onchange="azLoaded && renderTrend(getFilteredRows())">
-              <option value="day">일별</option>
-              <option value="week" selected>주별</option>
-              <option value="month">월별</option>
-            </select>
-            <label>지표</label>
-            <select id="az-trend-metric" onchange="azLoaded && renderTrend(getFilteredRows())">
-              <option>CTR</option><option>CVR</option><option>CPA</option>
-              <option>비용</option><option>전환</option>
-            </select>
-          </div>
-          <div style="height:280px"><canvas id="az-trend-chart"></canvas></div>
-        </div>
-      </div>
-
-      <!-- 11. 소재 생애주기 분석 -->
-      <div class="az-section">
-        <div class="az-section-header">소재 생애주기 분석</div>
-        <div class="az-section-body">
-          <div class="az-two-col">
-            <div>
-              <div class="az-chart-label" style="margin-bottom:8px">구간별 평균 성과 (초기 1~14일 / 중기 15~28일 / 후기 29일+)</div>
-              <div style="height:200px"><canvas id="az-lifecycle-chart"></canvas></div>
-            </div>
-            <div>
-              <div class="az-chart-label" style="margin-bottom:8px;color:#f59e0b">⚠️ 교체 검토 소재 (후기 &amp; CPA 전체평균 +20% 초과)</div>
-              <div id="az-lifecycle-flags" style="max-height:200px;overflow-y:auto"></div>
+            <button id="az-insight-btn" class="az-insight-btn" onclick="runAIInsight()">
+              ✨ 인사이트 생성
+              <div class="spinner" id="az-insight-spinner"></div>
+            </button>
+            <div id="az-insight-panel" class="az-insight-panel">
+              <div style="color:#334155;font-size:13px">인사이트 생성 버튼을 클릭하면 현재 필터 데이터를 GPT-5로 분석합니다.</div>
             </div>
           </div>
         </div>
-      </div>
-
-      <!-- 12. AI 자동 인사이트 -->
-      <div class="az-section" style="margin-bottom:40px">
-        <div class="az-section-header">
-          <span>✨ AI 자동 인사이트</span>
-          <span style="font-size:11px;color:#475569">현재 필터 기준 집계 → GPT-5 분석</span>
-        </div>
-        <div class="az-section-body">
-          <button id="az-insight-btn" class="az-insight-btn" onclick="runAIInsight()">
-            ✨ 인사이트 생성
-            <div class="spinner" id="az-insight-spinner"></div>
-          </button>
-          <div id="az-insight-panel" class="az-insight-panel">
-            <div style="color:#334155;font-size:13px">인사이트 생성 버튼을 클릭하면 현재 필터 데이터를 GPT-5로 분석합니다.</div>
-          </div>
-        </div>
-      </div>
+      </div><!-- /#az-sub-ai -->
 
     </div><!-- /.az-dash-wrap -->
   </div><!-- /#az-dashboard -->
@@ -4895,26 +5062,83 @@ function updateDashboard() {
   renderHeatmap(rows);
   renderTrend(rows);
   renderLifecycle(rows);
+  renderCreativeList(rows);
+  populateCreativeTrendSelect(rows);
+  renderCreativeTrend(rows);
+  renderPareto(rows);
+  renderThresholdAlerts(rows);
 }
 
-// ── 1. KPI 카드 ───────────────────────────────────────────
+// ── 분석 탭 서브탭 전환 ───────────────────────────────────
+function switchAzSubTab(tabId, btn) {
+  document.querySelectorAll('.az-sub-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.az-sub-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('az-sub-' + tabId).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ── 필터 더보기 토글 ──────────────────────────────────────
+function toggleAzFilterMore() {
+  const row = document.getElementById('az-filter-row-2');
+  const btn = document.getElementById('az-filter-more-btn');
+  const show = !row.classList.contains('show');
+  row.classList.toggle('show', show);
+  btn.textContent = show ? '🔼 필터 접기' : '🔽 필터 더보기';
+}
+
+// ── 전기간(직전 동일 길이 기간) rows — KPI 증감 비교용 ────
+function azPrevPeriodRows() {
+  const fStart = document.getElementById('az-f-start').value;
+  const fEnd   = document.getElementById('az-f-end').value;
+  if (!fStart || !fEnd || !azRawData || azRawData.length < 2) return [];
+
+  const start = new Date(fStart), end = new Date(fEnd);
+  const days = Math.round((end - start) / 86400000) + 1;
+  const prevEnd   = new Date(start); prevEnd.setDate(prevEnd.getDate() - 1);
+  const prevStart = new Date(prevEnd); prevStart.setDate(prevStart.getDate() - (days - 1));
+  const prevStartStr = azDateStr(prevStart), prevEndStr = azDateStr(prevEnd);
+
+  const rows = azRawData.slice(1);
+  const cascadeFilters = AZ_CASCADE.map(({ id, col }) => ({ col, val: document.getElementById(id).value }));
+  return rows.filter(r => {
+    for (const { col, val } of cascadeFilters) { if (!azColMatch(r, col, val)) return false; }
+    const d = azDateStr(r[AZ.DATE]);
+    return d >= prevStartStr && d <= prevEndStr;
+  });
+}
+
+// ── 1. KPI 카드 (전기간 대비 증감 포함) ──────────────────
+function azKpiDelta(curr, prev, lowerIsBetter) {
+  if (prev === null || prev === undefined || !prev) return '';
+  const diffPct = (curr - prev) / prev * 100;
+  if (!isFinite(diffPct)) return '';
+  const good = lowerIsBetter ? diffPct < 0 : diffPct > 0;
+  const cls = Math.abs(diffPct) < 0.5 ? 'flat' : (good ? 'up' : 'down');
+  const arrow = diffPct > 0 ? '▲' : diffPct < 0 ? '▼' : '·';
+  return `<div class="az-kpi-delta ${cls}">${arrow} ${Math.abs(diffPct).toFixed(1)}% 전기간대비</div>`;
+}
+
 function renderKPI(rows) {
   const k = azKPI(azSum(rows));
+  const prevRows = azPrevPeriodRows();
+  const pk = prevRows.length ? azKPI(azSum(prevRows)) : null;
+
   const cards = [
-    { label:'노출',  value: azFmt(k.imp),  sub:'합계' },
-    { label:'클릭',  value: azFmt(k.clk),  sub:'합계' },
-    { label:'CTR',   value: azPct(k.ctr),  sub:'클릭/노출' },
-    { label:'비용',  value: azWon(k.cost), sub:'합계' },
-    { label:'CPC',   value: azWon(k.cpc),  sub:'비용/클릭' },
-    { label:'전환',  value: azFmt(k.conv), sub:'합계' },
-    { label:'CVR',   value: azPct(k.cvr),  sub:'전환/클릭' },
-    { label:'CPA',   value: azWon(k.cpa),  sub:'비용/전환' },
+    { label:'노출',  value: azFmt(k.imp),  sub:'합계',     delta: azKpiDelta(k.imp,  pk && pk.imp) },
+    { label:'클릭',  value: azFmt(k.clk),  sub:'합계',     delta: azKpiDelta(k.clk,  pk && pk.clk) },
+    { label:'CTR',   value: azPct(k.ctr),  sub:'클릭/노출', delta: azKpiDelta(k.ctr,  pk && pk.ctr) },
+    { label:'비용',  value: azWon(k.cost), sub:'합계',     delta: azKpiDelta(k.cost, pk && pk.cost, true) },
+    { label:'CPC',   value: azWon(k.cpc),  sub:'비용/클릭', delta: azKpiDelta(k.cpc,  pk && pk.cpc, true) },
+    { label:'전환',  value: azFmt(k.conv), sub:'합계',     delta: azKpiDelta(k.conv, pk && pk.conv) },
+    { label:'CVR',   value: azPct(k.cvr),  sub:'전환/클릭', delta: azKpiDelta(k.cvr,  pk && pk.cvr) },
+    { label:'CPA',   value: azWon(k.cpa),  sub:'비용/전환', delta: azKpiDelta(k.cpa,  pk && pk.cpa, true) },
   ];
   document.getElementById('az-kpi-grid').innerHTML =
     cards.map(c => `<div class="az-kpi-card">
       <div class="az-kpi-label">${c.label}</div>
       <div class="az-kpi-value">${c.value}</div>
       <div class="az-kpi-sub">${c.sub}</div>
+      ${c.delta}
     </div>`).join('');
   document.getElementById('az-kpi-count').textContent = rows.length.toLocaleString('ko-KR') + '행';
 }
@@ -5008,11 +5232,40 @@ function azToggleTheme(btn) {
 }
 
 // ── 7. 보종 분석 테이블 ────────────────────────────────────
+// 정렬 가능한 테이블 공통 헤더 화살표 갱신
+function azUpdateSortArrows(tableId, key, dir) {
+  const table = document.getElementById(tableId);
+  if (!table) return;
+  table.querySelectorAll('th.sortable').forEach(th => {
+    const old = th.querySelector('.az-sort-arrow');
+    if (old) old.remove();
+    if (th.dataset.key === key) {
+      const arrow = document.createElement('span');
+      arrow.className = 'az-sort-arrow';
+      arrow.textContent = dir === 'asc' ? '▲' : '▼';
+      th.appendChild(arrow);
+    }
+  });
+}
+
+let azBojongSort = { key: 'imp', dir: 'desc' };
+
+function azSortBojong(key) {
+  if (azBojongSort.key === key) azBojongSort.dir = azBojongSort.dir === 'desc' ? 'asc' : 'desc';
+  else azBojongSort = { key, dir: key === 'k' ? 'asc' : 'desc' };
+  azLoaded && renderBojongTable(getFilteredRows());
+}
+
 function renderBojongTable(rows) {
   const grouped = azGroup(rows, AZ.BOJONG);
-  const entries = Object.entries(grouped)
-    .map(([k, rs]) => ({ k, ...azKPI(azSum(rs)) }))
-    .sort((a, b) => b.imp - a.imp);
+  const entries = Object.entries(grouped).map(([k, rs]) => ({ k, ...azKPI(azSum(rs)) }));
+
+  const { key, dir } = azBojongSort;
+  entries.sort((a, b) => {
+    const cmp = typeof a[key] === 'string' ? a[key].localeCompare(b[key]) : a[key] - b[key];
+    return dir === 'asc' ? cmp : -cmp;
+  });
+  azUpdateSortArrows('az-bojong-table', key, dir);
 
   const tbody = document.getElementById('az-bojong-tbody');
   if (!entries.length) {
@@ -5075,6 +5328,238 @@ function renderRanking(rows) {
       <td>${azWon(e.cpa)}</td>
     </tr>`;
   }).join('');
+}
+
+// ── 전체 소재 리스트 (검색 + 정렬) ────────────────────────
+let azListSort = { key: 'imp', dir: 'desc' };
+
+function azSortList(key) {
+  if (azListSort.key === key) azListSort.dir = azListSort.dir === 'desc' ? 'asc' : 'desc';
+  else azListSort = { key, dir: (key === 'name' || key === 'media') ? 'asc' : 'desc' };
+  azLoaded && renderCreativeList(getFilteredRows());
+}
+
+function renderCreativeList(rows) {
+  const q = (document.getElementById('az-list-search')?.value || '').trim().toLowerCase();
+
+  const grouped = {};
+  rows.forEach(r => {
+    const name = String(r[AZ.CREATIVE] || '').trim();
+    if (!name) return;
+    const media = String(r[AZ.MEDIA] || '').trim();
+    const key = media + '\x00' + name;
+    if (!grouped[key]) grouped[key] = { name, media, url: r[AZ.IMGURL] || '', rs: [] };
+    grouped[key].rs.push(r);
+  });
+
+  let entries = Object.values(grouped).map(g => ({ name: g.name, media: g.media, ...azKPI(azSum(g.rs)) }));
+  if (q) entries = entries.filter(e => e.name.toLowerCase().includes(q));
+
+  const { key, dir } = azListSort;
+  entries.sort((a, b) => {
+    const cmp = typeof a[key] === 'string' ? a[key].localeCompare(b[key]) : a[key] - b[key];
+    return dir === 'asc' ? cmp : -cmp;
+  });
+  azUpdateSortArrows('az-list-table', key, dir);
+  document.getElementById('az-list-count').textContent = entries.length.toLocaleString('ko-KR') + '개 소재';
+
+  const tbody = document.getElementById('az-list-tbody');
+  if (!entries.length) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--az-t4);padding:20px">데이터 없음</td></tr>';
+    return;
+  }
+  tbody.innerHTML = entries.map(e => `<tr>
+    <td style="text-align:left">${escHtml(e.name)}</td>
+    <td style="text-align:left">${escHtml(e.media)}</td>
+    <td>${azFmt(e.imp)}</td><td>${azFmt(e.clk)}</td><td>${azPct(e.ctr)}</td>
+    <td>${azWon(e.cost)}</td><td>${azFmt(e.conv)}</td><td>${azPct(e.cvr)}</td><td>${azWon(e.cpa)}</td>
+  </tr>`).join('');
+}
+
+// ── 목표 임계값 미달 소재 알림 ────────────────────────────
+function renderThresholdAlerts(rows) {
+  const container = document.getElementById('az-threshold-result');
+  const ctrTh = parseFloat(document.getElementById('az-th-ctr').value);
+  const cpaTh = parseFloat(document.getElementById('az-th-cpa').value);
+  const minImp = parseInt(document.getElementById('az-th-imp').value) || 0;
+
+  if (isNaN(ctrTh) && isNaN(cpaTh)) {
+    container.innerHTML = '<div class="az-no-data">목표 CTR 또는 CPA를 입력하고 "적용"을 누르세요.</div>';
+    return;
+  }
+
+  const grouped = azGroup(rows, AZ.CREATIVE);
+  const entries = Object.entries(grouped).map(([k, rs]) => {
+    const s = azSum(rs);
+    const url = (rs.find(r => r[AZ.IMGURL]) || {})[AZ.IMGURL] || '';
+    return { k, url, ...azKPI(s) };
+  }).filter(e => e.imp >= minImp);
+
+  const failing = entries.filter(e => {
+    const ctrFail = !isNaN(ctrTh) && e.ctr < ctrTh;
+    const cpaFail = !isNaN(cpaTh) && e.conv > 0 && e.cpa > cpaTh;
+    return ctrFail || cpaFail;
+  }).sort((a, b) => a.ctr - b.ctr);
+
+  if (!failing.length) {
+    container.innerHTML = '<div class="az-no-data">✅ 목표 미달 소재가 없습니다.</div>';
+    return;
+  }
+
+  container.innerHTML = failing.map(e => {
+    const reasons = [];
+    if (!isNaN(ctrTh) && e.ctr < ctrTh) reasons.push(`CTR ${azPct(e.ctr)} (목표 ${ctrTh}%)`);
+    if (!isNaN(cpaTh) && e.conv > 0 && e.cpa > cpaTh) reasons.push(`CPA ${azWon(e.cpa)} (목표 ${azWon(cpaTh)})`);
+    return `<div class="az-flag-row">
+      <span class="az-flag-badge">미달</span>
+      <span class="az-flag-name" title="${esc(e.k)}" data-url="${esc(e.url)}"
+            onmouseenter="azPreviewShow(this,event)" onmousemove="azPreviewMove(event)" onmouseleave="azPreviewHide()">${esc(e.k)}</span>
+      <span class="az-flag-diff">${escHtml(reasons.join(' · '))}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── 개별 소재 일별 추이 ───────────────────────────────────
+function populateCreativeTrendSelect(rows) {
+  const sel = document.getElementById('az-creative-trend-select');
+  const prev = sel.value;
+  const names = azColDistinctValues(rows, AZ.CREATIVE);
+  sel.innerHTML = '<option value="">소재를 선택하세요</option>' +
+    names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  sel.value = names.includes(prev) ? prev : '';
+}
+
+function renderCreativeTrend(rows) {
+  const name    = document.getElementById('az-creative-trend-select').value;
+  const metric  = document.getElementById('az-creative-trend-metric').value;
+  const canvas  = document.getElementById('az-creative-trend-chart');
+  const nodata  = document.getElementById('az-creative-trend-nodata');
+
+  if (!name) {
+    azDestroyChart('az-creative-trend-chart');
+    canvas.style.display = 'none';
+    nodata.style.display = 'block';
+    nodata.textContent = '소재를 선택하면 일별 추이를 볼 수 있습니다.';
+    return;
+  }
+
+  const matched = rows.filter(r => String(r[AZ.CREATIVE] || '').trim() === name);
+  const byDate = {};
+  matched.forEach(r => {
+    const d = azDateStr(r[AZ.DATE]);
+    if (!d) return;
+    if (!byDate[d]) byDate[d] = { imp:0, clk:0, cost:0, conv:0 };
+    const c = byDate[d];
+    c.imp  += azNum(r[AZ.IMP]);  c.clk  += azNum(r[AZ.CLICK]);
+    c.cost += azNum(r[AZ.COST]); c.conv += azNum(r[AZ.CONV]);
+  });
+
+  const dates = Object.keys(byDate).sort();
+  azDestroyChart('az-creative-trend-chart');
+  if (!dates.length) {
+    canvas.style.display = 'none';
+    nodata.style.display = 'block';
+    nodata.textContent = '이 소재의 실적 데이터가 없습니다.';
+    return;
+  }
+  canvas.style.display = 'block';
+  nodata.style.display = 'none';
+
+  const vals = dates.map(d => {
+    const v = azMetricVal(byDate[d], metric);
+    return metric === 'CPA' ? Math.round(v) : +v.toFixed(3);
+  });
+
+  const c = azChartColors();
+  const colorMap = { CTR:'#4f6ef7', CVR:'#10b981', CPA:'#f59e0b' };
+  const color = colorMap[metric] || '#4f6ef7';
+  azCharts['az-creative-trend-chart'] = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: dates,
+      datasets: [{ label: name + ' ' + metric, data: vals, borderColor: color, backgroundColor: color + '33', tension: .25, fill: true, pointRadius: 2 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: c.legend } } },
+      scales: {
+        x: { grid: { color: c.grid }, ticks: { color: c.tick, font: { size: 10 } } },
+        y: { grid: { color: c.grid }, ticks: { color: c.tick } }
+      }
+    }
+  });
+}
+
+// ── 예산 쏠림 파레토 분석 ─────────────────────────────────
+function renderPareto(rows) {
+  const canvas = document.getElementById('az-pareto-chart');
+  const nodata = document.getElementById('az-pareto-nodata');
+  const summaryEl = document.getElementById('az-pareto-summary');
+
+  const grouped = azGroup(rows, AZ.CREATIVE);
+  let entries = Object.entries(grouped).map(([k, rs]) => {
+    const s = azSum(rs);
+    return { k, ...s, ...azKPI(s) };
+  }).filter(e => e.cost > 0).sort((a, b) => b.cost - a.cost);
+
+  azDestroyChart('az-pareto-chart');
+  if (!entries.length) {
+    canvas.style.display = 'none';
+    nodata.style.display = 'block';
+    summaryEl.textContent = '';
+    return;
+  }
+  canvas.style.display = 'block';
+  nodata.style.display = 'none';
+
+  const totalCost = entries.reduce((a, e) => a + e.cost, 0);
+  const totalImp  = entries.reduce((a, e) => a + e.imp, 0);
+  const totalClk  = entries.reduce((a, e) => a + e.clk, 0);
+  const overallCtr = totalImp > 0 ? totalClk / totalImp * 100 : 0;
+
+  const top = entries.slice(0, 15); // 가독성을 위해 상위 15개까지만 시각화
+  let cum = 0;
+  const labels = [], shareVals = [], cumVals = [];
+  top.forEach(e => {
+    cum += e.cost;
+    labels.push(e.k);
+    shareVals.push(+(e.cost / totalCost * 100).toFixed(1));
+    cumVals.push(+(cum / totalCost * 100).toFixed(1));
+  });
+
+  const c = azChartColors();
+  azCharts['az-pareto-chart'] = new Chart(canvas.getContext('2d'), {
+    data: {
+      labels,
+      datasets: [
+        { type: 'bar',  label: '비용 비중(%)', data: shareVals, backgroundColor: '#4f6ef7bb', borderColor: '#4f6ef7', yAxisID: 'y' },
+        { type: 'line', label: '누적 비중(%)', data: cumVals, borderColor: '#f59e0b', backgroundColor: '#f59e0b', yAxisID: 'y1', tension: .2, pointRadius: 2 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: c.legend } } },
+      scales: {
+        x:  { grid: { display: false }, ticks: { color: c.tick, font: { size: 9 }, maxRotation: 60, minRotation: 30 } },
+        y:  { position: 'left',  min: 0, grid: { color: c.grid }, ticks: { color: c.tick, callback: v => v + '%' } },
+        y1: { position: 'right', min: 0, max: 100, grid: { display: false }, ticks: { color: c.tick, callback: v => v + '%' } }
+      }
+    }
+  });
+
+  const top20Count = Math.max(1, Math.ceil(entries.length * 0.2));
+  const top20 = entries.slice(0, top20Count);
+  const top20Cost = top20.reduce((a, e) => a + e.cost, 0);
+  const top20Imp  = top20.reduce((a, e) => a + e.imp, 0);
+  const top20Clk  = top20.reduce((a, e) => a + e.clk, 0);
+  const top20Ctr  = top20Imp > 0 ? top20Clk / top20Imp * 100 : 0;
+  const costShare = totalCost > 0 ? top20Cost / totalCost * 100 : 0;
+  const ctrDiff   = overallCtr > 0 ? (top20Ctr - overallCtr) / overallCtr * 100 : 0;
+  const ctrWord   = ctrDiff >= 0 ? '높음' : '낮음';
+
+  summaryEl.innerHTML =
+    `비용 상위 20%(<b>${top20Count}개</b>) 소재가 전체 비용의 <b>${costShare.toFixed(1)}%</b>를 차지합니다. ` +
+    `이 소재들의 평균 CTR은 <b>${azPct(top20Ctr)}</b>로 전체 평균(${azPct(overallCtr)}) 대비 <b>${Math.abs(ctrDiff).toFixed(1)}% ${ctrWord}</b>습니다.`;
 }
 
 // ── 소재이름 호버 이미지 팝업 ─────────────────────────────
@@ -5176,6 +5661,12 @@ function azThumbCell(url) {
 }
 
 // ── 9. 교차 분석 히트맵 ───────────────────────────────────
+let azHeatmapCtx = null; // 드릴다운용: { xKey, yKey, mat }
+
+function jsStr(s) {
+  return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
 function renderHeatmap(rows) {
   const colMap = {
     보종:AZ.BOJONG, 소재유형:AZ.CRTYPE, 소구포인트:AZ.APPEAL,
@@ -5200,14 +5691,17 @@ function renderHeatmap(rows) {
     if (!xs.length || !ys.length) return;
     ys.forEach(y => xs.forEach(x => {
       if (!mat[y]) mat[y] = {};
-      if (!mat[y][x]) mat[y][x] = {imp:0,clk:0,cost:0,conv:0};
+      if (!mat[y][x]) mat[y][x] = {imp:0,clk:0,cost:0,conv:0,rows:[]};
       const c = mat[y][x];
       c.imp  += Number(r[AZ.IMP])   || 0;
       c.clk  += Number(r[AZ.CLICK]) || 0;
       c.cost += Number(r[AZ.COST])  || 0;
       c.conv += Number(r[AZ.CONV])  || 0;
+      c.rows.push(r);
     }));
   });
+
+  azHeatmapCtx = { xKey, yKey, mat };
 
   const allVals = [];
   yVals.forEach(y => xVals.forEach(x => {
@@ -5249,12 +5743,74 @@ function renderHeatmap(rows) {
       const c   = mat[y]?.[x];
       const v   = c ? azMetricVal(c, metric) : 0;
       const txt = v > 0 ? (metric==='CPA' ? azWon(v) : azPct(v)) : '—';
-      html += `<td style="background:${cellBg(v)};color:${cellTextColor(v)}">${txt}</td>`;
+      const clickable = c && c.rows.length
+        ? ` style="background:${cellBg(v)};color:${cellTextColor(v)};cursor:pointer" onclick="azOpenHeatmapDrill('${jsStr(y)}','${jsStr(x)}')" title="클릭하면 소재 목록 보기"`
+        : ` style="background:${cellBg(v)};color:${cellTextColor(v)}"`;
+      html += `<td${clickable}>${txt}</td>`;
     });
     html += '</tr>';
   });
   html += '</tbody></table></div>';
   container.innerHTML = html;
+}
+
+// ── 히트맵 셀 클릭 → 소재 목록 드릴다운 모달 ─────────────
+function ensureAzDrillModal() {
+  if (document.getElementById('azDrillModalOverlay')) return;
+  const overlay = document.createElement('div');
+  overlay.id = 'azDrillModalOverlay';
+  overlay.className = 'modal-overlay';
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeAzDrillModal(); });
+
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.innerHTML =
+    '<div class="modal-header">' +
+      '<span class="modal-title" id="azDrillTitle">소재 목록</span>' +
+      '<div style="display:flex;align-items:center;gap:10px;">' +
+        '<span id="azDrillCount" style="font-size:12px;color:#6b7280"></span>' +
+        '<button class="btn btn-ghost btn-sm" onclick="closeAzDrillModal()">닫기</button>' +
+      '</div>' +
+    '</div>' +
+    '<div class="modal-body" id="azDrillBody"></div>';
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+}
+
+function closeAzDrillModal() {
+  document.getElementById('azDrillModalOverlay')?.classList.remove('open');
+}
+
+function azOpenHeatmapDrill(y, x) {
+  if (!azHeatmapCtx) return;
+  const cell = azHeatmapCtx.mat[y] && azHeatmapCtx.mat[y][x];
+  if (!cell || !cell.rows.length) return;
+
+  const grouped = {};
+  cell.rows.forEach(r => {
+    const name = String(r[AZ.CREATIVE] || '').trim() || '(이름 없음)';
+    if (!grouped[name]) grouped[name] = { name, url: r[AZ.IMGURL] || '', rs: [] };
+    grouped[name].rs.push(r);
+  });
+  const entries = Object.values(grouped)
+    .map(g => ({ name: g.name, url: g.url, ...azKPI(azSum(g.rs)) }))
+    .sort((a, b) => b.imp - a.imp);
+
+  ensureAzDrillModal();
+  document.getElementById('azDrillTitle').textContent = `${azHeatmapCtx.yKey}: ${y}  ×  ${azHeatmapCtx.xKey}: ${x}`;
+  document.getElementById('azDrillCount').textContent = entries.length.toLocaleString('ko-KR') + '개 소재';
+  document.getElementById('azDrillBody').innerHTML = entries.length
+    ? `<table class="az-table"><thead><tr>
+         <th style="text-align:left;width:50px">이미지</th><th style="text-align:left">소재이름</th>
+         <th>노출</th><th>클릭</th><th>CTR</th><th>비용</th><th>전환</th><th>CVR</th><th>CPA</th>
+       </tr></thead><tbody>${entries.map(e => `<tr>
+         <td style="text-align:left">${azThumbCell(e.url)}</td>
+         <td style="text-align:left">${escHtml(e.name)}</td>
+         <td>${azFmt(e.imp)}</td><td>${azFmt(e.clk)}</td><td>${azPct(e.ctr)}</td>
+         <td>${azWon(e.cost)}</td><td>${azFmt(e.conv)}</td><td>${azPct(e.cvr)}</td><td>${azWon(e.cpa)}</td>
+       </tr>`).join('')}</tbody></table>`
+    : '<div class="az-no-data">데이터 없음</div>';
+  document.getElementById('azDrillModalOverlay').classList.add('open');
 }
 
 // ── 10. 기간별 추이 라인 차트 ─────────────────────────────
