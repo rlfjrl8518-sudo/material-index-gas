@@ -545,6 +545,95 @@
 
 
 
+  /* -- AB 테스트 탭 -- */
+  #panel-abtest { padding: 20px 28px 40px; }
+
+  .ab-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .ab-header h2 { font-size: 17px; font-weight: 700; color: #1a1a2e; margin: 0; }
+
+  .ab-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; }
+
+  .ab-empty {
+    text-align: center; padding: 50px 20px; color: #9ca3af; font-size: 13px;
+    border: 1px dashed #e5e7eb; border-radius: 10px;
+  }
+
+  .ab-card {
+    border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px 16px;
+    display: flex; align-items: center; gap: 14px; cursor: pointer;
+    transition: border-color .15s, box-shadow .15s; background: #fff;
+  }
+  .ab-card:hover { border-color: #4f6ef7; box-shadow: 0 2px 10px rgba(79,110,247,.12); }
+  .ab-card-main { flex: 1; min-width: 0; }
+  .ab-card-title { font-size: 14px; font-weight: 600; color: #1a1a2e; display: flex; align-items: center; gap: 8px; }
+  .ab-card-meta { font-size: 12px; color: #9ca3af; margin-top: 3px; }
+  .ab-card-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+  .ab-status-badge {
+    display: inline-block; padding: 2px 9px; border-radius: 12px;
+    font-size: 10px; font-weight: 700; white-space: nowrap;
+  }
+  .ab-status-running { background: #dbeafe; color: #1e40af; }
+  .ab-status-done    { background: #f3f4f6; color: #6b7280; }
+
+  .ab-form-card, .ab-detail {
+    border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px 22px; margin-bottom: 24px;
+    background: #fafbff;
+  }
+  .ab-form-title { font-size: 15px; font-weight: 700; color: #1a1a2e; margin-bottom: 14px; }
+  .ab-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .ab-form-grid .form-group.full { grid-column: 1 / -1; }
+
+  .ab-slot-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 6px 0 16px; }
+  .ab-slot {
+    border: 2px dashed #d1d5db; border-radius: 10px; overflow: hidden;
+    cursor: pointer; background: #fff; min-height: 150px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; position: relative; transition: border-color .15s;
+  }
+  .ab-slot:hover { border-color: #4f6ef7; }
+  .ab-slot.filled { border-style: solid; border-color: #c7d2fe; display: block; min-height: 0; }
+  .ab-slot-thumb-fallback {
+    width: 100%; aspect-ratio: 1; display: none; align-items: center; justify-content: center;
+    font-size: 28px; color: #d1d5db; background: #f3f4f6;
+  }
+  .ab-slot-label {
+    position: absolute; top: 6px; left: 8px; font-size: 10px; font-weight: 700;
+    color: #4f6ef7; background: #eff2ff; border-radius: 4px; padding: 1px 6px;
+  }
+  .ab-slot-thumb { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+  .ab-slot-placeholder { font-size: 28px; color: #d1d5db; }
+  .ab-slot-code { font-size: 11px; color: #6b7280; padding: 6px 8px 2px; word-break: break-all; }
+  .ab-slot-name { font-size: 11px; color: #9ca3af; padding: 0 8px 6px; }
+  .ab-slot-remove {
+    position: absolute; top: 4px; right: 4px; width: 20px; height: 20px;
+    border-radius: 50%; background: rgba(0,0,0,.5); color: #fff; border: none;
+    cursor: pointer; font-size: 12px; line-height: 1;
+  }
+
+  .ab-compare-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+  .ab-compare-card {
+    border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; background: #fff; position: relative;
+  }
+  .ab-compare-card.winner { border-color: #10b981; box-shadow: 0 0 0 2px rgba(16,185,129,.25); }
+  .ab-compare-thumb { width: 100%; aspect-ratio: 4/3; object-fit: cover; background: #f3f4f6; display: block; }
+  .ab-compare-body { padding: 10px 12px 14px; }
+  .ab-compare-code { font-size: 11px; color: #9ca3af; }
+  .ab-compare-name { font-size: 13px; font-weight: 600; color: #1a1a2e; margin: 2px 0 8px; }
+  .ab-winner-ribbon {
+    position: absolute; top: 8px; left: 8px; background: #10b981; color: #fff;
+    font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 12px; z-index: 2;
+  }
+  .ab-kpi-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; font-size: 12px; }
+  .ab-kpi-row .k { color: #9ca3af; }
+  .ab-kpi-row .v { color: #1a1a2e; font-weight: 600; text-align: right; }
+  .ab-kpi-row .v.best { color: #10b981; }
+
+
+
   .add-value-row { display: flex; gap: 5px; }
 
   .add-value-input {
@@ -1000,6 +1089,8 @@
   <button class="tab-btn active" onclick="switchTab('register', this)">📝 소재 등록</button>
 
   <button class="tab-btn" onclick="switchTab('analyze', this)">📊 소재 분석</button>
+
+  <button class="tab-btn" onclick="switchTab('abtest', this)">🧪 AB 테스트</button>
 
   <button class="tab-btn" onclick="switchTab('settings', this)">⚙️ 설정 관리</button>
 
@@ -1807,6 +1898,90 @@
 
 </div><!-- /#panel-analyze -->
 
+<div class="tab-panel" id="panel-abtest">
+
+  <div class="ab-header">
+    <h2>🧪 AB 테스트</h2>
+    <button class="btn btn-primary" onclick="openABForm()">+ 새 테스트</button>
+  </div>
+
+  <div id="ab-list" class="ab-list">
+    <div class="ab-empty">불러오는 중...</div>
+  </div>
+
+  <!-- 생성/수정 폼 -->
+  <div id="ab-form-card" class="ab-form-card" style="display:none">
+    <div class="ab-form-title" id="ab-form-title">새 AB 테스트</div>
+
+    <div class="ab-form-grid">
+      <div class="form-group full">
+        <label>테스트명 <span class="req">*</span></label>
+        <input class="form-control" type="text" id="ab-f-name" placeholder="예: 모델 성별 반응 비교">
+      </div>
+      <div class="form-group full">
+        <label>가설</label>
+        <input class="form-control" type="text" id="ab-f-hypothesis" placeholder="예: 여성 모델이 CTR이 더 높을 것이다">
+      </div>
+      <div class="form-group">
+        <label>변경요소</label>
+        <input class="form-control" type="text" id="ab-f-variable" placeholder="예: 모델유형">
+      </div>
+      <div class="form-group">
+        <label>타겟</label>
+        <input class="form-control" type="text" id="ab-f-target" placeholder="예: 20대 전체">
+      </div>
+      <div class="form-group">
+        <label>시작일 <span class="req">*</span></label>
+        <input class="form-control" type="date" id="ab-f-start">
+      </div>
+      <div class="form-group">
+        <label>종료일 <span class="req">*</span></label>
+        <input class="form-control" type="date" id="ab-f-end">
+      </div>
+    </div>
+
+    <label style="font-size:12px;font-weight:500;color:#374151;">비교 소재 (2~4개)</label>
+    <div class="ab-slot-grid" id="ab-slot-grid"></div>
+    <button class="btn btn-ghost btn-sm" id="ab-add-slot-btn" onclick="abAddSlot()">+ 소재 추가</button>
+
+    <hr class="divider">
+
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="btn btn-primary" id="ab-save-btn" onclick="saveABTestForm()">
+        <div class="spinner" id="ab-form-spinner"></div>
+        <span id="ab-form-save-text">저장</span>
+      </button>
+      <button class="btn btn-ghost" onclick="closeABForm()">취소</button>
+      <span id="ab-form-msg" style="font-size:12px;color:#ef4444;"></span>
+    </div>
+  </div>
+
+  <!-- 상세 비교 뷰 -->
+  <div id="ab-detail" class="ab-detail" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:12px;">
+      <div style="min-width:0">
+        <div class="ab-form-title" id="ab-detail-title" style="margin-bottom:2px;"></div>
+        <div style="font-size:12px;color:#9ca3af" id="ab-detail-meta"></div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0;">
+        <button class="btn btn-ghost btn-sm" onclick="openABForm(abCurrentDetailId)">수정</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteABTestConfirm(abCurrentDetailId)">삭제</button>
+        <button class="btn btn-ghost btn-sm" onclick="closeABDetail()">닫기</button>
+      </div>
+    </div>
+    <div id="ab-detail-hypothesis" style="font-size:13px;color:#374151;margin-bottom:14px;"></div>
+
+    <div id="ab-compare-grid" class="ab-compare-grid"></div>
+
+    <hr class="divider">
+
+    <label style="font-size:12px;font-weight:500;color:#374151;">결론 / 회고 메모</label>
+    <textarea class="form-control" id="ab-f-conclusion" rows="3" placeholder="테스트 결과와 다음 액션을 기록하세요"></textarea>
+    <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="saveABConclusion()">메모 저장</button>
+  </div>
+
+</div><!-- /#panel-abtest -->
+
 
 
 
@@ -1912,6 +2087,10 @@ function switchTab(tab, btn) {
   } else if (tab === 'analyze') {
 
     onAnalyzeTabActivate();
+
+  } else if (tab === 'abtest') {
+
+    onABTabActivate();
 
   }
 
@@ -5294,6 +5473,418 @@ async function runAIInsight() {
   } finally {
     btn.disabled = false;
     spinner.classList.remove('show');
+  }
+}
+
+// ============================================================
+// AB 테스트 탭
+// ============================================================
+let abTestsCache      = [];
+let abSlots           = [null, null];   // 각 슬롯: {code, name, url} | null
+let abEditingId       = null;
+let abCurrentDetailId = null;
+let abPickerTargetSlot = null;
+let abAllCodes        = [];             // 소재 피커용 캐시 (getImageCodes 결과)
+
+function onABTabActivate() {
+  closeABForm();
+  closeABDetail();
+  loadABList();
+}
+
+async function loadABList() {
+  const listEl = document.getElementById('ab-list');
+  listEl.innerHTML = '<div class="ab-empty">불러오는 중...</div>';
+  try {
+    abTestsCache = await gasRun('getABTests');
+    renderABList();
+  } catch (err) {
+    listEl.innerHTML = `<div class="ab-empty" style="color:#ef4444">로드 실패: ${esc(String(err.message||err))}</div>`;
+  }
+}
+
+function renderABList() {
+  const listEl = document.getElementById('ab-list');
+  if (!abTestsCache.length) {
+    listEl.innerHTML = '<div class="ab-empty">아직 등록된 AB 테스트가 없습니다. "+ 새 테스트"로 시작해 보세요.</div>';
+    return;
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  listEl.innerHTML = abTestsCache.map(t => {
+    const running = t.종료일 && t.종료일 >= today;
+    const badge = running
+      ? '<span class="ab-status-badge ab-status-running">진행중</span>'
+      : '<span class="ab-status-badge ab-status-done">종료</span>';
+    const period = [t.시작일, t.종료일].filter(Boolean).join(' ~ ') || '기간 미지정';
+    const metaParts = [period, `소재 ${t.소재코드목록.length}개`, t.변경요소].filter(Boolean);
+    return `<div class="ab-card" onclick="viewABDetail('${t.테스트ID}')">
+      <div class="ab-card-main">
+        <div class="ab-card-title">${escHtml(t.테스트명)} ${badge}</div>
+        <div class="ab-card-meta">${escHtml(metaParts.join(' · '))}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// --- 생성/수정 폼 ------------------------------------------
+function openABForm(testId) {
+  document.getElementById('ab-detail').style.display = 'none';
+  const card = document.getElementById('ab-form-card');
+  card.style.display = 'block';
+  document.getElementById('ab-form-msg').textContent = '';
+
+  const existing = testId ? abTestsCache.find(t => t.테스트ID === testId) : null;
+  abEditingId = existing ? existing.테스트ID : null;
+  document.getElementById('ab-form-title').textContent = existing ? '테스트 수정' : '새 AB 테스트';
+
+  document.getElementById('ab-f-name').value       = existing ? existing.테스트명   : '';
+  document.getElementById('ab-f-hypothesis').value = existing ? existing.가설       : '';
+  document.getElementById('ab-f-variable').value   = existing ? existing.변경요소   : '';
+  document.getElementById('ab-f-target').value     = existing ? existing.타겟       : '';
+  document.getElementById('ab-f-start').value      = existing ? existing.시작일     : '';
+  document.getElementById('ab-f-end').value        = existing ? existing.종료일     : '';
+
+  if (existing && existing.소재코드목록.length) {
+    populateABSlotsFromCodes(existing.소재코드목록);
+  } else {
+    abSlots = [null, null];
+    renderABSlots();
+  }
+
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function populateABSlotsFromCodes(codes) {
+  abSlots = codes.map(code => ({ code, name: '불러오는 중...', url: '' }));
+  renderABSlots();
+  if (!abAllCodes.length) {
+    try { abAllCodes = await gasRun('getImageCodes'); } catch (e) { /* 아래에서 코드만이라도 표시 */ }
+  }
+  const map = {};
+  abAllCodes.forEach(c => { map[c.code] = c; });
+  abSlots = codes.map(code => {
+    const m = map[code];
+    return { code, name: m ? m.소재이름 : '(정보 없음)', url: m ? m.imageUrl : '' };
+  });
+  renderABSlots();
+}
+
+function closeABForm() {
+  document.getElementById('ab-form-card').style.display = 'none';
+  abEditingId = null;
+}
+
+function renderABSlots() {
+  const grid = document.getElementById('ab-slot-grid');
+  grid.innerHTML = abSlots.map((s, i) => {
+    const label = String.fromCharCode(65 + i);
+    if (s) {
+      const isVid = s.code.startsWith('VID');
+      const thumb = isVid
+        ? '<div class="ab-slot-thumb-fallback" style="display:flex">▶</div>'
+        : `<img class="ab-slot-thumb" src="${esc(driveThumbnail(s.url))}"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+           <div class="ab-slot-thumb-fallback">🖼️</div>`;
+      return `<div class="ab-slot filled">
+        <span class="ab-slot-label">${label}</span>
+        <button class="ab-slot-remove" onclick="event.stopPropagation();abRemoveSlot(${i})">&times;</button>
+        <div onclick="openABPicker(${i})" style="cursor:pointer">
+          ${thumb}
+          <div class="ab-slot-code">${escHtml(s.code)}</div>
+          <div class="ab-slot-name">${escHtml(s.name)}</div>
+        </div>
+      </div>`;
+    }
+    return `<div class="ab-slot" onclick="openABPicker(${i})">
+      <span class="ab-slot-label">${label}</span>
+      <div class="ab-slot-placeholder">+</div>
+      <div style="font-size:11px;color:#9ca3af;margin-top:4px;">소재 선택</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('ab-add-slot-btn').style.display = abSlots.length >= 4 ? 'none' : 'inline-flex';
+}
+
+function abAddSlot() {
+  if (abSlots.length >= 4) return;
+  abSlots.push(null);
+  renderABSlots();
+}
+
+// 슬롯이 2개 초과면 아예 제거, 최소 2개는 내용만 비움
+function abRemoveSlot(i) {
+  if (abSlots.length > 2) abSlots.splice(i, 1);
+  else abSlots[i] = null;
+  renderABSlots();
+}
+
+// --- 소재 선택 모달 (등록 폼의 이미지 피커와는 별개 인스턴스) ---
+function ensureABModal() {
+  if (document.getElementById('abImgModalOverlay')) return;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'abImgModalOverlay';
+  overlay.className = 'modal-overlay';
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeABPicker(); });
+
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+
+  const header = document.createElement('div');
+  header.className = 'modal-header';
+  const title = document.createElement('span');
+  title.className = 'modal-title';
+  title.textContent = '비교할 소재 선택';
+
+  const controls = document.createElement('div');
+  controls.style.cssText = 'display:flex;align-items:center;gap:8px;';
+  const searchInput = document.createElement('input');
+  searchInput.type = 'text';
+  searchInput.className = 'modal-search';
+  searchInput.id = 'abImgSearch';
+  searchInput.placeholder = '코드 또는 소재명 검색...';
+  searchInput.addEventListener('input', filterABPicker);
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'btn btn-ghost btn-sm';
+  closeBtn.textContent = '닫기';
+  closeBtn.addEventListener('click', closeABPicker);
+  controls.appendChild(searchInput);
+  controls.appendChild(closeBtn);
+  header.appendChild(title);
+  header.appendChild(controls);
+
+  const body = document.createElement('div');
+  body.className = 'modal-body';
+  const grid = document.createElement('div');
+  grid.className = 'img-picker-grid';
+  grid.id = 'abImgPickerGrid';
+  grid.addEventListener('click', e => {
+    const item = e.target.closest('.img-pick-item');
+    if (!item) return;
+    abSelectImage(item.dataset.code, item.dataset.name, item.dataset.url);
+  });
+  body.appendChild(grid);
+
+  modal.appendChild(header);
+  modal.appendChild(body);
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+}
+
+function openABPicker(slotIndex) {
+  abPickerTargetSlot = slotIndex;
+  ensureABModal();
+  document.getElementById('abImgModalOverlay').classList.add('open');
+  document.getElementById('abImgSearch').value = '';
+  const grid = document.getElementById('abImgPickerGrid');
+  grid.innerHTML = '<div class="modal-empty">불러오는 중...</div>';
+  google.script.run
+    .withSuccessHandler(codes => { abAllCodes = codes; filterABPicker(); })
+    .withFailureHandler(() => { grid.innerHTML = '<div class="modal-empty" style="color:#ef4444;">로드 실패 - 다시 시도해 주세요.</div>'; })
+    .getImageCodes();
+}
+
+function closeABPicker() {
+  document.getElementById('abImgModalOverlay')?.classList.remove('open');
+}
+
+function filterABPicker() {
+  const q = (document.getElementById('abImgSearch').value || '').trim().toLowerCase();
+  const filtered = !q ? abAllCodes : abAllCodes.filter(c =>
+    c.code.toLowerCase().includes(q) || (c.소재이름 || '').toLowerCase().includes(q));
+  renderABPickerGrid(filtered);
+}
+
+function renderABPickerGrid(codes) {
+  const grid = document.getElementById('abImgPickerGrid');
+  if (!codes.length) { grid.innerHTML = '<div class="modal-empty">검색 결과가 없습니다.</div>'; return; }
+  const usedCodes = new Set(abSlots.filter(Boolean).map(s => s.code));
+  grid.innerHTML = codes.map(c => {
+    const isVideo = c.code.startsWith('VID');
+    const thumbUrl = driveThumbnail(c.imageUrl);
+    const media = (thumbUrl && !isVideo)
+      ? `<img class="img-pick-thumb" src="${esc(thumbUrl)}" loading="lazy" style="pointer-events:none"
+           onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+         <div class="img-pick-placeholder" style="display:none;pointer-events:none">[IMG]</div>`
+      : `<div class="img-pick-placeholder" style="pointer-events:none">${isVideo ? '▶ VID' : '[IMG]'}</div>`;
+    const usedStyle = usedCodes.has(c.code) ? ' style="opacity:.4"' : '';
+    return `<div class="img-pick-item" data-code="${esc(c.code)}" data-name="${esc(c.소재이름)}" data-url="${esc(c.imageUrl)}"${usedStyle}>
+      ${media}
+      <div class="img-pick-info">
+        <div class="img-pick-code">${escHtml(c.code)}</div>
+        <div class="img-pick-name">${escHtml(c.소재이름)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function abSelectImage(code, name, url) {
+  if (abPickerTargetSlot === null) return;
+  abSlots[abPickerTargetSlot] = { code, name, url };
+  closeABPicker();
+  renderABSlots();
+}
+
+// --- 저장 -----------------------------------------------------
+async function saveABTestForm() {
+  const msgEl = document.getElementById('ab-form-msg');
+  msgEl.style.color = '#ef4444';
+  msgEl.textContent = '';
+
+  const name  = document.getElementById('ab-f-name').value.trim();
+  const start = document.getElementById('ab-f-start').value;
+  const end   = document.getElementById('ab-f-end').value;
+  const codes = abSlots.filter(Boolean).map(s => s.code);
+
+  if (!name)               { msgEl.textContent = '테스트명을 입력하세요.'; return; }
+  if (!start || !end)      { msgEl.textContent = '시작일/종료일을 입력하세요.'; return; }
+  if (start > end)         { msgEl.textContent = '시작일은 종료일보다 빠르거나 같아야 합니다.'; return; }
+  if (codes.length < 2)    { msgEl.textContent = '비교할 소재를 최소 2개 선택하세요.'; return; }
+  if (new Set(codes).size !== codes.length) { msgEl.textContent = '같은 소재를 중복 선택할 수 없습니다.'; return; }
+
+  const data = {
+    테스트명: name,
+    가설: document.getElementById('ab-f-hypothesis').value.trim(),
+    변경요소: document.getElementById('ab-f-variable').value.trim(),
+    타겟: document.getElementById('ab-f-target').value.trim(),
+    시작일: start,
+    종료일: end,
+    소재코드목록: codes
+  };
+  if (abEditingId) data.테스트ID = abEditingId;
+
+  const btn = document.getElementById('ab-save-btn');
+  const spinner = document.getElementById('ab-form-spinner');
+  btn.disabled = true;
+  spinner.classList.add('show');
+  try {
+    const res = await gasRun('saveABTest', data);
+    if (res.error) { msgEl.textContent = res.message; return; }
+    closeABForm();
+    await loadABList();
+    viewABDetail(res.테스트ID);
+  } catch (err) {
+    msgEl.textContent = '저장 실패: ' + (err.message || String(err));
+  } finally {
+    btn.disabled = false;
+    spinner.classList.remove('show');
+  }
+}
+
+// --- 상세 비교 뷰 ------------------------------------------
+async function viewABDetail(testId) {
+  closeABForm();
+  const test = abTestsCache.find(t => t.테스트ID === testId);
+  if (!test) return;
+  abCurrentDetailId = testId;
+
+  const detailEl = document.getElementById('ab-detail');
+  detailEl.style.display = 'block';
+  document.getElementById('ab-detail-title').textContent = test.테스트명;
+  const period = [test.시작일, test.종료일].filter(Boolean).join(' ~ ');
+  const metaParts = [period, test.변경요소 && ('변경요소: ' + test.변경요소), test.타겟 && ('타겟: ' + test.타겟)].filter(Boolean);
+  document.getElementById('ab-detail-meta').textContent = metaParts.join(' · ');
+  document.getElementById('ab-detail-hypothesis').textContent = test.가설 ? '💡 가설: ' + test.가설 : '';
+  document.getElementById('ab-f-conclusion').value = test.결론메모 || '';
+
+  const grid = document.getElementById('ab-compare-grid');
+  grid.innerHTML = '<div class="ab-empty">실적 불러오는 중...</div>';
+  detailEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  try {
+    const perf = await gasRun('getABTestPerformance', test.소재코드목록, test.시작일, test.종료일);
+    renderABCompare(perf);
+  } catch (err) {
+    grid.innerHTML = `<div class="ab-empty" style="color:#ef4444">실적 로드 실패: ${esc(String(err.message || err))}</div>`;
+  }
+}
+
+function closeABDetail() {
+  document.getElementById('ab-detail').style.display = 'none';
+  abCurrentDetailId = null;
+}
+
+function renderABCompare(perf) {
+  const grid = document.getElementById('ab-compare-grid');
+  if (!perf.length) { grid.innerHTML = '<div class="ab-empty">데이터가 없습니다.</div>'; return; }
+
+  const withData    = perf.filter(p => !p.notFound && p.imp > 0);
+  const bestCtr      = withData.length ? Math.max(...withData.map(p => p.ctr)) : null;
+  const cvrCandidates = withData.filter(p => p.clk > 0);
+  const bestCvr      = cvrCandidates.length ? Math.max(...cvrCandidates.map(p => p.cvr)) : null;
+  const cpaCandidates = withData.filter(p => p.conv > 0);
+  const bestCpa      = cpaCandidates.length ? Math.min(...cpaCandidates.map(p => p.cpa)) : null;
+
+  grid.innerHTML = perf.map((p, i) => {
+    const label = String.fromCharCode(65 + i);
+    if (p.notFound) {
+      return `<div class="ab-compare-card"><div class="ab-compare-body">
+        <div class="ab-compare-code">${label} · ${esc(p.code)}</div>
+        <div class="ab-compare-name" style="color:#ef4444">소재 정보를 찾을 수 없습니다</div>
+      </div></div>`;
+    }
+    const isWinner = bestCtr !== null && p.imp > 0 && p.ctr === bestCtr;
+    const isVid = p.code.startsWith('VID');
+    const thumb = isVid
+      ? '<div class="ab-compare-thumb" style="display:flex;align-items:center;justify-content:center;font-size:28px;color:#d1d5db">▶</div>'
+      : `<img class="ab-compare-thumb" src="${esc(driveThumbnail(p.imageUrl))}" onerror="this.style.display='none'">`;
+
+    const rows = [
+      ['노출', azFmt(p.imp), false],
+      ['클릭', azFmt(p.clk), false],
+      ['CTR',  azPct(p.ctr), p.imp > 0 && p.ctr === bestCtr],
+      ['비용', azWon(p.cost), false],
+      ['전환', azFmt(p.conv), false],
+      ['CVR',  azPct(p.cvr), bestCvr !== null && p.clk > 0 && p.cvr === bestCvr],
+      ['CPA',  azWon(p.cpa), bestCpa !== null && p.conv > 0 && p.cpa === bestCpa]
+    ].map(([k, v, best]) => `<div class="k">${k}</div><div class="v${best ? ' best' : ''}">${v}</div>`).join('');
+
+    return `<div class="ab-compare-card${isWinner ? ' winner' : ''}">
+      ${isWinner ? '<div class="ab-winner-ribbon">🏆 CTR 1위</div>' : ''}
+      ${thumb}
+      <div class="ab-compare-body">
+        <div class="ab-compare-code">${label} · ${escHtml(p.code)}</div>
+        <div class="ab-compare-name">${escHtml(p.소재이름)}</div>
+        <div class="ab-kpi-row">${rows}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function saveABConclusion() {
+  if (!abCurrentDetailId) return;
+  const test = abTestsCache.find(t => t.테스트ID === abCurrentDetailId);
+  if (!test) return;
+  const data = {
+    테스트ID: test.테스트ID,
+    테스트명: test.테스트명,
+    가설: test.가설,
+    변경요소: test.변경요소,
+    타겟: test.타겟,
+    시작일: test.시작일,
+    종료일: test.종료일,
+    소재코드목록: test.소재코드목록,
+    결론메모: document.getElementById('ab-f-conclusion').value.trim()
+  };
+  try {
+    const res = await gasRun('saveABTest', data);
+    if (res.error) { alert(res.message); return; }
+    await loadABList();
+  } catch (err) {
+    alert('저장 실패: ' + (err.message || String(err)));
+  }
+}
+
+async function deleteABTestConfirm(testId) {
+  if (!testId) return;
+  if (!confirm('이 AB 테스트를 삭제하시겠습니까?')) return;
+  try {
+    const res = await gasRun('deleteABTest', testId);
+    if (res.error) { alert(res.message); return; }
+    closeABDetail();
+    await loadABList();
+  } catch (err) {
+    alert('삭제 실패: ' + (err.message || String(err)));
   }
 }
 

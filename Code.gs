@@ -10,6 +10,7 @@ const RAW_SHEET_NAME              = '매체_RAW';
 const DETECT_SHEET_NAME           = '신규소재감지';
 const DGPM_SHEET_NAME             = '구글DA 인덱스';
 const CONSOLIDATED_RAW_SHEET_NAME = '소재_통합RAW';
+const AB_TEST_SHEET_NAME          = 'AB테스트';
 
 // 광고 단위에 여러 이미지가 포함되는 매체 (1:N 구조)
 const DGPM_MEDIA = ['디멘드젠', '피맥스'];
@@ -32,6 +33,13 @@ const CONSOLIDATED_RAW_HEADERS = [
   '보종', '광고유형', '소재유형', '소구포인트', '후킹방식', '소구상세',
   '이미지유형', '모델유형', '이미지URL',
   '노출수', '클릭수', 'CTR', '비용', '전환', 'CVR', 'CPA'
+];
+
+// AB테스트 시트 헤더
+const AB_TEST_HEADERS = [
+  '테스트ID', '테스트명', '가설', '변경요소', '타겟',
+  '시작일', '종료일', '소재코드목록', '결론메모',
+  '등록일시', '최근수정일시'
 ];
 
 // --------------------------------------------------
@@ -188,6 +196,14 @@ function initializeSheets() {
     cSheet.getRange(1, 1, 1, CONSOLIDATED_RAW_HEADERS.length)
       .setValues([CONSOLIDATED_RAW_HEADERS]).setFontWeight('bold');
     cSheet.setFrozenRows(1);
+  }
+
+  // AB테스트 시트
+  if (!ss.getSheetByName(AB_TEST_SHEET_NAME)) {
+    const abSheet = ss.insertSheet(AB_TEST_SHEET_NAME);
+    abSheet.getRange(1, 1, 1, AB_TEST_HEADERS.length)
+      .setValues([AB_TEST_HEADERS]).setFontWeight('bold');
+    abSheet.setFrozenRows(1);
   }
 
   return { success: true, message: '시트 초기화 완료' };
@@ -1096,4 +1112,148 @@ function consolidateRawData() {
     SpreadsheetApp.getUi().alert('오류: ' + e.message);
     return { error: true, message: e.message };
   }
+}
+
+// ====================================================
+// AB 테스트
+// 소재 2~4개를 골라 조건(가설/변경요소/타겟)을 기록하고,
+// 지정한 기간(시작일~종료일) 동안의 실적만 집계해 비교한다.
+// ====================================================
+function _getOrCreateABTestSheet() {
+  const ss = getSpreadsheet();
+  let sheet = ss.getSheetByName(AB_TEST_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(AB_TEST_SHEET_NAME);
+    sheet.getRange(1, 1, 1, AB_TEST_HEADERS.length)
+      .setValues([AB_TEST_HEADERS]).setFontWeight('bold');
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function _abDateStr(val) {
+  if (!val) return '';
+  if (val instanceof Date) return Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  const s = String(val).trim();
+  const m = s.match(/^(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
+  if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+  return s.slice(0, 10);
+}
+
+// 저장된 AB테스트 목록 (최신 등록순)
+function getABTests() {
+  const sheet = _getOrCreateABTestSheet();
+  if (sheet.getLastRow() < 2) return [];
+  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, AB_TEST_HEADERS.length).getValues();
+  const tz = Session.getScriptTimeZone();
+  return rows.map(r => ({
+    테스트ID:     String(r[0] || ''),
+    테스트명:     String(r[1] || ''),
+    가설:         String(r[2] || ''),
+    변경요소:     String(r[3] || ''),
+    타겟:         String(r[4] || ''),
+    시작일:       _abDateStr(r[5]),
+    종료일:       _abDateStr(r[6]),
+    소재코드목록: _splitList(r[7]),
+    결론메모:     String(r[8] || ''),
+    등록일시:     r[9]  ? Utilities.formatDate(new Date(r[9]),  tz, 'yyyy-MM-dd HH:mm') : '',
+    최근수정일시: r[10] ? Utilities.formatDate(new Date(r[10]), tz, 'yyyy-MM-dd HH:mm') : ''
+  })).reverse();
+}
+
+// AB테스트 저장 (신규 생성 또는 기존 수정 — data.테스트ID 유무로 판단)
+function saveABTest(data) {
+  try {
+    const codes = (data.소재코드목록 || []).map(c => String(c || '').trim()).filter(Boolean);
+    if (codes.length < 2)  return { error: true, message: '소재는 최소 2개 이상 선택해야 합니다.' };
+    if (codes.length > 4)  return { error: true, message: '소재는 최대 4개까지 비교할 수 있습니다.' };
+    if (!data.테스트명)     return { error: true, message: '테스트명을 입력하세요.' };
+
+    const sheet = _getOrCreateABTestSheet();
+    const now = new Date();
+    const rowValues = [
+      data.테스트명, data.가설 || '', data.변경요소 || '', data.타겟 || '',
+      data.시작일 || '', data.종료일 || '', codes.join(','), data.결론메모 || ''
+    ];
+
+    if (data.테스트ID) {
+      const ids = sheet.getLastRow() >= 2
+        ? sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat().map(String)
+        : [];
+      const idx = ids.indexOf(String(data.테스트ID));
+      if (idx === -1) return { error: true, message: '테스트를 찾을 수 없습니다.' };
+      const rowNum = idx + 2;
+      sheet.getRange(rowNum, 2, 1, rowValues.length).setValues([rowValues]);
+      sheet.getRange(rowNum, 11).setValue(now);
+      return { success: true, 테스트ID: data.테스트ID };
+    }
+
+    const testId = 'AB' + Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyMMddHHmmss');
+    sheet.appendRow([testId, ...rowValues, now, now]);
+    return { success: true, 테스트ID: testId };
+  } catch (e) {
+    return { error: true, message: e.message };
+  }
+}
+
+function deleteABTest(testId) {
+  try {
+    const sheet = _getOrCreateABTestSheet();
+    if (sheet.getLastRow() < 2) return { success: true };
+    const ids = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat().map(String);
+    const idx = ids.indexOf(String(testId));
+    if (idx === -1) return { error: true, message: '테스트를 찾을 수 없습니다.' };
+    sheet.deleteRow(idx + 2);
+    return { success: true };
+  } catch (e) {
+    return { error: true, message: e.message };
+  }
+}
+
+// 선택한 소재코드들의 "테스트 기간(startDate~endDate)" 실적만 집계해 비교 반환
+// 소재_통합RAW은 이미지코드가 아니라 (매체,캠페인,그룹,소재이름) 기준이라
+// 소재_마스터에서 각 코드의 배치 정보를 먼저 찾은 뒤 그 키로 매칭한다.
+function getABTestPerformance(codes, startDate, endDate) {
+  const ss = getSpreadsheet();
+  const rawSheet = ss.getSheetByName(CONSOLIDATED_RAW_SHEET_NAME);
+  const rawRows = (rawSheet && rawSheet.getLastRow() >= 2)
+    ? rawSheet.getRange(2, 1, rawSheet.getLastRow() - 1, CONSOLIDATED_RAW_HEADERS.length).getValues()
+    : [];
+
+  return codes.map(code => {
+    const creative = getCreativeByImageCode(code);
+    if (!creative) return { code, notFound: true };
+
+    const matched = rawRows.filter(r => {
+      if (String(r[0] || '') !== creative.매체   ||
+          String(r[2] || '') !== creative.캠페인 ||
+          String(r[3] || '') !== creative.그룹   ||
+          String(r[4] || '') !== creative.소재이름) return false;
+      const d = _abDateStr(r[1]);
+      if (startDate && d < startDate) return false;
+      if (endDate   && d > endDate)   return false;
+      return true;
+    });
+
+    const sum = matched.reduce((a, r) => ({
+      imp:  a.imp  + (Number(r[14]) || 0),
+      clk:  a.clk  + (Number(r[15]) || 0),
+      cost: a.cost + (Number(r[17]) || 0),
+      conv: a.conv + (Number(r[18]) || 0)
+    }), { imp: 0, clk: 0, cost: 0, conv: 0 });
+
+    return {
+      code,
+      매체:     creative.매체,
+      소재이름: creative.소재이름,
+      보종:     creative.보종,
+      소재유형: creative.소재유형,
+      모델유형: creative.모델유형,
+      imageUrl: creative.이미지URL,
+      imp: sum.imp, clk: sum.clk, cost: sum.cost, conv: sum.conv,
+      ctr: sum.imp  > 0 ? sum.clk  / sum.imp  * 100 : 0,
+      cvr: sum.clk  > 0 ? sum.conv / sum.clk  * 100 : 0,
+      cpa: sum.conv > 0 ? sum.cost / sum.conv        : 0
+    };
+  });
 }
