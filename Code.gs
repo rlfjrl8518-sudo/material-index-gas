@@ -637,7 +637,7 @@ function _updateDGPMUnit(data, imageCode) {
         const imgTypes  = _splitList(row[DGPM_COL['이미지유형목록']]);
         const modelTypes = _splitList(row[DGPM_COL['모델유형목록']]);
         if (data.이미지유형 && !imgTypes.includes(data.이미지유형))   imgTypes.push(data.이미지유형);
-        if (data.모델유형   && !modelTypes.includes(data.모델유형))   modelTypes.push(data.모델유형);
+        _splitList(data.모델유형).forEach(mt => { if (!modelTypes.includes(mt)) modelTypes.push(mt); });
 
         const rowNum = i + 2;
         sheet.getRange(rowNum, DGPM_COL['이미지유형목록'] + 1).setValue(imgTypes.join(','));
@@ -760,9 +760,8 @@ function rebuildDGPMUnits() {
       const g = groupMap[key];
       if (imgCode && !g.codes.includes(String(imgCode))) g.codes.push(String(imgCode));
       const it = String(이미지유형 || '');
-      const mt = String(모델유형   || '');
-      if (it && !g.imgTypes.includes(it))   g.imgTypes.push(it);
-      if (mt && !g.modelTypes.includes(mt)) g.modelTypes.push(mt);
+      if (it && !g.imgTypes.includes(it)) g.imgTypes.push(it);
+      _splitList(모델유형).forEach(mt => { if (!g.modelTypes.includes(mt)) g.modelTypes.push(mt); });
     });
 
     // DG_PM_광고단위 시트 초기화 후 재작성

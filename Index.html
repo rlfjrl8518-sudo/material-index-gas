@@ -526,6 +526,23 @@
 
   .chip-empty { font-size: 12px; color: #9ca3af; font-style: italic; }
 
+  .model-type-picker { display: flex; flex-wrap: wrap; gap: 6px; padding: 7px 0 3px; }
+
+  .model-type-option {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 20px;
+    font-size: 12px; color: #374151; background: #fff; cursor: pointer;
+    transition: all .15s; user-select: none;
+  }
+
+  .model-type-option:hover { border-color: #4f6ef7; }
+
+  .model-type-option.selected { background: #4f6ef7; border-color: #4f6ef7; color: #fff; }
+
+  .model-type-option input { display: none; }
+
+  .model-type-empty { font-size: 12px; color: #9ca3af; font-style: italic; }
+
 
 
   .add-value-row { display: flex; gap: 5px; }
@@ -1265,11 +1282,11 @@
 
 
 
-            <div class="form-group">
+            <div class="form-group full">
 
-              <label>모델유형</label>
+              <label>모델유형 <span style="font-weight:400;color:#9ca3af;">(복수 선택 가능)</span></label>
 
-              <select class="form-control" id="f_모델유형"><option value="">선택</option></select>
+              <div class="model-type-picker" id="f_모델유형"></div>
 
             </div>
 
@@ -1633,7 +1650,7 @@
       <!-- 6. 모델유형 (전폭) -->
       <div class="az-section">
         <div class="az-section-header">
-          모델유형 분석
+          모델유형 분석 <span style="font-weight:400;font-size:11px;color:#94a3b8">— 조합별 (예: 20대남자+20대여자)</span>
           <div class="az-metric-tabs" data-dim="modeltype">
             <button class="az-metric-tab active" data-metric="ctr" onclick="switchDimMetric('modeltype','ctr',this)">CTR</button>
             <button class="az-metric-tab" data-metric="cvr" onclick="switchDimMetric('modeltype','cvr',this)">CVR</button>
@@ -1722,6 +1739,9 @@
               <option>CTR</option><option>CVR</option><option>CPA</option>
             </select>
             <span style="font-size:11px;color:#475569">🟢 진할수록 성과 좋음 &nbsp;·&nbsp; ⬜ 회색=데이터 없음</span>
+          </div>
+          <div style="font-size:11px;color:#94a3b8;margin:-4px 0 10px">
+            💡 X축·Y축을 둘 다 <b>모델유형</b>으로 설정하면 "20대남자 × 20대여자"처럼 유형 조합별 성과를 한 눈에 비교할 수 있습니다.
           </div>
           <div id="az-heatmap"></div>
         </div>
@@ -1862,8 +1882,6 @@ const DROPDOWN_MAP = {
   '후킹방식':   'f_후킹방식',
 
   '이미지유형': 'f_이미지유형',
-
-  '모델유형':   'f_모델유형',
 
   '보종':       'f_보종'
 
@@ -2123,8 +2141,48 @@ function populateDropdowns(s) {
 
   });
 
+  renderModelTypeOptions(s['모델유형'] || []);
+
 }
 
+// --- 모델유형 (복수 선택 칩) ----------------------
+
+function renderModelTypeOptions(values) {
+  const box = document.getElementById('f_모델유형');
+  const prevSelected = new Set(getSelectedModelTypes());
+  box.innerHTML = '';
+  if (!values.length) {
+    box.innerHTML = '<span class="model-type-empty">설정 관리 탭에서 모델유형을 추가하세요</span>';
+    return;
+  }
+  values.forEach(v => {
+    const opt = document.createElement('label');
+    const checked = prevSelected.has(v);
+    opt.className = 'model-type-option' + (checked ? ' selected' : '');
+    const input = document.createElement('input');
+    input.type = 'checkbox'; input.value = v; input.checked = checked;
+    input.addEventListener('change', () => opt.classList.toggle('selected', input.checked));
+    opt.appendChild(input);
+    opt.appendChild(document.createTextNode(v));
+    box.appendChild(opt);
+  });
+}
+
+function getSelectedModelTypes() {
+  return Array.from(document.querySelectorAll('#f_모델유형 input:checked')).map(i => i.value);
+}
+
+function setSelectedModelTypes(str) {
+  const vals = new Set(clientSplitList(str));
+  document.querySelectorAll('#f_모델유형 input').forEach(input => {
+    input.checked = vals.has(input.value);
+    input.closest('.model-type-option').classList.toggle('selected', input.checked);
+  });
+}
+
+function clientSplitList(val) {
+  return val ? String(val).split(',').map(s => s.trim()).filter(Boolean) : [];
+}
 
 
 // --- 계층 로드 -----------------------------------
@@ -3555,7 +3613,7 @@ function autoFillForm(data) {
 
   document.getElementById('f_이미지유형').value = data.이미지유형;
 
-  document.getElementById('f_모델유형').value = data.모델유형;
+  setSelectedModelTypes(data.모델유형);
 
 
 
@@ -3768,7 +3826,7 @@ function getFormData(forceSave) {
 
     이미지유형: document.getElementById('f_이미지유형').value,
 
-    모델유형:   document.getElementById('f_모델유형').value,
+    모델유형:   getSelectedModelTypes().join(','),
 
     fileData: fileBase64, fileName, mimeType: fileMime, fileHash,
 
@@ -3946,6 +4004,8 @@ function resetForm() {
     if (el) { el.selectedIndex = 0; el.classList.remove('error'); }
 
   });
+
+  setSelectedModelTypes('');
 
   document.getElementById('f_소구상세').value = '';
 
@@ -4275,6 +4335,74 @@ const AZ = {
   IMP:14, CLICK:15, CTR_COL:16, COST:17, CONV:18, CVR_COL:19, CPA_COL:20
 };
 
+// 모델유형은 "2030남자,2030여자"처럼 복수값이 콤마로 들어올 수 있는 유일한 컬럼.
+// 집계/필터 시 콤마를 분해해 각 값에 성과를 그대로 반영(exploded count)한다.
+// (clientSplitList는 등록 폼 스크립트 상단에 정의되어 있음 — 같은 <script> 스코프에서 재사용)
+function azColValues(row, col) {
+  if (col === AZ.MODELTYPE) return clientSplitList(row[col]);
+  const v = String(row[col] || '').trim();
+  return v ? [v] : [];
+}
+// 모델유형 필터 값이 "20대남자+20대여자"처럼 '+'가 섞여 있으면 정확한 조합 일치,
+// 아니면 기존처럼 그 유형이 포함되기만 해도 매치(explode 포함 검색)
+function azColMatch(row, col, filterVal) {
+  if (!filterVal) return true;
+  if (col === AZ.MODELTYPE && filterVal.indexOf('+') !== -1) {
+    return azModelCombo(row) === filterVal;
+  }
+  return azColValues(row, col).includes(filterVal);
+}
+function azColDistinctValues(rows, col) {
+  const set = new Set();
+  rows.forEach(r => azColValues(r, col).forEach(v => set.add(v)));
+  return [...set].sort();
+}
+
+// 모델유형 "조합" 자체를 하나의 카테고리로 보고 싶을 때 쓰는 그룹핑.
+// 예: "20대남자,20대여자" 소재는 azGroup(explode)처럼 두 유형에 나눠 잡히지 않고
+// "20대남자+20대여자"라는 조합 하나로 집계된다 (남x여 조합 성과 비교용).
+function azModelCombo(row) {
+  const types = clientSplitList(row[AZ.MODELTYPE]).sort();
+  return types.length ? types.join('+') : '';
+}
+
+// 모델유형 필터 드롭다운 옵션: "개별 유형"(explode) + 실제 등록된 "조합"을 함께 제공.
+// 조합은 별도로 인덱싱해둔 목록이 아니라, 매번 로드된 데이터에서 그때그때 뽑아낸다.
+function azModelFilterGroups(rows) {
+  const types = azColDistinctValues(rows, AZ.MODELTYPE);
+  const comboSet = new Set();
+  rows.forEach(r => {
+    const combo = azModelCombo(r);
+    if (combo.indexOf('+') !== -1) comboSet.add(combo);
+  });
+  return { types, combos: [...comboSet].sort() };
+}
+
+// 캐스케이드 드롭다운 하나의 <option> HTML + 유효값 목록을 만든다.
+// 모델유형 컬럼만 "개별 유형" / "조합" 두 optgroup으로 분리해서 보여준다.
+function azFilterOptions(rows, col) {
+  if (col === AZ.MODELTYPE) {
+    const { types, combos } = azModelFilterGroups(rows);
+    let html = '';
+    if (types.length)
+      html += '<optgroup label="개별 유형">' +
+        types.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('') + '</optgroup>';
+    if (combos.length)
+      html += '<optgroup label="조합 (정확히 일치)">' +
+        combos.map(v => `<option value="${esc(v)}">🔗 ${esc(v)}</option>`).join('') + '</optgroup>';
+    return { html, values: [...types, ...combos] };
+  }
+  const vals = azColDistinctValues(rows, col);
+  return { html: vals.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join(''), values: vals };
+}
+function azGroupModelCombo(rows) {
+  return rows.reduce((m, r) => {
+    const combo = azModelCombo(r) || '(미입력)';
+    (m[combo] = m[combo]||[]).push(r);
+    return m;
+  }, {});
+}
+
 // ── 탭 진입 시 최초 1회 자동 로드 ─────────────────────────
 function onAnalyzeTabActivate() {
   if (azLoaded) { updateDashboard(); return; }
@@ -4401,14 +4529,13 @@ function azDateChange() {
     for (let j = 0; j < i; j++) {
       const { id: jid, col: jcol } = AZ_CASCADE[j];
       const v = document.getElementById(jid).value;
-      if (v) scope = scope.filter(r => String(r[jcol]||'').trim() === v);
+      if (v) scope = scope.filter(r => azColMatch(r, jcol, v));
     }
-    const vals = [...new Set(scope.map(r => String(r[col]||'').trim()).filter(Boolean))].sort();
+    const { html, values } = azFilterOptions(scope, col);
     const el = document.getElementById(id);
     const prev = el.value;
-    el.innerHTML = `<option value="">전체</option>` +
-      vals.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
-    el.value = (prev && vals.includes(prev)) ? prev : '';
+    el.innerHTML = `<option value="">전체</option>` + html;
+    el.value = (prev && values.includes(prev)) ? prev : '';
   });
   updateDashboard();
 }
@@ -4428,12 +4555,11 @@ function azCascade(changedId) {
     for (let j = 0; j < i; j++) {
       const { id: jid, col: jcol } = AZ_CASCADE[j];
       const v = document.getElementById(jid).value;
-      if (v) scope = scope.filter(r => String(r[jcol]||'').trim() === v);
+      if (v) scope = scope.filter(r => azColMatch(r, jcol, v));
     }
-    const vals = [...new Set(scope.map(r => String(r[col]||'').trim()).filter(Boolean))].sort();
-    el.innerHTML = `<option value="">전체</option>` +
-      vals.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
-    el.value = (prev && vals.includes(prev)) ? prev : '';
+    const { html, values } = azFilterOptions(scope, col);
+    el.innerHTML = `<option value="">전체</option>` + html;
+    el.value = (prev && values.includes(prev)) ? prev : '';
   }
 
   updateDashboard();
@@ -4445,10 +4571,9 @@ function initFilterDropdowns() {
   const rows = azRawData.slice(1);
 
   AZ_CASCADE.forEach(({ id, col }) => {
-    const vals = [...new Set(rows.map(r => String(r[col]||'').trim()).filter(Boolean))].sort();
+    const { html } = azFilterOptions(rows, col);
     const el = document.getElementById(id);
-    el.innerHTML = `<option value="">전체</option>` +
-      vals.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+    el.innerHTML = `<option value="">전체</option>` + html;
     el.value = '';
   });
 
@@ -4511,7 +4636,7 @@ function getFilteredRows() {
 
   return rows.filter(r => {
     for (const { col, val } of cascadeFilters) {
-      if (val && String(r[col]||'').trim() !== val) return false;
+      if (!azColMatch(r, col, val)) return false;
     }
     if (fStart || fEnd) {
       const d = azDateStr(r[AZ.DATE]);
@@ -4548,8 +4673,9 @@ function azKPI(s) {
 
 function azGroup(rows, col) {
   return rows.reduce((m, r) => {
-    const k = String(r[col]||'').trim() || '(미입력)';
-    (m[k] = m[k]||[]).push(r);
+    const keys = azColValues(r, col);
+    if (!keys.length) { (m['(미입력)'] = m['(미입력)']||[]).push(r); return m; }
+    keys.forEach(k => (m[k] = m[k]||[]).push(r));
     return m;
   }, {});
 }
@@ -4615,8 +4741,10 @@ function renderKPI(rows) {
 }
 
 // ── 2~6. 차원별 가로 막대 차트 (탭 전환) ─────────────────
+// modeltype만 예외: 유형 하나하나로 분해하지 않고 "조합" 그대로 집계
+// (2030남자+2030여자처럼 함께 쓰인 조합의 실제 성과를 보기 위함)
 function renderDimChart(key, rows, col) {
-  const grouped = azGroup(rows, col);
+  const grouped = key === 'modeltype' ? azGroupModelCombo(rows) : azGroup(rows, col);
   azDimData[key] = Object.entries(grouped)
     .map(([k, rs]) => ({ k, ...azKPI(azSum(rs)) }))
     .sort((a, b) => b.ctr - a.ctr);
@@ -4882,21 +5010,24 @@ function renderHeatmap(rows) {
   const container = document.getElementById('az-heatmap');
   if (xCol === undefined || yCol === undefined) return;
 
-  const xVals = [...new Set(rows.map(r => String(r[xCol]||'').trim()).filter(Boolean))].sort();
-  const yVals = [...new Set(rows.map(r => String(r[yCol]||'').trim()).filter(Boolean))].sort();
+  const xVals = azColDistinctValues(rows, xCol);
+  const yVals = azColDistinctValues(rows, yCol);
 
+  // 모델유형처럼 한 소재에 값이 여러 개 들어있는 축은 각 값에 성과를 그대로 반영(exploded)
   const mat = {};
   rows.forEach(r => {
-    const x = String(r[xCol]||'').trim();
-    const y = String(r[yCol]||'').trim();
-    if (!x || !y) return;
-    if (!mat[y]) mat[y] = {};
-    if (!mat[y][x]) mat[y][x] = {imp:0,clk:0,cost:0,conv:0};
-    const c = mat[y][x];
-    c.imp  += Number(r[AZ.IMP])   || 0;
-    c.clk  += Number(r[AZ.CLICK]) || 0;
-    c.cost += Number(r[AZ.COST])  || 0;
-    c.conv += Number(r[AZ.CONV])  || 0;
+    const xs = azColValues(r, xCol);
+    const ys = azColValues(r, yCol);
+    if (!xs.length || !ys.length) return;
+    ys.forEach(y => xs.forEach(x => {
+      if (!mat[y]) mat[y] = {};
+      if (!mat[y][x]) mat[y][x] = {imp:0,clk:0,cost:0,conv:0};
+      const c = mat[y][x];
+      c.imp  += Number(r[AZ.IMP])   || 0;
+      c.clk  += Number(r[AZ.CLICK]) || 0;
+      c.cost += Number(r[AZ.COST])  || 0;
+      c.conv += Number(r[AZ.CONV])  || 0;
+    }));
   });
 
   const allVals = [];
@@ -5134,7 +5265,8 @@ async function runAIInsight() {
   const rows = getFilteredRows();
 
   function dimSum(col, label) {
-    return Object.entries(azGroup(rows, col)).map(([k, rs]) => {
+    const grouped = col === AZ.MODELTYPE ? azGroupModelCombo(rows) : azGroup(rows, col);
+    return Object.entries(grouped).map(([k, rs]) => {
       const kk = azKPI(azSum(rs));
       return { [label]:k, CTR:+kk.ctr.toFixed(3), CVR:+kk.cvr.toFixed(3), CPA:Math.round(kk.cpa), 노출:Math.round(kk.imp), 클릭:Math.round(kk.clk) };
     }).sort((a,b) => b.CTR - a.CTR);
