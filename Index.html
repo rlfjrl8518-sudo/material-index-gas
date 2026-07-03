@@ -1133,6 +1133,15 @@
   .az-insight-panel { margin-top: 14px; background: var(--az-bg); border: 1px solid var(--az-bd); border-radius: 8px; padding: 16px; min-height: 48px; }
   .az-insight-text { font-size: 13px; color: var(--az-t2); line-height: 1.8; white-space: pre-wrap; }
 
+  /* 필터/소재 인사이트 구분 카드 */
+  .az-insight-section { padding: 14px 16px; border-radius: 8px; border: 1px solid var(--az-bd); margin-bottom: 12px; }
+  .az-insight-section:last-child { margin-bottom: 0; }
+  .az-insight-section-title { font-size: 12.5px; font-weight: 700; margin-bottom: 8px; }
+  .az-insight-filter { background: rgba(79,110,247,.08); border-color: rgba(79,110,247,.3); }
+  .az-insight-filter .az-insight-section-title { color: #4f6ef7; }
+  .az-insight-creative { background: rgba(16,185,129,.07); border-color: rgba(16,185,129,.28); }
+  .az-insight-creative .az-insight-section-title { color: #10b981; }
+
   /* 공통 유틸 */
   .az-no-data { text-align: center; padding: 32px; color: var(--az-t4); font-size: 13px; }
   .az-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
@@ -6342,12 +6351,31 @@ async function runAIInsight() {
     모델유형별: dimSum(AZ.MODELTYPE, '모델유형'),
   };
 
+  // 매체 필터가 걸려 있으면 그 매체 안에서 캠페인·그룹 운영 인사이트를,
+  // 매체 없이 보종만 걸려 있으면 매체별 보종 운영전략 인사이트를 추가로 요청한다.
+  const mediaVal  = document.getElementById('az-f-media').value;
+  const bojongVal = document.getElementById('az-f-bojong').value;
+  if (mediaVal) {
+    agg.필터컨텍스트 = {
+      유형: '매체별_캠페인그룹',
+      매체: mediaVal,
+      캠페인별: dimSum(AZ.CAMPAIGN, '캠페인'),
+      그룹별:   dimSum(AZ.GROUP,    '광고그룹')
+    };
+  } else if (bojongVal) {
+    agg.필터컨텍스트 = {
+      유형: '보종별_매체전략',
+      보종: bojongVal,
+      매체별: dimSum(AZ.MEDIA, '매체')
+    };
+  }
+
   try {
     const res = await gasRun('getOpenAIInsight', agg);
     if (res.error) {
       panel.innerHTML = `<div style="color:#f87171;font-size:13px;white-space:pre-wrap">${esc(res.message)}</div>`;
     } else {
-      panel.innerHTML = `<div class="az-insight-text">${esc(res.text).replace(/\n/g,'<br>')}</div>`;
+      panel.innerHTML = renderAIInsightSections(res.text);
     }
   } catch (err) {
     panel.innerHTML = `<div style="color:#f87171;font-size:13px">오류: ${esc(String(err.message||err))}</div>`;
@@ -6355,6 +6383,33 @@ async function runAIInsight() {
     btn.disabled = false;
     spinner.classList.remove('show');
   }
+}
+
+// GPT 응답을 [[필터인사이트]]...[[/필터인사이트]] / [[소재인사이트]]...[[/소재인사이트]]
+// 태그 기준으로 나눠서 서로 다른 스타일의 카드로 렌더링한다.
+// 태그를 못 찾으면(모델이 형식을 안 지킨 경우) 원문 그대로 표시해서 내용이 사라지지 않게 한다.
+function renderAIInsightSections(text) {
+  const filterMatch   = text.match(/\[\[필터인사이트\]\]([\s\S]*?)\[\[\/필터인사이트\]\]/);
+  const creativeMatch = text.match(/\[\[소재인사이트\]\]([\s\S]*?)\[\[\/소재인사이트\]\]/);
+
+  if (!filterMatch && !creativeMatch) {
+    return `<div class="az-insight-text">${esc(text).replace(/\n/g, '<br>')}</div>`;
+  }
+
+  let html = '';
+  if (filterMatch) {
+    html += `<div class="az-insight-section az-insight-filter">
+      <div class="az-insight-section-title">🎯 필터 기반 운영 인사이트</div>
+      <div class="az-insight-text">${esc(filterMatch[1].trim()).replace(/\n/g, '<br>')}</div>
+    </div>`;
+  }
+  if (creativeMatch) {
+    html += `<div class="az-insight-section az-insight-creative">
+      <div class="az-insight-section-title">🎨 소재 운영 인사이트</div>
+      <div class="az-insight-text">${esc(creativeMatch[1].trim()).replace(/\n/g, '<br>')}</div>
+    </div>`;
+  }
+  return html;
 }
 
 // ============================================================
