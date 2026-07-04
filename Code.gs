@@ -1474,10 +1474,18 @@ function getABTestPerformance(codes, startDate, endDate) {
       conv: a.conv + (Number(r[18]) || 0)
     }), { imp: 0, clk: 0, cost: 0, conv: 0 });
 
+    // 매체/소재이름은 "가장 최근 등록된 조합"이 아니라, 실제로 이 테스트 기간에
+    // 실적이 잡힌 조합을 기준으로 표시한다. 이미지코드 하나에 여러 조합이 걸려
+    // 있을 때 최근 등록 조합과 실제 집행 조합이 달라, 화면에 나오는 이름이
+    // 테스트 기간 필터 기준 실적과 안 맞아 보이는 문제가 있었다.
+    const displayRow  = matched.length ? matched[matched.length - 1] : null;
+    const displayMedia = displayRow ? String(displayRow[0] || '') : String(latest[2] || '');
+    const displayName  = displayRow ? String(displayRow[4] || '') : String(latest[5] || '');
+
     return {
       code,
-      매체:     String(latest[2]  || ''),
-      소재이름: String(latest[5]  || ''),
+      매체:     displayMedia,
+      소재이름: displayName,
       보종:     String(latest[6]  || ''),
       소재유형: String(latest[8]  || ''),
       모델유형: String(latest[13] || ''),
