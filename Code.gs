@@ -320,7 +320,7 @@ function getImageCodes() {
   if (!sheet || sheet.getLastRow() < 2) return [];
 
   const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 15).getValues();
-  // col: 0=이미지코드, 1=등록일자, 2=매체, 5=소재이름, 6=보종, 8=소재유형, 14=이미지URL
+  // col: 0=이미지코드, 1=등록일자, 2=매체, 4=그룹, 5=소재이름, 6=보종, 8=소재유형, 14=이미지URL
   const seen = new Map();
   data.forEach(row => {
     const code = String(row[0] || '').trim();
@@ -329,6 +329,7 @@ function getImageCodes() {
       code,
       등록일자: row[1] ? String(row[1]).slice(0, 10) : '',
       매체:     String(row[2] || ''),
+      그룹:     String(row[4] || ''),
       소재이름: String(row[5] || ''),
       보종:     String(row[6] || ''),
       소재유형: String(row[8] || ''),

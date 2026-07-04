@@ -7475,7 +7475,21 @@ function ensureABModal() {
   title.textContent = '비교할 소재 선택';
 
   const controls = document.createElement('div');
-  controls.style.cssText = 'display:flex;align-items:center;gap:8px;';
+  controls.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+
+  function abMakeFilterSelect(id, defaultLabel) {
+    const sel = document.createElement('select');
+    sel.id = id;
+    sel.style.cssText = 'padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;color:#374151;background:#fff;';
+    sel.innerHTML = `<option value="">${defaultLabel} 전체</option>`;
+    sel.addEventListener('change', filterABPicker);
+    return sel;
+  }
+  const filterMedia  = abMakeFilterSelect('abImgFilterMedia',  '매체');
+  const filterGroup  = abMakeFilterSelect('abImgFilterGroup',  '그룹');
+  const filterCrtype = abMakeFilterSelect('abImgFilterCrtype', '소재유형');
+  const filterBoJong = abMakeFilterSelect('abImgFilterBoJong', '보종');
+
   const searchInput = document.createElement('input');
   searchInput.type = 'text';
   searchInput.className = 'modal-search';
@@ -7486,6 +7500,10 @@ function ensureABModal() {
   closeBtn.className = 'btn btn-ghost btn-sm';
   closeBtn.textContent = '닫기';
   closeBtn.addEventListener('click', closeABPicker);
+  controls.appendChild(filterMedia);
+  controls.appendChild(filterGroup);
+  controls.appendChild(filterCrtype);
+  controls.appendChild(filterBoJong);
   controls.appendChild(searchInput);
   controls.appendChild(closeBtn);
   header.appendChild(title);
@@ -7517,9 +7535,25 @@ function openABPicker(slotIndex) {
   const grid = document.getElementById('abImgPickerGrid');
   grid.innerHTML = '<div class="modal-empty">불러오는 중...</div>';
   google.script.run
-    .withSuccessHandler(codes => { abAllCodes = codes; filterABPicker(); })
+    .withSuccessHandler(codes => { abAllCodes = codes; abPopulateFilterOptions(codes); filterABPicker(); })
     .withFailureHandler(() => { grid.innerHTML = '<div class="modal-empty" style="color:#ef4444;">로드 실패 - 다시 시도해 주세요.</div>'; })
     .getImageCodes();
+}
+
+// 매체/그룹/소재유형/보종 필터 드롭다운 옵션을 실제 데이터 기준으로 채운다
+function abPopulateFilterOptions(codes) {
+  function fillSelect(id, field, label) {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const prevVal = sel.value;
+    const vals = [...new Set(codes.map(c => c[field]).filter(Boolean))].sort();
+    sel.innerHTML = `<option value="">${label} 전체</option>` + vals.map(v => `<option value="${escHtml(v)}">${escHtml(v)}</option>`).join('');
+    if (vals.includes(prevVal)) sel.value = prevVal;
+  }
+  fillSelect('abImgFilterMedia',  '매체',    '매체');
+  fillSelect('abImgFilterGroup',  '그룹',    '그룹');
+  fillSelect('abImgFilterCrtype', '소재유형', '소재유형');
+  fillSelect('abImgFilterBoJong', '보종',    '보종');
 }
 
 function closeABPicker() {
@@ -7527,9 +7561,20 @@ function closeABPicker() {
 }
 
 function filterABPicker() {
-  const q = (document.getElementById('abImgSearch').value || '').trim().toLowerCase();
-  const filtered = !q ? abAllCodes : abAllCodes.filter(c =>
-    c.code.toLowerCase().includes(q) || (c.소재이름 || '').toLowerCase().includes(q));
+  const q      = (document.getElementById('abImgSearch').value || '').trim().toLowerCase();
+  const media  = document.getElementById('abImgFilterMedia')?.value  || '';
+  const group  = document.getElementById('abImgFilterGroup')?.value  || '';
+  const crtype = document.getElementById('abImgFilterCrtype')?.value || '';
+  const boJong = document.getElementById('abImgFilterBoJong')?.value || '';
+
+  const filtered = abAllCodes.filter(c => {
+    if (media  && c.매체     !== media)  return false;
+    if (group  && c.그룹     !== group)  return false;
+    if (crtype && c.소재유형 !== crtype) return false;
+    if (boJong && c.보종     !== boJong) return false;
+    if (q && !c.code.toLowerCase().includes(q) && !(c.소재이름 || '').toLowerCase().includes(q)) return false;
+    return true;
+  });
   renderABPickerGrid(filtered);
 }
 
