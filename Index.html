@@ -2205,7 +2205,21 @@
     </button>
   </div>
 
+  <div id="report-list-view" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="font-size:15px;font-weight:700;color:#1a1a2e">📄 저장된 보고서</div>
+      <button class="btn btn-primary btn-sm" onclick="openReportBuilder(null)">+ 새 보고서</button>
+    </div>
+    <div id="report-list" class="ab-list"></div>
+  </div>
+
   <div id="report-body" style="display:none">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+      <button class="btn btn-ghost btn-sm" onclick="showReportList()">← 목록</button>
+      <input type="text" id="report-name-input" class="form-control" placeholder="보고서 이름을 입력하세요" style="max-width:260px;font-size:13px;padding:6px 10px">
+      <button class="btn btn-primary btn-sm" onclick="saveCurrentReport()">💾 저장</button>
+      <span id="report-save-msg" style="font-size:11px"></span>
+    </div>
     <div class="report-layout">
 
       <!-- 설정 패널 -->
@@ -6854,17 +6868,16 @@ const REPORT_METRICS = [
   { key: 'cpa',  label: 'CPA' }
 ];
 
-let reportInitialized = false;
-let reportFilterSeq   = 0;
-let reportExportAOA   = null; // 마지막으로 생성된 보고서의 원시 배열 (엑셀 export용)
+let reportFilterSeq  = 0;
+let reportExportAOA  = null; // 마지막으로 생성된 보고서의 원시 배열 (엑셀 export용)
 
 function onReportTabActivate() {
   if (azLoaded) {
     document.getElementById('report-empty').style.display = 'none';
-    document.getElementById('report-body').style.display = 'block';
-    initReportBuilderOnce();
+    showReportList();
   } else {
     document.getElementById('report-empty').style.display = 'flex';
+    document.getElementById('report-list-view').style.display = 'none';
     document.getElementById('report-body').style.display = 'none';
   }
 }
@@ -6881,27 +6894,152 @@ async function loadDataForReport(btn) {
   }
   if (azLoaded) {
     document.getElementById('report-empty').style.display = 'none';
-    document.getElementById('report-body').style.display = 'block';
-    initReportBuilderOnce();
+    showReportList();
   }
 }
 
-function initReportBuilderOnce() {
-  if (reportInitialized) return;
-  reportInitialized = true;
+// ── 저장된 보고서 목록 ─────────────────────────────────────
+let reportSavedListCache = [];
+let reportCurrentId      = null; // 현재 편집 중인 보고서 ID (새 보고서면 null)
 
-  reportRowDimOrder = ['crtype'];
-  reportColDimOrder = [];
+function showReportList() {
+  document.getElementById('report-body').style.display = 'none';
+  document.getElementById('report-list-view').style.display = 'block';
+  refreshReportList();
+}
+
+async function refreshReportList() {
+  const listEl = document.getElementById('report-list');
+  listEl.innerHTML = '<div class="ab-empty">불러오는 중...</div>';
+  try {
+    reportSavedListCache = await gasRun('getSavedReports');
+  } catch (e) {
+    listEl.innerHTML = `<div class="ab-empty" style="color:#ef4444">불러오기 실패: ${esc(String(e.message || e))}</div>`;
+    return;
+  }
+  renderReportListCards();
+}
+
+function renderReportListCards() {
+  const listEl = document.getElementById('report-list');
+  if (!reportSavedListCache.length) {
+    listEl.innerHTML = '<div class="ab-empty">저장된 보고서가 없습니다. "+ 새 보고서"로 시작해 보세요.</div>';
+    return;
+  }
+  listEl.innerHTML = reportSavedListCache.map(r => {
+    const cfg = r.설정 || {};
+    const rowLabels    = (cfg.rowDims || []).map(k => REPORT_DIMENSIONS.find(d => d.key === k)?.label).filter(Boolean);
+    const colLabels    = (cfg.colDims || []).map(k => REPORT_DIMENSIONS.find(d => d.key === k)?.label).filter(Boolean);
+    const metricLabels = (cfg.metrics || []).map(k => REPORT_METRICS.find(m => m.key === k)?.label).filter(Boolean);
+    const metaParts = [
+      rowLabels.length    ? '행: ' + rowLabels.join(' → ')    : null,
+      colLabels.length    ? '열: ' + colLabels.join(' / ')    : null,
+      metricLabels.length ? '지표: ' + metricLabels.join(', ') : null
+    ].filter(Boolean);
+    return `<div class="ab-card" onclick="openReportBuilder('${r.보고서ID}')">
+      <div class="ab-card-main">
+        <div class="ab-card-title">${escHtml(r.보고서명)}</div>
+        <div class="ab-card-meta">${escHtml(metaParts.join(' · ') || '설정 없음')}</div>
+        <div class="ab-card-meta">최근 수정: ${escHtml(r.최근수정일시 || r.등록일시)}</div>
+      </div>
+      <div class="ab-card-actions">
+        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();deleteSavedReportConfirm('${r.보고서ID}')">삭제</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function deleteSavedReportConfirm(reportId) {
+  if (!confirm('이 보고서를 삭제할까요?')) return;
+  try {
+    await gasRun('deleteSavedReport', reportId);
+    await refreshReportList();
+  } catch (e) {
+    alert('삭제 실패: ' + (e.message || e));
+  }
+}
+
+// ── 보고서 빌더 열기/저장 ──────────────────────────────────
+// reportId가 있으면 저장된 설정을 불러오고, null이면 빈 상태로 새로 시작한다.
+function openReportBuilder(reportId) {
+  document.getElementById('report-list-view').style.display = 'none';
+  document.getElementById('report-body').style.display = 'block';
+  reportCurrentId = reportId || null;
+
+  const saved = reportId ? reportSavedListCache.find(r => r.보고서ID === reportId) : null;
+  document.getElementById('report-name-input').value = saved ? saved.보고서명 : '';
+  const msgEl = document.getElementById('report-save-msg');
+  msgEl.textContent = '';
+
+  reportApplyConfig(saved ? saved.설정 : null);
+}
+
+async function saveCurrentReport() {
+  const name = document.getElementById('report-name-input').value.trim();
+  const msgEl = document.getElementById('report-save-msg');
+  if (!name) { msgEl.style.color = '#ef4444'; msgEl.textContent = '보고서 이름을 입력하세요.'; return; }
+
+  const config = reportCollectConfig();
+  msgEl.style.color = '#6b7280'; msgEl.textContent = '저장 중...';
+  try {
+    const res = await gasRun('saveReportConfig', name, config, reportCurrentId);
+    if (res.error) { msgEl.style.color = '#ef4444'; msgEl.textContent = res.message; return; }
+    reportCurrentId = res.보고서ID;
+    msgEl.style.color = '#10b981'; msgEl.textContent = '저장되었습니다.';
+  } catch (e) {
+    msgEl.style.color = '#ef4444'; msgEl.textContent = '저장 실패: ' + (e.message || e);
+  }
+}
+
+// 현재 빌더 UI 상태를 저장 가능한 설정 객체로 수집
+function reportCollectConfig() {
+  return {
+    rowDims:   reportRowDimOrder.slice(),
+    colDims:   reportColDimOrder.slice(),
+    metrics:   Array.from(document.querySelectorAll('.report-metric-check:checked')).map(el => el.value),
+    filters:   getReportFilters(),
+    dateStart: document.getElementById('report-f-start').value,
+    dateEnd:   document.getElementById('report-f-end').value
+  };
+}
+
+// 저장된 설정(또는 null=새 보고서 기본값)을 빌더 UI에 반영
+function reportApplyConfig(config) {
+  config = config || {};
+  reportRowDimOrder = Array.isArray(config.rowDims) && config.rowDims.length ? config.rowDims.slice() : ['crtype'];
+  reportColDimOrder = Array.isArray(config.colDims) ? config.colDims.slice() : [];
   renderReportRowDimPicker();
   renderReportColDimPicker();
-
   renderReportMetricPicker();
-  addReportFilter();
 
-  const dates = azRawData.slice(1).map(r => azDateStr(r[AZ.DATE])).filter(Boolean).sort();
-  if (dates.length) {
-    document.getElementById('report-f-start').value = dates[0];
-    document.getElementById('report-f-end').value   = dates[dates.length - 1];
+  const wantedMetrics = new Set(Array.isArray(config.metrics) && config.metrics.length ? config.metrics : REPORT_METRICS.map(m => m.key));
+  document.querySelectorAll('.report-metric-check').forEach(el => { el.checked = wantedMetrics.has(el.value); });
+
+  reportFilterSeq = 0;
+  document.getElementById('report-filter-list').innerHTML = '';
+  const filters = Array.isArray(config.filters) ? config.filters : [];
+  if (filters.length) {
+    filters.forEach(f => {
+      addReportFilter();
+      const rowEls = document.querySelectorAll('.report-filter-row');
+      const row = rowEls[rowEls.length - 1];
+      row.querySelector('select').value = f.dim;
+      onReportFilterDimChange(row.id);
+      row.querySelector('.rf-value').value = f.value;
+    });
+  } else {
+    addReportFilter();
+  }
+
+  if (config.dateStart || config.dateEnd) {
+    document.getElementById('report-f-start').value = config.dateStart || '';
+    document.getElementById('report-f-end').value   = config.dateEnd   || '';
+  } else {
+    const dates = azRawData.slice(1).map(r => azDateStr(r[AZ.DATE])).filter(Boolean).sort();
+    if (dates.length) {
+      document.getElementById('report-f-start').value = dates[0];
+      document.getElementById('report-f-end').value   = dates[dates.length - 1];
+    }
   }
 
   generateReport();

@@ -11,6 +11,7 @@ const DETECT_SHEET_NAME           = '신규소재감지';
 const DGPM_SHEET_NAME             = '구글DA 인덱스';
 const CONSOLIDATED_RAW_SHEET_NAME = '소재_통합RAW';
 const AB_TEST_SHEET_NAME          = 'AB테스트';
+const SAVED_REPORT_SHEET_NAME     = '저장된보고서';
 
 // 광고 단위에 여러 이미지가 포함되는 매체 (1:N 구조)
 const DGPM_MEDIA = ['디멘드젠', '피맥스'];
@@ -41,6 +42,11 @@ const AB_TEST_HEADERS = [
   '시작일', '종료일', '소재코드목록', '결론메모',
   '등록일시', '최근수정일시'
 ];
+
+// 저장된보고서 시트 헤더 — 보고서 설정(행/열 기준, 지표, 필터, 기간 등)은
+// 통째로 JSON 문자열 하나에 담아 저장한다 (구조가 자주 확장될 수 있어 컬럼을
+// 미리 다 나누기보다 유연하게 가져가는 편이 유지보수하기 쉽다)
+const SAVED_REPORT_HEADERS = ['보고서ID', '보고서명', '설정JSON', '등록일시', '최근수정일시'];
 
 // --------------------------------------------------
 // 웹앱 진입점
@@ -204,6 +210,14 @@ function initializeSheets() {
     abSheet.getRange(1, 1, 1, AB_TEST_HEADERS.length)
       .setValues([AB_TEST_HEADERS]).setFontWeight('bold');
     abSheet.setFrozenRows(1);
+  }
+
+  // 저장된보고서 시트
+  if (!ss.getSheetByName(SAVED_REPORT_SHEET_NAME)) {
+    const srSheet = ss.insertSheet(SAVED_REPORT_SHEET_NAME);
+    srSheet.getRange(1, 1, 1, SAVED_REPORT_HEADERS.length)
+      .setValues([SAVED_REPORT_HEADERS]).setFontWeight('bold');
+    srSheet.setFrozenRows(1);
   }
 
   return { success: true, message: '시트 초기화 완료' };
@@ -1331,6 +1345,83 @@ function deleteABTest(testId) {
     const ids = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat().map(String);
     const idx = ids.indexOf(String(testId));
     if (idx === -1) return { error: true, message: '테스트를 찾을 수 없습니다.' };
+    sheet.deleteRow(idx + 2);
+    return { success: true };
+  } catch (e) {
+    return { error: true, message: e.message };
+  }
+}
+
+// --------------------------------------------------
+// 저장된 보고서 — 보고서 탭의 행/열/지표/필터/기간 설정을 이름 붙여 저장하고
+// 나중에 목록에서 다시 불러올 수 있게 한다. AB테스트와 동일한 시트 CRUD 패턴.
+// --------------------------------------------------
+function _getOrCreateSavedReportSheet() {
+  const ss = getSpreadsheet();
+  let sheet = ss.getSheetByName(SAVED_REPORT_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(SAVED_REPORT_SHEET_NAME);
+    sheet.getRange(1, 1, 1, SAVED_REPORT_HEADERS.length)
+      .setValues([SAVED_REPORT_HEADERS]).setFontWeight('bold');
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+// 저장된 보고서 목록 (최신 등록순), 설정JSON은 파싱해서 반환
+function getSavedReports() {
+  const sheet = _getOrCreateSavedReportSheet();
+  if (sheet.getLastRow() < 2) return [];
+  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, SAVED_REPORT_HEADERS.length).getValues();
+  const tz = Session.getScriptTimeZone();
+  return rows.map(r => {
+    let config = null;
+    try { config = JSON.parse(r[2] || '{}'); } catch (e) { config = {}; }
+    return {
+      보고서ID:     String(r[0] || ''),
+      보고서명:     String(r[1] || ''),
+      설정:         config,
+      등록일시:     r[3] ? Utilities.formatDate(new Date(r[3]), tz, 'yyyy-MM-dd HH:mm') : '',
+      최근수정일시: r[4] ? Utilities.formatDate(new Date(r[4]), tz, 'yyyy-MM-dd HH:mm') : ''
+    };
+  }).reverse();
+}
+
+// 보고서 저장 (신규 생성 또는 기존 수정 — reportId 유무로 판단)
+function saveReportConfig(name, config, reportId) {
+  try {
+    if (!name) return { error: true, message: '보고서명을 입력하세요.' };
+    const configJson = JSON.stringify(config || {});
+    const sheet = _getOrCreateSavedReportSheet();
+    const now = new Date();
+
+    if (reportId) {
+      const ids = sheet.getLastRow() >= 2
+        ? sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat().map(String)
+        : [];
+      const idx = ids.indexOf(String(reportId));
+      if (idx === -1) return { error: true, message: '보고서를 찾을 수 없습니다.' };
+      const rowNum = idx + 2;
+      sheet.getRange(rowNum, 2, 1, 2).setValues([[name, configJson]]);
+      sheet.getRange(rowNum, 5).setValue(now);
+      return { success: true, 보고서ID: reportId };
+    }
+
+    const newId = 'RPT' + Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyMMddHHmmss');
+    sheet.appendRow([newId, name, configJson, now, now]);
+    return { success: true, 보고서ID: newId };
+  } catch (e) {
+    return { error: true, message: e.message };
+  }
+}
+
+function deleteSavedReport(reportId) {
+  try {
+    const sheet = _getOrCreateSavedReportSheet();
+    if (sheet.getLastRow() < 2) return { success: true };
+    const ids = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat().map(String);
+    const idx = ids.indexOf(String(reportId));
+    if (idx === -1) return { error: true, message: '보고서를 찾을 수 없습니다.' };
     sheet.deleteRow(idx + 2);
     return { success: true };
   } catch (e) {
