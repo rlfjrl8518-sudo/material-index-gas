@@ -6706,20 +6706,24 @@ function renderAIInsightSections(text) {
 // 다시 불러올 필요가 없고, 캐시 이점도 그대로 이어받는다.
 // ============================================================
 const REPORT_DIMENSIONS = [
-  { key: 'media',     label: '매체',       col: AZ.MEDIA },
-  { key: 'campaign',  label: '캠페인',     col: AZ.CAMPAIGN },
-  { key: 'group',     label: '광고그룹',   col: AZ.GROUP },
-  { key: 'creative',  label: '소재이름',   col: AZ.CREATIVE },
-  { key: 'bojong',    label: '보종',       col: AZ.BOJONG },
-  { key: 'adtype',    label: '광고유형',   col: AZ.ADTYPE },
-  { key: 'crtype',    label: '소재유형',   col: AZ.CRTYPE },
-  { key: 'appeal',    label: '소구포인트', col: AZ.APPEAL },
-  { key: 'hook',      label: '후킹방식',   col: AZ.HOOK },
-  { key: 'imgtype',   label: '이미지유형', col: AZ.IMGTYPE },
-  { key: 'modeltype', label: '모델유형',   col: AZ.MODELTYPE },
-  { key: 'day',       label: '날짜(일별)', special: 'day' },
-  { key: 'week',      label: '날짜(주별)', special: 'week' },
-  { key: 'month',     label: '날짜(월별)', special: 'month' }
+  { key: 'media',      label: '매체',         col: AZ.MEDIA },
+  { key: 'campaign',   label: '캠페인',       col: AZ.CAMPAIGN },
+  { key: 'group',      label: '광고그룹',     col: AZ.GROUP },
+  { key: 'creative',   label: '소재이름',     col: AZ.CREATIVE },
+  { key: 'bojong',     label: '보종',         col: AZ.BOJONG },
+  { key: 'adtype',     label: '광고유형',     col: AZ.ADTYPE },
+  { key: 'crtype',     label: '소재유형',     col: AZ.CRTYPE },
+  { key: 'appeal',     label: '소구포인트',   col: AZ.APPEAL },
+  { key: 'hook',       label: '후킹방식',     col: AZ.HOOK },
+  { key: 'imgtype',    label: '이미지유형',   col: AZ.IMGTYPE },
+  { key: 'modeltype',  label: '모델유형(개별)', col: AZ.MODELTYPE },
+  { key: 'modelcombo', label: '모델유형(조합)', special: 'modelcombo' },
+  { key: 'livestatus', label: '라이브 상태',   special: 'livestatus' },
+  { key: 'lifecycle',  label: '생애주기 단계', special: 'lifecycle' },
+  { key: 'dow',        label: '요일',         special: 'dow' },
+  { key: 'day',        label: '날짜(일별)',   special: 'day',   noFilter: true },
+  { key: 'week',       label: '날짜(주별)',   special: 'week',  noFilter: true },
+  { key: 'month',      label: '날짜(월별)',   special: 'month', noFilter: true }
 ];
 
 const REPORT_METRICS = [
@@ -6787,34 +6791,93 @@ function initReportBuilderOnce() {
   generateReport();
 }
 
-// 행의 특정 차원 값(들)을 반환. 모델유형처럼 값이 여러 개인 컬럼은 각각 반환하고,
-// 날짜 차원은 일/주/월 단위 버킷 키 하나로 묶어서 반환한다.
+// ── 파생 차원(라이브 상태/생애주기 단계) 캐시 ─────────────
+// 이 둘은 컬럼 하나로 바로 안 되고 소재이름별로 전체 이력을 훑어야 나오는 값이라
+// (분석 탭의 라이브/생애주기 로직과 같은 방식) 행마다 다시 계산하면 느리므로,
+// azRawData가 바뀔 때만 한 번씩만 다시 계산해서 캐시해둔다.
+const REPORT_LIVE_DAYS = 3; // 분석 탭 기본값과 동일 — 최신일 기준 이 안에 실적 있으면 라이브
+let reportLiveSetCache    = null;
+let reportLifecycleCache  = null;
+let reportCacheRowCount   = -1;
+
+function reportEnsureDerivedCaches() {
+  if (reportCacheRowCount === azRawData.length) return;
+  reportCacheRowCount = azRawData.length;
+
+  const rows = azRawData.slice(1);
+  const lastActive = {}, firstSeen = {};
+  let refDate = '';
+  rows.forEach(r => {
+    const name = String(r[AZ.CREATIVE] || '').trim();
+    const d = azDateStr(r[AZ.DATE]);
+    if (!name || !d) return;
+    if (d > refDate) refDate = d;
+    if (!lastActive[name] || d > lastActive[name]) lastActive[name] = d;
+    if (!firstSeen[name]  || d < firstSeen[name])  firstSeen[name]  = d;
+  });
+
+  reportLiveSetCache = new Set();
+  if (refDate) {
+    const cutoff = new Date(refDate);
+    cutoff.setDate(cutoff.getDate() - REPORT_LIVE_DAYS);
+    const cutoffStr = azDateStr(cutoff);
+    Object.keys(lastActive).forEach(n => { if (lastActive[n] >= cutoffStr) reportLiveSetCache.add(n); });
+  }
+
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  reportLifecycleCache = {};
+  Object.keys(firstSeen).forEach(name => {
+    const elapsed = Math.floor((today - new Date(firstSeen[name] + 'T00:00:00')) / 86400000);
+    reportLifecycleCache[name] = elapsed <= 14 ? '초기' : elapsed <= 28 ? '중기' : '후기';
+  });
+}
+
+function reportDowLabel(dateStr) {
+  const days = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+  return days[new Date(dateStr + 'T00:00:00').getDay()];
+}
+
+// 행의 특정 차원 값(들)을 반환. 모델유형(개별)처럼 값이 여러 개인 컬럼은 각각 반환하고,
+// 날짜/요일/라이브상태/생애주기/모델유형(조합)은 계산해서 값 하나로 묶어 반환한다.
 function reportDimValues(row, dim) {
-  if (dim.special) {
+  reportEnsureDerivedCaches();
+
+  if (dim.special === 'day' || dim.special === 'week' || dim.special === 'month') {
     const d = azDateStr(row[AZ.DATE]);
     return d ? [azPeriodKey(d, dim.special)] : [];
+  }
+  if (dim.special === 'dow') {
+    const d = azDateStr(row[AZ.DATE]);
+    return d ? [reportDowLabel(d)] : [];
+  }
+  if (dim.special === 'modelcombo') {
+    const combo = azModelCombo(row);
+    return combo ? [combo] : [];
+  }
+  if (dim.special === 'livestatus') {
+    const name = String(row[AZ.CREATIVE] || '').trim();
+    if (!name) return [];
+    return [reportLiveSetCache && reportLiveSetCache.has(name) ? '라이브중' : '종료'];
+  }
+  if (dim.special === 'lifecycle') {
+    const name = String(row[AZ.CREATIVE] || '').trim();
+    const phase = reportLifecycleCache && reportLifecycleCache[name];
+    return phase ? [phase] : [];
   }
   return azColValues(row, dim.col);
 }
 
+// 지표는 행 기준/열 기준 상관없이 항상 여러 개 선택 가능 (교차표에서도 지표별로
+// 열이 그룹핑되어 나란히 표시됨)
 function renderReportMetricPicker() {
-  const colDimKey = document.getElementById('report-col-dim').value;
   const container = document.getElementById('report-metric-picker');
-  if (colDimKey) {
-    container.innerHTML = REPORT_METRICS.map((m, i) => `
-      <label class="report-metric-item">
-        <input type="radio" name="report-metric-single" value="${m.key}" onchange="generateReport()" ${i === 0 ? 'checked' : ''}> ${m.label}
-      </label>`).join('');
-  } else {
-    container.innerHTML = REPORT_METRICS.map(m => `
-      <label class="report-metric-item">
-        <input type="checkbox" class="report-metric-check" value="${m.key}" onchange="generateReport()" checked> ${m.label}
-      </label>`).join('');
-  }
+  container.innerHTML = REPORT_METRICS.map(m => `
+    <label class="report-metric-item">
+      <input type="checkbox" class="report-metric-check" value="${m.key}" onchange="generateReport()" checked> ${m.label}
+    </label>`).join('');
 }
 
 function onReportColDimChange() {
-  renderReportMetricPicker();
   generateReport();
 }
 
@@ -6828,7 +6891,7 @@ function addReportFilter() {
   row.innerHTML =
     `<select onchange="onReportFilterDimChange('${id}')">` +
       `<option value="">차원 선택</option>` +
-      REPORT_DIMENSIONS.filter(d => !d.special).map(d => `<option value="${d.key}">${d.label}</option>`).join('') +
+      REPORT_DIMENSIONS.filter(d => !d.noFilter).map(d => `<option value="${d.key}">${d.label}</option>`).join('') +
     `</select>` +
     `<select class="rf-value" disabled onchange="generateReport()"><option value="">-</option></select>` +
     `<button onclick="removeReportFilter('${id}')" title="삭제">✕</button>`;
@@ -6882,10 +6945,7 @@ function buildReportData() {
   const rowDim = REPORT_DIMENSIONS.find(d => d.key === document.getElementById('report-row-dim').value);
   const colDimKey = document.getElementById('report-col-dim').value;
   const colDim = colDimKey ? REPORT_DIMENSIONS.find(d => d.key === colDimKey) : null;
-
-  const metricKeys = colDim
-    ? Array.from(document.querySelectorAll('input[name="report-metric-single"]:checked')).map(el => el.value)
-    : Array.from(document.querySelectorAll('.report-metric-check:checked')).map(el => el.value);
+  const metricKeys = Array.from(document.querySelectorAll('.report-metric-check:checked')).map(el => el.value);
 
   if (!rowDim || !metricKeys.length) return null;
   const rows = reportFilteredRows();
@@ -6902,7 +6962,7 @@ function buildReportData() {
     return { type: 'flat', rowDim, metricKeys, entries };
   }
 
-  const metric = metricKeys[0];
+  // 교차표: 지표를 여러 개 골라도 각 열 값 아래에 지표별로 그룹핑되어 나란히 표시된다
   const mat = {};
   const rowKeysSet = new Set(), colKeysSet = new Set();
   rows.forEach(r => {
@@ -6918,7 +6978,7 @@ function buildReportData() {
       c.cost += azNum(r[AZ.COST]); c.conv += azNum(r[AZ.CONV]);
     }));
   });
-  return { type: 'pivot', rowDim, colDim, metric, mat, rowKeys: [...rowKeysSet].sort(), colKeys: [...colKeysSet].sort() };
+  return { type: 'pivot', rowDim, colDim, metricKeys, mat, rowKeys: [...rowKeysSet].sort(), colKeys: [...colKeysSet].sort() };
 }
 
 function generateReport() {
@@ -6987,13 +7047,16 @@ function renderReportFlatTable(data) {
   reportExportAOA = aoa;
 }
 
+// 지표를 여러 개 고르면 열 값 하나마다 지표별로 그룹핑된 서브컬럼을 만든다
+// (헤더 2줄: 1줄=열 값, 2줄=그 아래 지표명) — 지표가 1개면 자연스럽게
+// 서브컬럼이 1개짜리 그룹으로 표시된다.
 function renderReportPivotTable(data) {
-  const { rowDim, colDim, metric, mat, rowKeys, colKeys } = data;
+  const { rowDim, colDim, metricKeys, mat, rowKeys, colKeys } = data;
   const table = document.getElementById('report-table');
-  const metricLabel = REPORT_METRICS.find(m => m.key === metric).label;
+  const metricLabels = metricKeys.map(k => REPORT_METRICS.find(m => m.key === k).label);
+  const nMetrics = metricKeys.length;
 
   function cellAgg(rk, ck) { return (mat[rk] && mat[rk][ck]) || { imp: 0, clk: 0, cost: 0, conv: 0 }; }
-  function cellVal(rk, ck) { return reportMetricFromAgg(cellAgg(rk, ck), metric); }
   function sumAgg(list) {
     return list.reduce((a, c) => ({ imp: a.imp + c.imp, clk: a.clk + c.clk, cost: a.cost + c.cost, conv: a.conv + c.conv }),
       { imp: 0, clk: 0, cost: 0, conv: 0 });
@@ -7002,37 +7065,56 @@ function renderReportPivotTable(data) {
   function colTotalAgg(ck) { return sumAgg(rowKeys.map(rk => cellAgg(rk, ck))); }
   const grandAgg = sumAgg(rowKeys.map(rk => rowTotalAgg(rk)));
 
+  const metricHeaderRow = () => metricLabels.map(l => `<th>${escHtml(l)}</th>`).join('');
+  const metricCells = (agg) => metricKeys.map(m => `<td>${reportFmtCell(m, reportMetricFromAgg(agg, m))}</td>`).join('');
+  const metricTotalCells = (agg) => metricKeys.map(m => `<td class="report-total-col">${reportFmtCell(m, reportMetricFromAgg(agg, m))}</td>`).join('');
+
   table.innerHTML =
-    `<thead><tr>
-      <th style="text-align:left">${escHtml(rowDim.label)} \\ ${escHtml(colDim.label)}</th>
-      ${colKeys.map(ck => `<th>${escHtml(ck)}</th>`).join('')}
-      <th>합계</th>
-    </tr></thead>` +
+    `<thead>
+      <tr>
+        <th style="text-align:left" rowspan="2">${escHtml(rowDim.label)} \\ ${escHtml(colDim.label)}</th>
+        ${colKeys.map(ck => `<th colspan="${nMetrics}">${escHtml(ck)}</th>`).join('')}
+        <th colspan="${nMetrics}">합계</th>
+      </tr>
+      <tr>
+        ${colKeys.map(() => metricHeaderRow()).join('')}
+        ${metricHeaderRow()}
+      </tr>
+    </thead>` +
     `<tbody>` +
       rowKeys.map(rk => `<tr>
         <td style="text-align:left">${escHtml(rk)}</td>
-        ${colKeys.map(ck => `<td>${reportFmtCell(metric, cellVal(rk, ck))}</td>`).join('')}
-        <td class="report-total-col">${reportFmtCell(metric, reportMetricFromAgg(rowTotalAgg(rk), metric))}</td>
+        ${colKeys.map(ck => metricCells(cellAgg(rk, ck))).join('')}
+        ${metricTotalCells(rowTotalAgg(rk))}
       </tr>`).join('') +
       `<tr class="report-total-row">
         <td style="text-align:left">합계</td>
-        ${colKeys.map(ck => `<td>${reportFmtCell(metric, reportMetricFromAgg(colTotalAgg(ck), metric))}</td>`).join('')}
-        <td class="report-total-col">${reportFmtCell(metric, reportMetricFromAgg(grandAgg, metric))}</td>
+        ${colKeys.map(ck => metricCells(colTotalAgg(ck))).join('')}
+        ${metricTotalCells(grandAgg)}
       </tr>` +
     `</tbody>`;
 
-  document.getElementById('report-summary').textContent = `${escHtml(rowDim.label)} × ${escHtml(colDim.label)} · ${metricLabel} 기준`;
+  document.getElementById('report-summary').textContent =
+    `${escHtml(rowDim.label)} × ${escHtml(colDim.label)} · ${metricLabels.join(', ')}`;
 
-  const aoa = [[`${rowDim.label}\\${colDim.label}`, ...colKeys, '합계']];
-  rowKeys.forEach(rk => aoa.push([
-    rk,
-    ...colKeys.map(ck => reportRawExportVal(metric, cellVal(rk, ck))),
-    reportRawExportVal(metric, reportMetricFromAgg(rowTotalAgg(rk), metric))
-  ]));
+  // 엑셀 export: 다단 헤더는 "열값 - 지표명" 한 줄로 펼쳐서 표현
+  const exportMetricCells = (agg) => metricKeys.map(m => reportRawExportVal(m, reportMetricFromAgg(agg, m)));
+  const aoa = [[
+    `${rowDim.label}\\${colDim.label}`,
+    ...colKeys.flatMap(ck => metricKeys.map((m, i) => `${ck} - ${metricLabels[i]}${reportUnitSuffix(m)}`)),
+    ...metricKeys.map((m, i) => `합계 - ${metricLabels[i]}${reportUnitSuffix(m)}`)
+  ]];
+  rowKeys.forEach(rk => {
+    aoa.push([
+      rk,
+      ...colKeys.flatMap(ck => exportMetricCells(cellAgg(rk, ck))),
+      ...exportMetricCells(rowTotalAgg(rk))
+    ]);
+  });
   aoa.push([
     '합계',
-    ...colKeys.map(ck => reportRawExportVal(metric, reportMetricFromAgg(colTotalAgg(ck), metric))),
-    reportRawExportVal(metric, reportMetricFromAgg(grandAgg, metric))
+    ...colKeys.flatMap(ck => exportMetricCells(colTotalAgg(ck))),
+    ...exportMetricCells(grandAgg)
   ]);
   reportExportAOA = aoa;
 }
