@@ -645,23 +645,26 @@
     cursor: pointer; font-size: 12px; line-height: 1;
   }
 
-  .ab-compare-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
-  .ab-compare-card {
-    border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; background: #fff; position: relative;
+  /* AB 비교 결과 — 행=이미지/지표, 열=소재 형식의 행렬(표) */
+  .ab-compare-table-wrap { overflow-x: auto; border: 1px solid #e5e7eb; border-radius: 10px; }
+  .ab-compare-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .ab-compare-table th, .ab-compare-table td { padding: 10px 14px; border-bottom: 1px solid #e5e7eb; text-align: center; white-space: nowrap; }
+  .ab-compare-table tr:last-child td { border-bottom: none; }
+  .ab-compare-table thead th { background: #f9fafb; font-size: 12px; color: #374151; font-weight: 700; }
+  .ab-compare-table thead th.winner-col { color: #10b981; }
+  .ab-compare-table td:first-child, .ab-compare-table th:first-child {
+    text-align: left; font-weight: 600; color: #374151; background: #fafbff;
+    position: sticky; left: 0; z-index: 1;
   }
-  .ab-compare-card.winner { border-color: #10b981; box-shadow: 0 0 0 2px rgba(16,185,129,.25); }
-  .ab-compare-thumb { width: 100%; aspect-ratio: 4/3; object-fit: cover; background: #f3f4f6; display: block; }
-  .ab-compare-body { padding: 10px 12px 14px; }
-  .ab-compare-code { font-size: 11px; color: #9ca3af; }
-  .ab-compare-name { font-size: 13px; font-weight: 600; color: #1a1a2e; margin: 2px 0 8px; }
-  .ab-winner-ribbon {
-    position: absolute; top: 8px; left: 8px; background: #10b981; color: #fff;
-    font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 12px; z-index: 2;
+  .ab-compare-table .ab-name-cell { font-weight: 600; color: #1a1a2e; }
+  .ab-compare-table .ab-code-cell { font-size: 11px; color: #9ca3af; }
+  .ab-thumb-cell img { width: 76px; height: 76px; object-fit: cover; border-radius: 8px; }
+  .ab-thumb-placeholder {
+    width: 76px; height: 76px; border-radius: 8px; background: #f3f4f6; display: flex;
+    align-items: center; justify-content: center; font-size: 26px; color: #d1d5db; margin: 0 auto;
   }
-  .ab-kpi-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; font-size: 12px; }
-  .ab-kpi-row .k { color: #9ca3af; }
-  .ab-kpi-row .v { color: #1a1a2e; font-weight: 600; text-align: right; }
-  .ab-kpi-row .v.best { color: #10b981; }
+  .ab-compare-table td.best { color: #10b981; font-weight: 800; background: rgba(16,185,129,.09); }
+  .ab-notfound-cell { color: #ef4444; font-size: 12px; }
 
 
 
@@ -2330,7 +2333,9 @@
     </div>
     <div id="ab-detail-hypothesis" style="font-size:13px;color:#374151;margin-bottom:14px;"></div>
 
-    <div id="ab-compare-grid" class="ab-compare-grid"></div>
+    <div class="ab-compare-table-wrap">
+      <table class="ab-compare-table" id="ab-compare-table"></table>
+    </div>
 
     <hr class="divider">
 
@@ -7620,15 +7625,14 @@ async function viewABDetail(testId) {
   document.getElementById('ab-detail-hypothesis').textContent = test.가설 ? '💡 가설: ' + test.가설 : '';
   document.getElementById('ab-f-conclusion').value = test.결론메모 || '';
 
-  const grid = document.getElementById('ab-compare-grid');
-  grid.innerHTML = '<div class="ab-empty">실적 불러오는 중...</div>';
+  abCompareMessage('실적 불러오는 중...');
   detailEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   try {
     const perf = await gasRun('getABTestPerformance', test.소재코드목록, test.시작일, test.종료일);
     renderABCompare(perf);
   } catch (err) {
-    grid.innerHTML = `<div class="ab-empty" style="color:#ef4444">실적 로드 실패: ${esc(String(err.message || err))}</div>`;
+    abCompareMessage('실적 로드 실패: ' + String(err.message || err), true);
   }
 }
 
@@ -7637,51 +7641,67 @@ function closeABDetail() {
   abCurrentDetailId = null;
 }
 
+// 표 형태(행렬)로 통일해서 보여줘야 하니, 로딩/에러/빈 상태도 <table> 안의
+// 한 행짜리 메시지로 표시한다 (table.innerHTML에 div를 직접 넣으면 브라우저가
+// 테이블 밖으로 튕겨내서 레이아웃이 깨진다).
+function abCompareMessage(text, isError) {
+  const table = document.getElementById('ab-compare-table');
+  table.innerHTML = `<tbody><tr><td style="text-align:center;padding:28px;color:${isError ? '#ef4444' : '#9ca3af'}">${escHtml(text)}</td></tr></tbody>`;
+}
+
+// 행=이미지/지표, 열=소재(A/B/C/D) 형식의 행렬(표)로 표시.
+// 지표마다 가장 우수한 값을 가진 셀(들)에 초록색(.best)을 표시한다.
 function renderABCompare(perf) {
-  const grid = document.getElementById('ab-compare-grid');
-  if (!perf.length) { grid.innerHTML = '<div class="ab-empty">데이터가 없습니다.</div>'; return; }
+  if (!perf.length) { abCompareMessage('데이터가 없습니다.'); return; }
 
-  const withData    = perf.filter(p => !p.notFound && p.imp > 0);
-  const bestCtr      = withData.length ? Math.max(...withData.map(p => p.ctr)) : null;
-  const cvrCandidates = withData.filter(p => p.clk > 0);
-  const bestCvr      = cvrCandidates.length ? Math.max(...cvrCandidates.map(p => p.cvr)) : null;
-  const cpaCandidates = withData.filter(p => p.conv > 0);
-  const bestCpa      = cpaCandidates.length ? Math.min(...cpaCandidates.map(p => p.cpa)) : null;
+  const withData = perf.filter(p => !p.notFound && p.imp > 0);
+  const bestCtr  = withData.length ? Math.max(...withData.map(p => p.ctr)) : null;
+  const cvrCand  = withData.filter(p => p.clk > 0);
+  const bestCvr  = cvrCand.length ? Math.max(...cvrCand.map(p => p.cvr)) : null;
+  const cpaCand  = withData.filter(p => p.conv > 0);
+  const bestCpa  = cpaCand.length ? Math.min(...cpaCand.map(p => p.cpa)) : null;
+  const bestImp  = withData.length ? Math.max(...withData.map(p => p.imp))  : null;
+  const bestClk  = withData.length ? Math.max(...withData.map(p => p.clk))  : null;
+  const bestConv = withData.length ? Math.max(...withData.map(p => p.conv)) : null;
 
-  grid.innerHTML = perf.map((p, i) => {
+  const table = document.getElementById('ab-compare-table');
+
+  const headerCells = perf.map((p, i) => {
     const label = String.fromCharCode(65 + i);
-    if (p.notFound) {
-      return `<div class="ab-compare-card"><div class="ab-compare-body">
-        <div class="ab-compare-code">${label} · ${esc(p.code)}</div>
-        <div class="ab-compare-name" style="color:#ef4444">소재 정보를 찾을 수 없습니다</div>
-      </div></div>`;
-    }
-    const isWinner = bestCtr !== null && p.imp > 0 && p.ctr === bestCtr;
+    const isWinner = !p.notFound && bestCtr !== null && p.imp > 0 && p.ctr === bestCtr;
+    return `<th class="${isWinner ? 'winner-col' : ''}">${label}${isWinner ? ' 🏆' : ''}</th>`;
+  }).join('');
+
+  const thumbRow = perf.map(p => {
+    if (p.notFound) return '<td class="ab-notfound-cell">찾을 수 없음</td>';
     const isVid = p.code.startsWith('VID');
     const thumb = isVid
-      ? '<div class="ab-compare-thumb" style="display:flex;align-items:center;justify-content:center;font-size:28px;color:#d1d5db">▶</div>'
-      : `<img class="ab-compare-thumb" src="${esc(driveThumbnail(p.imageUrl))}" onerror="this.style.display='none'">`;
-
-    const rows = [
-      ['노출', azFmt(p.imp), false],
-      ['클릭', azFmt(p.clk), false],
-      ['CTR',  azPct(p.ctr), p.imp > 0 && p.ctr === bestCtr],
-      ['비용', azWon(p.cost), false],
-      ['전환', azFmt(p.conv), false],
-      ['CVR',  azPct(p.cvr), bestCvr !== null && p.clk > 0 && p.cvr === bestCvr],
-      ['CPA',  azWon(p.cpa), bestCpa !== null && p.conv > 0 && p.cpa === bestCpa]
-    ].map(([k, v, best]) => `<div class="k">${k}</div><div class="v${best ? ' best' : ''}">${v}</div>`).join('');
-
-    return `<div class="ab-compare-card${isWinner ? ' winner' : ''}">
-      ${isWinner ? '<div class="ab-winner-ribbon">🏆 CTR 1위</div>' : ''}
-      ${thumb}
-      <div class="ab-compare-body">
-        <div class="ab-compare-code">${label} · ${escHtml(p.code)}</div>
-        <div class="ab-compare-name">${escHtml(p.소재이름)}</div>
-        <div class="ab-kpi-row">${rows}</div>
-      </div>
-    </div>`;
+      ? '<div class="ab-thumb-placeholder">▶</div>'
+      : `<img src="${esc(driveThumbnail(p.imageUrl))}" onerror="this.style.display='none'">`;
+    return `<td class="ab-thumb-cell">${thumb}</td>`;
   }).join('');
+
+  const nameRow = perf.map(p => `<td class="ab-name-cell">${p.notFound ? '-' : escHtml(p.소재이름)}</td>`).join('');
+  const codeRow = perf.map(p => `<td class="ab-code-cell">${escHtml(p.code)}</td>`).join('');
+
+  function metricRow(label, cellsHtml) { return `<tr><td>${label}</td>${cellsHtml}</tr>`; }
+
+  const impRow  = metricRow('노출', perf.map(p => `<td class="${!p.notFound && bestImp  !== null && p.imp  === bestImp  && p.imp  > 0 ? 'best' : ''}">${p.notFound ? '-' : azFmt(p.imp)}</td>`).join(''));
+  const clkRow  = metricRow('클릭', perf.map(p => `<td class="${!p.notFound && bestClk  !== null && p.clk  === bestClk  && p.clk  > 0 ? 'best' : ''}">${p.notFound ? '-' : azFmt(p.clk)}</td>`).join(''));
+  const ctrRow  = metricRow('CTR',  perf.map(p => `<td class="${!p.notFound && bestCtr  !== null && p.imp  > 0 && p.ctr === bestCtr ? 'best' : ''}">${p.notFound ? '-' : azPct(p.ctr)}</td>`).join(''));
+  const costRow = metricRow('비용', perf.map(p => `<td>${p.notFound ? '-' : azWon(p.cost)}</td>`).join(''));
+  const convRow = metricRow('전환', perf.map(p => `<td class="${!p.notFound && bestConv !== null && p.conv === bestConv && p.conv > 0 ? 'best' : ''}">${p.notFound ? '-' : azFmt(p.conv)}</td>`).join(''));
+  const cvrRow  = metricRow('CVR',  perf.map(p => `<td class="${!p.notFound && bestCvr  !== null && p.clk  > 0 && p.cvr === bestCvr ? 'best' : ''}">${p.notFound ? '-' : azPct(p.cvr)}</td>`).join(''));
+  const cpaRow  = metricRow('CPA',  perf.map(p => `<td class="${!p.notFound && bestCpa  !== null && p.conv > 0 && p.cpa === bestCpa ? 'best' : ''}">${p.notFound ? '-' : azWon(p.cpa)}</td>`).join(''));
+
+  table.innerHTML =
+    `<thead><tr><th></th>${headerCells}</tr></thead>` +
+    `<tbody>` +
+      `<tr><td>이미지</td>${thumbRow}</tr>` +
+      `<tr><td>소재이름</td>${nameRow}</tr>` +
+      `<tr><td>소재코드</td>${codeRow}</tr>` +
+      impRow + clkRow + ctrRow + costRow + convRow + cvrRow + cpaRow +
+    `</tbody>`;
 }
 
 async function saveABConclusion() {
