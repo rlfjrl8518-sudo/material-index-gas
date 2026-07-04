@@ -5999,7 +5999,17 @@ function renderPareto(rows) {
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: c.legend } } },
+      onClick: (evt, elements) => {
+        if (!elements.length) return;
+        const name = labels[elements[0].index];
+        const matched = rows.filter(r => String(r[AZ.CREATIVE] || '').trim() === name);
+        if (matched.length) azRenderDrillModal(`파레토 소재: ${name}`, matched);
+      },
+      onHover: (evt, elements) => { evt.native.target.style.cursor = elements.length ? 'pointer' : 'default'; },
+      plugins: {
+        legend: { labels: { color: c.legend } },
+        tooltip: { callbacks: { footer: () => '클릭하면 이 소재 보기' } }
+      },
       scales: {
         x:  { grid: { display: false }, ticks: { color: c.tick, font: { size: 9 }, maxRotation: 60, minRotation: 30 } },
         y:  { position: 'left',  min: 0, grid: { color: c.grid }, ticks: { color: c.tick, callback: v => v + '%' } },
@@ -6296,40 +6306,47 @@ function renderHeatmap(rows) {
   const maxV = allVals.length ? Math.max(...allVals) : 1;
   const lowerBetter = metric === 'CPA';
 
-  // 성과 고저를 색으로 뚜렷하게 구분: 나쁨(빨강) → 보통(주황) → 좋음(초록) 3색 그라데이션.
-  // 평균(중간값)에서 멀어질수록(=성과가 극단적일수록) 알파를 높여 더 진하게 보이도록 이중으로 강조한다.
-  const RED = [239, 68, 68], AMBER = [245, 158, 11], GREEN = [16, 185, 129];
-  function lerp(a, b, t) { return a + (b - a) * t; }
-  function heatRGB(good) {
-    const [c1, c2, t] = good < 0.5 ? [RED, AMBER, good / 0.5] : [AMBER, GREEN, (good - 0.5) / 0.5];
-    return [Math.round(lerp(c1[0], c2[0], t)), Math.round(lerp(c1[1], c2[1], t)), Math.round(lerp(c1[2], c2[2], t))];
+  // 성과 고저를 색으로 뚜렷하게 구분: 나쁨(빨강, hue≈4) → 보통(주황, hue≈38) → 좋음(초록, hue≈152).
+  // 이전엔 rgba() 알파를 낮춰서 진하기를 표현했는데, 다크모드 배경(어두운 색)과 알파 블렌딩되면서
+  // 빨강/주황이 탁한 밤색·흙색으로 죽어버리는 문제가 있었다. 그래서 배경과 절대 섞이지 않는
+  // "완전 불투명" 색을 HSL로 직접 만든다 — 밝기(lightness)만 조절해서 진하기를 표현하므로
+  // 라이트/다크 어느 배경 위에서도 항상 또렷한 빨강/주황/초록으로 보인다.
+  function heatHue(good) {
+    const RED_H = 4, AMBER_H = 38, GREEN_H = 152;
+    return good < 0.5 ? RED_H + (AMBER_H - RED_H) * (good / 0.5) : AMBER_H + (GREEN_H - AMBER_H) * ((good - 0.5) / 0.5);
   }
-  // 텍스트 명암비 계산용 배경 근사값(.az-section의 --az-surf) — 다크모드에서도 읽히도록
-  const surfRGB = azIsLight() ? [255, 255, 255] : [26, 29, 46];
+  function hslToRgb(h, s, l) {
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+    const m = l - c / 2;
+    let r1, g1, b1;
+    if (h < 60)       [r1, g1, b1] = [c, x, 0];
+    else if (h < 120) [r1, g1, b1] = [x, c, 0];
+    else if (h < 180) [r1, g1, b1] = [0, c, x];
+    else if (h < 240) [r1, g1, b1] = [0, x, c];
+    else if (h < 300) [r1, g1, b1] = [x, 0, c];
+    else              [r1, g1, b1] = [c, 0, x];
+    return [Math.round((r1 + m) * 255), Math.round((g1 + m) * 255), Math.round((b1 + m) * 255)];
+  }
+  // dist: 0(평균권)~1(극단) — 평균권은 연한 파스텔, 극단일수록 진하고 채도 높게
+  function heatLightness(dist) { return 0.82 - dist * 0.32; } // 0.82 ~ 0.50
+  function heatSaturation(dist) { return 0.55 + dist * 0.20; } // 0.55 ~ 0.75
 
   function cellBg(v) {
     if (!v || v <= 0 || !allVals.length) return 'var(--az-bd2)';
     const pct  = (v - minV) / ((maxV - minV) || 1);
     const good = lowerBetter ? 1 - pct : pct;
-    const [r, g, b] = heatRGB(good);
-    const dist  = Math.abs(good - 0.5) * 2;
-    const alpha = 0.35 + dist * 0.55;
-    return `rgba(${r},${g},${b},${alpha.toFixed(2)})`;
+    const dist = Math.abs(good - 0.5) * 2;
+    const [r, g, b] = hslToRgb(heatHue(good), heatSaturation(dist), heatLightness(dist));
+    return `rgb(${r},${g},${b})`;
   }
 
   function cellTextColor(v) {
     if (!v || v <= 0) return 'var(--az-t4)';
     const pct  = (v - minV) / ((maxV - minV) || 1);
     const good = lowerBetter ? 1 - pct : pct;
-    const [r, g, b] = heatRGB(good);
-    const dist  = Math.abs(good - 0.5) * 2;
-    const alpha = 0.35 + dist * 0.55;
-    // 셀 색이 테마 배경과 알파 블렌딩된 후의 인지 밝기를 계산해 대비되는 글자색을 고른다
-    const compR = r * alpha + surfRGB[0] * (1 - alpha);
-    const compG = g * alpha + surfRGB[1] * (1 - alpha);
-    const compB = b * alpha + surfRGB[2] * (1 - alpha);
-    const luminance = (0.299 * compR + 0.587 * compG + 0.114 * compB) / 255;
-    return luminance > 0.55 ? '#1a1a2e' : '#ffffff';
+    const dist = Math.abs(good - 0.5) * 2;
+    return heatLightness(dist) > 0.62 ? '#1a1a2e' : '#ffffff';
   }
 
   if (!xVals.length || !yVals.length) {
