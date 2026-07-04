@@ -12,6 +12,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
 <style>
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -307,6 +309,35 @@
   }
 
   .detect-badge.done { background: #d1fae5; color: #065f46; }
+
+
+
+  /* -- 보고서 탭 -- */
+  .report-layout { display: flex; gap: 20px; align-items: flex-start; padding: 20px 24px 60px; }
+  .report-config { width: 300px; flex-shrink: 0; display: flex; flex-direction: column; gap: 12px; }
+  .report-config-group { border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; background: #fff; }
+  .report-config-title {
+    font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 8px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .report-mini-btn {
+    font-size: 11px; background: none; border: 1px solid #d1d5db; border-radius: 6px;
+    padding: 2px 8px; cursor: pointer; color: #4f6ef7;
+  }
+  .report-mini-btn:hover { background: #eff2ff; }
+  .report-filter-row { display: flex; gap: 5px; align-items: center; margin-bottom: 6px; }
+  .report-filter-row select {
+    flex: 1; min-width: 0; font-size: 11px; padding: 5px 6px;
+    border: 1px solid #d1d5db; border-radius: 5px; background: #fff;
+  }
+  .report-filter-row button {
+    background: none; border: none; color: #ef4444; cursor: pointer; font-size: 14px; flex-shrink: 0;
+  }
+  .report-metric-item { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 0; color: #374151; }
+  .report-result { flex: 1; min-width: 0; }
+  #report-table td, #report-table th { white-space: nowrap; }
+  .report-total-row td { font-weight: 700; background: #f9fafb; }
+  .report-total-col { font-weight: 700; background: #f9fafb; }
 
 
 
@@ -1185,6 +1216,8 @@
   <button class="tab-btn active" onclick="switchTab('register', this)">📝 소재 등록</button>
 
   <button class="tab-btn" onclick="switchTab('analyze', this)">📊 소재 분석</button>
+
+  <button class="tab-btn" onclick="switchTab('report', this)">📄 보고서</button>
 
   <button class="tab-btn" onclick="switchTab('abtest', this)">🧪 AB 테스트</button>
 
@@ -2132,6 +2165,73 @@
 
 </div><!-- /#panel-analyze -->
 
+<div class="tab-panel" id="panel-report">
+
+  <div id="report-empty" class="az-empty">
+    <div class="az-empty-icon">📄</div>
+    <div class="az-empty-title">자유형식 보고서</div>
+    <div class="az-empty-desc">소재 분석 탭과 같은 데이터를 사용합니다.<br>먼저 데이터를 불러오세요.</div>
+    <button class="az-load-btn" style="margin-top:8px" onclick="loadDataForReport(this)">
+      🔄 데이터 불러오기
+      <div class="spinner" id="report-load-spinner"></div>
+    </button>
+  </div>
+
+  <div id="report-body" style="display:none">
+    <div class="report-layout">
+
+      <!-- 설정 패널 -->
+      <div class="report-config">
+
+        <div class="report-config-group">
+          <div class="report-config-title">기간</div>
+          <div style="display:flex;align-items:center;gap:5px">
+            <input type="date" id="report-f-start" class="form-control" style="padding:5px 6px;font-size:11px" onchange="generateReport()">
+            <span style="font-size:11px;color:#9ca3af">~</span>
+            <input type="date" id="report-f-end" class="form-control" style="padding:5px 6px;font-size:11px" onchange="generateReport()">
+          </div>
+        </div>
+
+        <div class="report-config-group">
+          <div class="report-config-title">
+            필터
+            <button class="report-mini-btn" onclick="addReportFilter()">+ 추가</button>
+          </div>
+          <div id="report-filter-list"></div>
+        </div>
+
+        <div class="report-config-group">
+          <div class="report-config-title">행 기준</div>
+          <select id="report-row-dim" class="form-control" style="font-size:12px;padding:6px 8px" onchange="generateReport()"></select>
+        </div>
+
+        <div class="report-config-group">
+          <div class="report-config-title">열 기준 <span style="font-weight:400;color:#9ca3af">(선택 시 교차표)</span></div>
+          <select id="report-col-dim" class="form-control" style="font-size:12px;padding:6px 8px" onchange="onReportColDimChange()"></select>
+        </div>
+
+        <div class="report-config-group">
+          <div class="report-config-title">지표</div>
+          <div id="report-metric-picker"></div>
+        </div>
+
+        <button class="btn btn-primary" style="width:100%" onclick="generateReport()">📊 보고서 생성</button>
+        <button class="btn btn-ghost" style="width:100%" onclick="downloadReportExcel()">⬇ 엑셀 다운로드</button>
+      </div>
+
+      <!-- 결과 -->
+      <div class="report-result">
+        <div id="report-summary" style="font-size:12px;color:#6b7280;margin-bottom:10px"></div>
+        <div class="az-table-wrap">
+          <table class="az-table" id="report-table" style="color:#374151"></table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div><!-- /#panel-report -->
+
 <div class="tab-panel" id="panel-abtest">
 
   <div class="ab-header">
@@ -2325,6 +2425,10 @@ function switchTab(tab, btn) {
   } else if (tab === 'abtest') {
 
     onABTabActivate();
+
+  } else if (tab === 'report') {
+
+    onReportTabActivate();
 
   }
 
@@ -6594,6 +6698,355 @@ function renderAIInsightSections(text) {
     </div>`;
   }
   return html;
+}
+
+// ============================================================
+// 보고서 탭 (자유형식 탐색 보고서)
+// 소재 분석 탭과 같은 azRawData를 그대로 재사용 — 별도로 데이터를
+// 다시 불러올 필요가 없고, 캐시 이점도 그대로 이어받는다.
+// ============================================================
+const REPORT_DIMENSIONS = [
+  { key: 'media',     label: '매체',       col: AZ.MEDIA },
+  { key: 'campaign',  label: '캠페인',     col: AZ.CAMPAIGN },
+  { key: 'group',     label: '광고그룹',   col: AZ.GROUP },
+  { key: 'creative',  label: '소재이름',   col: AZ.CREATIVE },
+  { key: 'bojong',    label: '보종',       col: AZ.BOJONG },
+  { key: 'adtype',    label: '광고유형',   col: AZ.ADTYPE },
+  { key: 'crtype',    label: '소재유형',   col: AZ.CRTYPE },
+  { key: 'appeal',    label: '소구포인트', col: AZ.APPEAL },
+  { key: 'hook',      label: '후킹방식',   col: AZ.HOOK },
+  { key: 'imgtype',   label: '이미지유형', col: AZ.IMGTYPE },
+  { key: 'modeltype', label: '모델유형',   col: AZ.MODELTYPE },
+  { key: 'day',       label: '날짜(일별)', special: 'day' },
+  { key: 'week',      label: '날짜(주별)', special: 'week' },
+  { key: 'month',     label: '날짜(월별)', special: 'month' }
+];
+
+const REPORT_METRICS = [
+  { key: 'imp',  label: '노출' },
+  { key: 'clk',  label: '클릭' },
+  { key: 'ctr',  label: 'CTR' },
+  { key: 'cost', label: '비용' },
+  { key: 'conv', label: '전환' },
+  { key: 'cvr',  label: 'CVR' },
+  { key: 'cpa',  label: 'CPA' }
+];
+
+let reportInitialized = false;
+let reportFilterSeq   = 0;
+let reportExportAOA   = null; // 마지막으로 생성된 보고서의 원시 배열 (엑셀 export용)
+
+function onReportTabActivate() {
+  if (azLoaded) {
+    document.getElementById('report-empty').style.display = 'none';
+    document.getElementById('report-body').style.display = 'block';
+    initReportBuilderOnce();
+  } else {
+    document.getElementById('report-empty').style.display = 'flex';
+    document.getElementById('report-body').style.display = 'none';
+  }
+}
+
+async function loadDataForReport(btn) {
+  const spinner = document.getElementById('report-load-spinner');
+  if (btn) btn.disabled = true;
+  spinner.classList.add('show');
+  try {
+    await loadAnalysisData(); // 분석 탭과 동일한 로직 재사용 — azRawData 등 채워짐
+  } finally {
+    if (btn) btn.disabled = false;
+    spinner.classList.remove('show');
+  }
+  if (azLoaded) {
+    document.getElementById('report-empty').style.display = 'none';
+    document.getElementById('report-body').style.display = 'block';
+    initReportBuilderOnce();
+  }
+}
+
+function initReportBuilderOnce() {
+  if (reportInitialized) return;
+  reportInitialized = true;
+
+  const rowSel = document.getElementById('report-row-dim');
+  rowSel.innerHTML = REPORT_DIMENSIONS.map(d => `<option value="${d.key}">${d.label}</option>`).join('');
+  rowSel.value = 'crtype';
+
+  const colSel = document.getElementById('report-col-dim');
+  colSel.innerHTML = '<option value="">없음</option>' + REPORT_DIMENSIONS.map(d => `<option value="${d.key}">${d.label}</option>`).join('');
+
+  renderReportMetricPicker();
+  addReportFilter();
+
+  const dates = azRawData.slice(1).map(r => azDateStr(r[AZ.DATE])).filter(Boolean).sort();
+  if (dates.length) {
+    document.getElementById('report-f-start').value = dates[0];
+    document.getElementById('report-f-end').value   = dates[dates.length - 1];
+  }
+
+  generateReport();
+}
+
+// 행의 특정 차원 값(들)을 반환. 모델유형처럼 값이 여러 개인 컬럼은 각각 반환하고,
+// 날짜 차원은 일/주/월 단위 버킷 키 하나로 묶어서 반환한다.
+function reportDimValues(row, dim) {
+  if (dim.special) {
+    const d = azDateStr(row[AZ.DATE]);
+    return d ? [azPeriodKey(d, dim.special)] : [];
+  }
+  return azColValues(row, dim.col);
+}
+
+function renderReportMetricPicker() {
+  const colDimKey = document.getElementById('report-col-dim').value;
+  const container = document.getElementById('report-metric-picker');
+  if (colDimKey) {
+    container.innerHTML = REPORT_METRICS.map((m, i) => `
+      <label class="report-metric-item">
+        <input type="radio" name="report-metric-single" value="${m.key}" onchange="generateReport()" ${i === 0 ? 'checked' : ''}> ${m.label}
+      </label>`).join('');
+  } else {
+    container.innerHTML = REPORT_METRICS.map(m => `
+      <label class="report-metric-item">
+        <input type="checkbox" class="report-metric-check" value="${m.key}" onchange="generateReport()" checked> ${m.label}
+      </label>`).join('');
+  }
+}
+
+function onReportColDimChange() {
+  renderReportMetricPicker();
+  generateReport();
+}
+
+// ── 필터 행 관리 ──────────────────────────────────────────
+function addReportFilter() {
+  const id = 'rf-' + (reportFilterSeq++);
+  const container = document.getElementById('report-filter-list');
+  const row = document.createElement('div');
+  row.className = 'report-filter-row';
+  row.id = id;
+  row.innerHTML =
+    `<select onchange="onReportFilterDimChange('${id}')">` +
+      `<option value="">차원 선택</option>` +
+      REPORT_DIMENSIONS.filter(d => !d.special).map(d => `<option value="${d.key}">${d.label}</option>`).join('') +
+    `</select>` +
+    `<select class="rf-value" disabled onchange="generateReport()"><option value="">-</option></select>` +
+    `<button onclick="removeReportFilter('${id}')" title="삭제">✕</button>`;
+  container.appendChild(row);
+}
+
+function onReportFilterDimChange(id) {
+  const row = document.getElementById(id);
+  const dimKey = row.querySelector('select').value;
+  const valueSel = row.querySelector('.rf-value');
+  const dim = REPORT_DIMENSIONS.find(d => d.key === dimKey);
+  if (!dim) { valueSel.innerHTML = '<option value="">-</option>'; valueSel.disabled = true; generateReport(); return; }
+  const rows = azRawData.slice(1);
+  const values = [...new Set(rows.flatMap(r => reportDimValues(r, dim)))].filter(Boolean).sort();
+  valueSel.innerHTML = '<option value="">전체</option>' + values.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+  valueSel.disabled = false;
+  generateReport();
+}
+
+function removeReportFilter(id) {
+  document.getElementById(id)?.remove();
+  generateReport();
+}
+
+function getReportFilters() {
+  return Array.from(document.querySelectorAll('.report-filter-row')).map(row => {
+    const selects = row.querySelectorAll('select');
+    return { dim: selects[0].value, value: selects[1].value };
+  }).filter(f => f.dim && f.value);
+}
+
+function reportFilteredRows() {
+  const filters = getReportFilters();
+  const startD  = document.getElementById('report-f-start').value;
+  const endD    = document.getElementById('report-f-end').value;
+  return azRawData.slice(1).filter(r => {
+    if (startD || endD) {
+      const d = azDateStr(r[AZ.DATE]);
+      if (startD && d < startD) return false;
+      if (endD   && d > endD)   return false;
+    }
+    return filters.every(f => {
+      const dim = REPORT_DIMENSIONS.find(d => d.key === f.dim);
+      return dim ? reportDimValues(r, dim).includes(f.value) : true;
+    });
+  });
+}
+
+// ── 집계 ──────────────────────────────────────────────────
+function buildReportData() {
+  const rowDim = REPORT_DIMENSIONS.find(d => d.key === document.getElementById('report-row-dim').value);
+  const colDimKey = document.getElementById('report-col-dim').value;
+  const colDim = colDimKey ? REPORT_DIMENSIONS.find(d => d.key === colDimKey) : null;
+
+  const metricKeys = colDim
+    ? Array.from(document.querySelectorAll('input[name="report-metric-single"]:checked')).map(el => el.value)
+    : Array.from(document.querySelectorAll('.report-metric-check:checked')).map(el => el.value);
+
+  if (!rowDim || !metricKeys.length) return null;
+  const rows = reportFilteredRows();
+
+  if (!colDim) {
+    const grouped = {};
+    rows.forEach(r => {
+      const keys = reportDimValues(r, rowDim);
+      const vals = keys.length ? keys : ['(미입력)'];
+      vals.forEach(k => { (grouped[k] = grouped[k] || []).push(r); });
+    });
+    const entries = Object.entries(grouped).map(([k, rs]) => ({ k, ...azKPI(azSum(rs)) }));
+    entries.sort((a, b) => b.imp - a.imp);
+    return { type: 'flat', rowDim, metricKeys, entries };
+  }
+
+  const metric = metricKeys[0];
+  const mat = {};
+  const rowKeysSet = new Set(), colKeysSet = new Set();
+  rows.forEach(r => {
+    const rKeys = reportDimValues(r, rowDim);
+    const cKeys = reportDimValues(r, colDim);
+    if (!rKeys.length || !cKeys.length) return;
+    rKeys.forEach(rk => cKeys.forEach(ck => {
+      rowKeysSet.add(rk); colKeysSet.add(ck);
+      if (!mat[rk]) mat[rk] = {};
+      if (!mat[rk][ck]) mat[rk][ck] = { imp: 0, clk: 0, cost: 0, conv: 0 };
+      const c = mat[rk][ck];
+      c.imp  += azNum(r[AZ.IMP]);  c.clk  += azNum(r[AZ.CLICK]);
+      c.cost += azNum(r[AZ.COST]); c.conv += azNum(r[AZ.CONV]);
+    }));
+  });
+  return { type: 'pivot', rowDim, colDim, metric, mat, rowKeys: [...rowKeysSet].sort(), colKeys: [...colKeysSet].sort() };
+}
+
+function generateReport() {
+  if (!azLoaded) return;
+  const data = buildReportData();
+  const table = document.getElementById('report-table');
+  if (!data) {
+    table.innerHTML = '';
+    document.getElementById('report-summary').textContent = '행 기준과 지표를 하나 이상 선택하세요.';
+    reportExportAOA = null;
+    return;
+  }
+  if (data.type === 'flat') renderReportFlatTable(data);
+  else renderReportPivotTable(data);
+}
+
+function reportUnitSuffix(k) {
+  return (k === 'ctr' || k === 'cvr') ? '(%)' : (k === 'cost' || k === 'cpa') ? '(원)' : '';
+}
+function reportFmtCell(k, v) {
+  if (k === 'ctr' || k === 'cvr') return azPct(v);
+  if (k === 'cost' || k === 'cpa') return azWon(v);
+  return azFmt(v);
+}
+function reportRawExportVal(k, v) {
+  return (k === 'ctr' || k === 'cvr') ? +v.toFixed(2) : Math.round(v);
+}
+function reportMetricFromAgg(agg, metric) {
+  if (metric === 'imp')  return agg.imp;
+  if (metric === 'clk')  return agg.clk;
+  if (metric === 'cost') return agg.cost;
+  if (metric === 'conv') return agg.conv;
+  if (metric === 'ctr')  return agg.imp  > 0 ? agg.clk  / agg.imp  * 100 : 0;
+  if (metric === 'cvr')  return agg.clk  > 0 ? agg.conv / agg.clk  * 100 : 0;
+  if (metric === 'cpa')  return agg.conv > 0 ? agg.cost / agg.conv       : 0;
+  return 0;
+}
+
+function renderReportFlatTable(data) {
+  const { rowDim, metricKeys, entries } = data;
+  const metricLabels = metricKeys.map(k => REPORT_METRICS.find(m => m.key === k).label);
+  const table = document.getElementById('report-table');
+
+  const totalAgg = entries.reduce((a, e) => ({
+    imp: a.imp + e.imp, clk: a.clk + e.clk, cost: a.cost + e.cost, conv: a.conv + e.conv
+  }), { imp: 0, clk: 0, cost: 0, conv: 0 });
+
+  table.innerHTML =
+    `<thead><tr><th style="text-align:left">${escHtml(rowDim.label)}</th>${metricLabels.map(h => `<th>${escHtml(h)}</th>`).join('')}</tr></thead>` +
+    `<tbody>` +
+      entries.map(e => `<tr>
+        <td style="text-align:left">${escHtml(e.k)}</td>
+        ${metricKeys.map(k => `<td>${reportFmtCell(k, e[k])}</td>`).join('')}
+      </tr>`).join('') +
+      `<tr class="report-total-row">
+        <td style="text-align:left">합계</td>
+        ${metricKeys.map(k => `<td>${reportFmtCell(k, reportMetricFromAgg(totalAgg, k))}</td>`).join('')}
+      </tr>` +
+    `</tbody>`;
+
+  document.getElementById('report-summary').textContent = `${entries.length.toLocaleString('ko-KR')}개 행 · ${rowDim.label} 기준`;
+
+  const aoa = [[rowDim.label, ...metricKeys.map((k, i) => metricLabels[i] + reportUnitSuffix(k))]];
+  entries.forEach(e => aoa.push([e.k, ...metricKeys.map(k => reportRawExportVal(k, e[k]))]));
+  aoa.push(['합계', ...metricKeys.map(k => reportRawExportVal(k, reportMetricFromAgg(totalAgg, k)))]);
+  reportExportAOA = aoa;
+}
+
+function renderReportPivotTable(data) {
+  const { rowDim, colDim, metric, mat, rowKeys, colKeys } = data;
+  const table = document.getElementById('report-table');
+  const metricLabel = REPORT_METRICS.find(m => m.key === metric).label;
+
+  function cellAgg(rk, ck) { return (mat[rk] && mat[rk][ck]) || { imp: 0, clk: 0, cost: 0, conv: 0 }; }
+  function cellVal(rk, ck) { return reportMetricFromAgg(cellAgg(rk, ck), metric); }
+  function sumAgg(list) {
+    return list.reduce((a, c) => ({ imp: a.imp + c.imp, clk: a.clk + c.clk, cost: a.cost + c.cost, conv: a.conv + c.conv }),
+      { imp: 0, clk: 0, cost: 0, conv: 0 });
+  }
+  function rowTotalAgg(rk) { return sumAgg(colKeys.map(ck => cellAgg(rk, ck))); }
+  function colTotalAgg(ck) { return sumAgg(rowKeys.map(rk => cellAgg(rk, ck))); }
+  const grandAgg = sumAgg(rowKeys.map(rk => rowTotalAgg(rk)));
+
+  table.innerHTML =
+    `<thead><tr>
+      <th style="text-align:left">${escHtml(rowDim.label)} \\ ${escHtml(colDim.label)}</th>
+      ${colKeys.map(ck => `<th>${escHtml(ck)}</th>`).join('')}
+      <th>합계</th>
+    </tr></thead>` +
+    `<tbody>` +
+      rowKeys.map(rk => `<tr>
+        <td style="text-align:left">${escHtml(rk)}</td>
+        ${colKeys.map(ck => `<td>${reportFmtCell(metric, cellVal(rk, ck))}</td>`).join('')}
+        <td class="report-total-col">${reportFmtCell(metric, reportMetricFromAgg(rowTotalAgg(rk), metric))}</td>
+      </tr>`).join('') +
+      `<tr class="report-total-row">
+        <td style="text-align:left">합계</td>
+        ${colKeys.map(ck => `<td>${reportFmtCell(metric, reportMetricFromAgg(colTotalAgg(ck), metric))}</td>`).join('')}
+        <td class="report-total-col">${reportFmtCell(metric, reportMetricFromAgg(grandAgg, metric))}</td>
+      </tr>` +
+    `</tbody>`;
+
+  document.getElementById('report-summary').textContent = `${escHtml(rowDim.label)} × ${escHtml(colDim.label)} · ${metricLabel} 기준`;
+
+  const aoa = [[`${rowDim.label}\\${colDim.label}`, ...colKeys, '합계']];
+  rowKeys.forEach(rk => aoa.push([
+    rk,
+    ...colKeys.map(ck => reportRawExportVal(metric, cellVal(rk, ck))),
+    reportRawExportVal(metric, reportMetricFromAgg(rowTotalAgg(rk), metric))
+  ]));
+  aoa.push([
+    '합계',
+    ...colKeys.map(ck => reportRawExportVal(metric, reportMetricFromAgg(colTotalAgg(ck), metric))),
+    reportRawExportVal(metric, reportMetricFromAgg(grandAgg, metric))
+  ]);
+  reportExportAOA = aoa;
+}
+
+// ── 엑셀 다운로드 ─────────────────────────────────────────
+function downloadReportExcel() {
+  if (!reportExportAOA || !reportExportAOA.length) { alert('먼저 보고서를 생성하세요.'); return; }
+  const ws = XLSX.utils.aoa_to_sheet(reportExportAOA);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '보고서');
+  const d = new Date();
+  const ts = d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0') +
+    '_' + String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0');
+  XLSX.writeFile(wb, `보고서_${ts}.xlsx`);
 }
 
 // ============================================================
