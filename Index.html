@@ -338,6 +338,7 @@
   #report-table td, #report-table th { white-space: nowrap; }
   .report-total-row td { font-weight: 700; background: #f9fafb; }
   .report-total-col { font-weight: 700; background: #f9fafb; }
+  #report-table thead th[onclick]:hover { background: #eef2ff; }
 
 
 
@@ -7006,6 +7007,7 @@ function reportCollectConfig() {
 // 저장된 설정(또는 null=새 보고서 기본값)을 빌더 UI에 반영
 function reportApplyConfig(config) {
   config = config || {};
+  reportSortState = { key: null, dir: 'desc' }; // 다른 보고서를 열면 정렬은 기본값으로 초기화
   reportRowDimOrder = Array.isArray(config.rowDims) && config.rowDims.length ? config.rowDims.slice() : ['crtype'];
   reportColDimOrder = Array.isArray(config.colDims) ? config.colDims.slice() : [];
   renderReportRowDimPicker();
@@ -7247,6 +7249,26 @@ function reportDimCombos(row, dims) {
   return result;
 }
 
+// ── 결과 표 정렬 ────────────────────────────────────────────
+// key: null(기본, 노출 내림차순) | 'dim0','dim1'...(행 차원 라벨 기준)
+//      | 지표 key(플랫 모드) | 'total:지표key'(교차표 모드, 합계 열 기준)
+let reportSortState = { key: null, dir: 'desc' };
+
+function reportSetSort(key) {
+  if (reportSortState.key === key) {
+    reportSortState.dir = reportSortState.dir === 'desc' ? 'asc' : 'desc';
+  } else {
+    reportSortState.key = key;
+    reportSortState.dir = 'desc';
+  }
+  generateReport();
+}
+
+function reportSortArrow(key) {
+  if (reportSortState.key !== key) return '';
+  return reportSortState.dir === 'desc' ? ' ▼' : ' ▲';
+}
+
 function buildReportData() {
   const rowDims = reportRowDimOrder.map(k => REPORT_DIMENSIONS.find(d => d.key === k)).filter(Boolean);
   const colDims = reportColDimOrder.map(k => REPORT_DIMENSIONS.find(d => d.key === k)).filter(Boolean);
@@ -7254,6 +7276,7 @@ function buildReportData() {
 
   if (!rowDims.length || !metricKeys.length) return null;
   const rows = reportFilteredRows();
+  const sortDir = reportSortState.dir === 'asc' ? 1 : -1;
 
   if (!colDims.length) {
     const grouped = {};
@@ -7264,7 +7287,15 @@ function buildReportData() {
       });
     });
     const entries = Object.values(grouped).map(g => ({ tuple: g.tuple, ...azKPI(azSum(g.rs)) }));
-    entries.sort((a, b) => b.imp - a.imp);
+    if (reportSortState.key && reportSortState.key.startsWith('dim')) {
+      const idx = parseInt(reportSortState.key.slice(3), 10);
+      entries.sort((a, b) => sortDir * String(a.tuple[idx] ?? '').localeCompare(String(b.tuple[idx] ?? ''), 'ko'));
+    } else if (reportSortState.key) {
+      const k = reportSortState.key;
+      entries.sort((a, b) => sortDir * ((a[k] || 0) - (b[k] || 0)));
+    } else {
+      entries.sort((a, b) => b.imp - a.imp);
+    }
     return { type: 'flat', rowDims, metricKeys, entries };
   }
 
@@ -7290,9 +7321,25 @@ function buildReportData() {
       });
     });
   });
+
+  const colKeysArr = [...colKeysSet].sort();
+  const rowKeysArr = [...rowKeysSet].sort();
+  if (reportSortState.key && reportSortState.key.startsWith('dim')) {
+    const idx = parseInt(reportSortState.key.slice(3), 10);
+    rowKeysArr.sort((a, b) => sortDir * String((rowTupleMap[a] || [a])[idx] ?? '').localeCompare(String((rowTupleMap[b] || [b])[idx] ?? ''), 'ko'));
+  } else if (reportSortState.key && reportSortState.key.startsWith('total:')) {
+    const metric = reportSortState.key.slice(6);
+    function aggSum(list) {
+      return list.reduce((a, c) => ({ imp: a.imp + c.imp, clk: a.clk + c.clk, cost: a.cost + c.cost, conv: a.conv + c.conv }),
+        { imp: 0, clk: 0, cost: 0, conv: 0 });
+    }
+    function rowTotal(rk) { return aggSum(colKeysArr.map(ck => (mat[rk] && mat[rk][ck]) || { imp: 0, clk: 0, cost: 0, conv: 0 })); }
+    rowKeysArr.sort((a, b) => sortDir * (reportMetricFromAgg(rowTotal(a), metric) - reportMetricFromAgg(rowTotal(b), metric)));
+  }
+
   return {
     type: 'pivot', rowDims, colDims, metricKeys, mat, rowTupleMap,
-    rowKeys: [...rowKeysSet].sort(), colKeys: [...colKeysSet].sort()
+    rowKeys: rowKeysArr, colKeys: colKeysArr
   };
 }
 
@@ -7343,7 +7390,10 @@ function renderReportFlatTable(data) {
   }), { imp: 0, clk: 0, cost: 0, conv: 0 });
 
   table.innerHTML =
-    `<thead><tr>${dimLabels.map(h => `<th style="text-align:left">${escHtml(h)}</th>`).join('')}${metricLabels.map(h => `<th>${escHtml(h)}</th>`).join('')}</tr></thead>` +
+    `<thead><tr>
+      ${dimLabels.map((h, i) => `<th style="text-align:left;cursor:pointer" onclick="reportSetSort('dim${i}')">${escHtml(h)}${reportSortArrow('dim' + i)}</th>`).join('')}
+      ${metricKeys.map((k, i) => `<th style="cursor:pointer" onclick="reportSetSort('${k}')">${escHtml(metricLabels[i])}${reportSortArrow(k)}</th>`).join('')}
+    </tr></thead>` +
     `<tbody>` +
       entries.map(e => `<tr>
         ${e.tuple.map(v => `<td style="text-align:left">${escHtml(v)}</td>`).join('')}
@@ -7386,6 +7436,8 @@ function renderReportPivotTable(data) {
   const grandAgg = sumAgg(rowKeys.map(rk => rowTotalAgg(rk)));
 
   const metricHeaderRow = () => metricLabels.map(l => `<th>${escHtml(l)}</th>`).join('');
+  const metricTotalHeaderRow = () => metricKeys.map((m, i) =>
+    `<th style="cursor:pointer" onclick="reportSetSort('total:${m}')">${escHtml(metricLabels[i])}${reportSortArrow('total:' + m)}</th>`).join('');
   const metricCells = (agg) => metricKeys.map(m => `<td>${reportFmtCell(m, reportMetricFromAgg(agg, m))}</td>`).join('');
   const metricTotalCells = (agg) => metricKeys.map(m => `<td class="report-total-col">${reportFmtCell(m, reportMetricFromAgg(agg, m))}</td>`).join('');
   const rowLabelCells = (rk) => (rowTupleMap[rk] || [rk]).map(v => `<td style="text-align:left">${escHtml(v)}</td>`).join('');
@@ -7393,13 +7445,13 @@ function renderReportPivotTable(data) {
   table.innerHTML =
     `<thead>
       <tr>
-        <th style="text-align:left" colspan="${nDims}" rowspan="2">${escHtml(dimLabels.join(' / '))} \\ ${escHtml(colDimLabel)}</th>
+        <th style="text-align:left;cursor:pointer" colspan="${nDims}" rowspan="2" onclick="reportSetSort('dim0')">${escHtml(dimLabels.join(' / '))} \\ ${escHtml(colDimLabel)}${reportSortArrow('dim0')}</th>
         ${colKeys.map(ck => `<th colspan="${nMetrics}">${escHtml(ck)}</th>`).join('')}
         <th colspan="${nMetrics}">합계</th>
       </tr>
       <tr>
         ${colKeys.map(() => metricHeaderRow()).join('')}
-        ${metricHeaderRow()}
+        ${metricTotalHeaderRow()}
       </tr>
     </thead>` +
     `<tbody>` +
