@@ -1145,6 +1145,42 @@ ${JSON.stringify(aggregatedData, null, 2)}`;
 }
 
 // --------------------------------------------------
+// AI 인사이트 챗봇 — 생성된 인사이트에 대한 후속 질문
+// messages: [{role:'system'|'user'|'assistant', content:'...'}] 형태의 전체 대화 기록을
+// 그대로 받아 OpenAI에 전달한다 (컨텍스트는 클라이언트가 system 메시지로 구성해서 보냄)
+// --------------------------------------------------
+function getOpenAIChatReply(messages) {
+  const apiKey = PropertiesService.getScriptProperties().getProperty('OPENAI_API_KEY');
+  if (!apiKey) return {
+    error: true,
+    message: 'OPENAI_API_KEY가 설정되지 않았습니다.\nApps Script 편집기 > 프로젝트 설정 > 스크립트 속성에서 OPENAI_API_KEY를 추가하세요.'
+  };
+  if (!Array.isArray(messages) || !messages.length) return { error: true, message: '대화 내용이 없습니다.' };
+
+  const options = {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { Authorization: 'Bearer ' + apiKey },
+    payload: JSON.stringify({
+      model: 'gpt-5-chat-latest',
+      messages: messages,
+      max_tokens: 900,
+      temperature: 0.7
+    }),
+    muteHttpExceptions: true
+  };
+
+  try {
+    const resp = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', options);
+    const json = JSON.parse(resp.getContentText());
+    if (json.error) return { error: true, message: json.error.message };
+    return { success: true, text: json.choices[0].message.content };
+  } catch (e) {
+    return { error: true, message: e.message };
+  }
+}
+
+// --------------------------------------------------
 // 통합 적재
 // RAW_ 로 시작하는 모든 시트의 A~U열 데이터를 소재_통합RAW에 병합
 // 중복 키: 일(B) + 매체(A) + 캠페인(C) + 광고그룹(D) + 소재이름(E)
