@@ -2201,13 +2201,13 @@
         </div>
 
         <div class="report-config-group">
-          <div class="report-config-title">행 기준</div>
-          <select id="report-row-dim" class="form-control" style="font-size:12px;padding:6px 8px" onchange="generateReport()"></select>
+          <div class="report-config-title">행 기준 <span style="font-weight:400;color:#9ca3af">(여러 개 선택 시 선택 순서대로 그룹핑)</span></div>
+          <div class="model-type-picker" id="report-row-dims"></div>
         </div>
 
         <div class="report-config-group">
-          <div class="report-config-title">열 기준 <span style="font-weight:400;color:#9ca3af">(선택 시 교차표)</span></div>
-          <select id="report-col-dim" class="form-control" style="font-size:12px;padding:6px 8px" onchange="onReportColDimChange()"></select>
+          <div class="report-config-title">열 기준 <span style="font-weight:400;color:#9ca3af">(선택 시 교차표, 여러 개면 조합)</span></div>
+          <div class="model-type-picker" id="report-col-dims"></div>
         </div>
 
         <div class="report-config-group">
@@ -6772,12 +6772,10 @@ function initReportBuilderOnce() {
   if (reportInitialized) return;
   reportInitialized = true;
 
-  const rowSel = document.getElementById('report-row-dim');
-  rowSel.innerHTML = REPORT_DIMENSIONS.map(d => `<option value="${d.key}">${d.label}</option>`).join('');
-  rowSel.value = 'crtype';
-
-  const colSel = document.getElementById('report-col-dim');
-  colSel.innerHTML = '<option value="">없음</option>' + REPORT_DIMENSIONS.map(d => `<option value="${d.key}">${d.label}</option>`).join('');
+  reportRowDimOrder = ['crtype'];
+  reportColDimOrder = [];
+  renderReportRowDimPicker();
+  renderReportColDimPicker();
 
   renderReportMetricPicker();
   addReportFilter();
@@ -6877,7 +6875,45 @@ function renderReportMetricPicker() {
     </label>`).join('');
 }
 
-function onReportColDimChange() {
+// ── 행/열 기준 다중 선택 (선택 순서가 그룹핑/조합 순서) ───
+let reportRowDimOrder = ['crtype']; // 차원 key 배열, 선택한 순서 그대로 유지
+let reportColDimOrder = [];         // 비어있으면 플랫 테이블
+
+function renderReportRowDimPicker() {
+  const container = document.getElementById('report-row-dims');
+  container.innerHTML = REPORT_DIMENSIONS.map(d => {
+    const idx = reportRowDimOrder.indexOf(d.key);
+    const selected = idx !== -1;
+    const badge = selected && reportRowDimOrder.length > 1 ? ` <b>${idx + 1}</b>` : '';
+    return `<label class="model-type-option${selected ? ' selected' : ''}">
+      <input type="checkbox" ${selected ? 'checked' : ''} onchange="toggleReportRowDim('${d.key}', this.checked)">${escHtml(d.label)}${badge}
+    </label>`;
+  }).join('');
+}
+
+function renderReportColDimPicker() {
+  const container = document.getElementById('report-col-dims');
+  container.innerHTML = REPORT_DIMENSIONS.map(d => {
+    const idx = reportColDimOrder.indexOf(d.key);
+    const selected = idx !== -1;
+    const badge = selected && reportColDimOrder.length > 1 ? ` <b>${idx + 1}</b>` : '';
+    return `<label class="model-type-option${selected ? ' selected' : ''}">
+      <input type="checkbox" ${selected ? 'checked' : ''} onchange="toggleReportColDim('${d.key}', this.checked)">${escHtml(d.label)}${badge}
+    </label>`;
+  }).join('');
+}
+
+function toggleReportRowDim(key, checked) {
+  if (checked) { if (!reportRowDimOrder.includes(key)) reportRowDimOrder.push(key); }
+  else { reportRowDimOrder = reportRowDimOrder.filter(k => k !== key); }
+  renderReportRowDimPicker();
+  generateReport();
+}
+
+function toggleReportColDim(key, checked) {
+  if (checked) { if (!reportColDimOrder.includes(key)) reportColDimOrder.push(key); }
+  else { reportColDimOrder = reportColDimOrder.filter(k => k !== key); }
+  renderReportColDimPicker();
   generateReport();
 }
 
@@ -6941,44 +6977,67 @@ function reportFilteredRows() {
 }
 
 // ── 집계 ──────────────────────────────────────────────────
+// 행(또는 열)에 여러 차원이 선택되면, 그 차원들의 값 조합(cross-product)을 만든다.
+// 모델유형처럼 한 행이 값을 여러 개 가질 수 있는 차원이 섞여 있어도 정확히 explode된다.
+function reportDimCombos(row, dims) {
+  let result = [[]];
+  for (const dim of dims) {
+    const vals = reportDimValues(row, dim);
+    const useVals = vals.length ? vals : ['(미입력)'];
+    const next = [];
+    for (const combo of result) for (const v of useVals) next.push(combo.concat([v]));
+    result = next;
+  }
+  return result;
+}
+
 function buildReportData() {
-  const rowDim = REPORT_DIMENSIONS.find(d => d.key === document.getElementById('report-row-dim').value);
-  const colDimKey = document.getElementById('report-col-dim').value;
-  const colDim = colDimKey ? REPORT_DIMENSIONS.find(d => d.key === colDimKey) : null;
+  const rowDims = reportRowDimOrder.map(k => REPORT_DIMENSIONS.find(d => d.key === k)).filter(Boolean);
+  const colDims = reportColDimOrder.map(k => REPORT_DIMENSIONS.find(d => d.key === k)).filter(Boolean);
   const metricKeys = Array.from(document.querySelectorAll('.report-metric-check:checked')).map(el => el.value);
 
-  if (!rowDim || !metricKeys.length) return null;
+  if (!rowDims.length || !metricKeys.length) return null;
   const rows = reportFilteredRows();
 
-  if (!colDim) {
+  if (!colDims.length) {
     const grouped = {};
     rows.forEach(r => {
-      const keys = reportDimValues(r, rowDim);
-      const vals = keys.length ? keys : ['(미입력)'];
-      vals.forEach(k => { (grouped[k] = grouped[k] || []).push(r); });
+      reportDimCombos(r, rowDims).forEach(tuple => {
+        const key = tuple.join('\x00');
+        (grouped[key] = grouped[key] || { tuple, rs: [] }).rs.push(r);
+      });
     });
-    const entries = Object.entries(grouped).map(([k, rs]) => ({ k, ...azKPI(azSum(rs)) }));
+    const entries = Object.values(grouped).map(g => ({ tuple: g.tuple, ...azKPI(azSum(g.rs)) }));
     entries.sort((a, b) => b.imp - a.imp);
-    return { type: 'flat', rowDim, metricKeys, entries };
+    return { type: 'flat', rowDims, metricKeys, entries };
   }
 
-  // 교차표: 지표를 여러 개 골라도 각 열 값 아래에 지표별로 그룹핑되어 나란히 표시된다
+  // 교차표: 열 차원이 여러 개면 값을 하나의 조합 라벨("A / B")로 합친다.
+  // 지표를 여러 개 골라도 각 열 값 아래에 지표별로 그룹핑되어 나란히 표시된다.
   const mat = {};
   const rowKeysSet = new Set(), colKeysSet = new Set();
+  const rowTupleMap = {};
   rows.forEach(r => {
-    const rKeys = reportDimValues(r, rowDim);
-    const cKeys = reportDimValues(r, colDim);
-    if (!rKeys.length || !cKeys.length) return;
-    rKeys.forEach(rk => cKeys.forEach(ck => {
-      rowKeysSet.add(rk); colKeysSet.add(ck);
-      if (!mat[rk]) mat[rk] = {};
-      if (!mat[rk][ck]) mat[rk][ck] = { imp: 0, clk: 0, cost: 0, conv: 0 };
-      const c = mat[rk][ck];
-      c.imp  += azNum(r[AZ.IMP]);  c.clk  += azNum(r[AZ.CLICK]);
-      c.cost += azNum(r[AZ.COST]); c.conv += azNum(r[AZ.CONV]);
-    }));
+    const rCombos = reportDimCombos(r, rowDims);
+    const cCombos = reportDimCombos(r, colDims).map(t => t.join(' / '));
+    if (!rCombos.length || !cCombos.length) return;
+    rCombos.forEach(rTuple => {
+      const rk = rTuple.join('\x00');
+      rowTupleMap[rk] = rTuple;
+      cCombos.forEach(ck => {
+        rowKeysSet.add(rk); colKeysSet.add(ck);
+        if (!mat[rk]) mat[rk] = {};
+        if (!mat[rk][ck]) mat[rk][ck] = { imp: 0, clk: 0, cost: 0, conv: 0 };
+        const c = mat[rk][ck];
+        c.imp  += azNum(r[AZ.IMP]);  c.clk  += azNum(r[AZ.CLICK]);
+        c.cost += azNum(r[AZ.COST]); c.conv += azNum(r[AZ.CONV]);
+      });
+    });
   });
-  return { type: 'pivot', rowDim, colDim, metricKeys, mat, rowKeys: [...rowKeysSet].sort(), colKeys: [...colKeysSet].sort() };
+  return {
+    type: 'pivot', rowDims, colDims, metricKeys, mat, rowTupleMap,
+    rowKeys: [...rowKeysSet].sort(), colKeys: [...colKeysSet].sort()
+  };
 }
 
 function generateReport() {
@@ -7018,8 +7077,9 @@ function reportMetricFromAgg(agg, metric) {
 }
 
 function renderReportFlatTable(data) {
-  const { rowDim, metricKeys, entries } = data;
+  const { rowDims, metricKeys, entries } = data;
   const metricLabels = metricKeys.map(k => REPORT_METRICS.find(m => m.key === k).label);
+  const dimLabels = rowDims.map(d => d.label);
   const table = document.getElementById('report-table');
 
   const totalAgg = entries.reduce((a, e) => ({
@@ -7027,23 +7087,24 @@ function renderReportFlatTable(data) {
   }), { imp: 0, clk: 0, cost: 0, conv: 0 });
 
   table.innerHTML =
-    `<thead><tr><th style="text-align:left">${escHtml(rowDim.label)}</th>${metricLabels.map(h => `<th>${escHtml(h)}</th>`).join('')}</tr></thead>` +
+    `<thead><tr>${dimLabels.map(h => `<th style="text-align:left">${escHtml(h)}</th>`).join('')}${metricLabels.map(h => `<th>${escHtml(h)}</th>`).join('')}</tr></thead>` +
     `<tbody>` +
       entries.map(e => `<tr>
-        <td style="text-align:left">${escHtml(e.k)}</td>
+        ${e.tuple.map(v => `<td style="text-align:left">${escHtml(v)}</td>`).join('')}
         ${metricKeys.map(k => `<td>${reportFmtCell(k, e[k])}</td>`).join('')}
       </tr>`).join('') +
       `<tr class="report-total-row">
-        <td style="text-align:left">합계</td>
+        <td style="text-align:left" colspan="${dimLabels.length}">합계</td>
         ${metricKeys.map(k => `<td>${reportFmtCell(k, reportMetricFromAgg(totalAgg, k))}</td>`).join('')}
       </tr>` +
     `</tbody>`;
 
-  document.getElementById('report-summary').textContent = `${entries.length.toLocaleString('ko-KR')}개 행 · ${rowDim.label} 기준`;
+  document.getElementById('report-summary').textContent =
+    `${entries.length.toLocaleString('ko-KR')}개 행 · ${dimLabels.join(' → ')} 기준`;
 
-  const aoa = [[rowDim.label, ...metricKeys.map((k, i) => metricLabels[i] + reportUnitSuffix(k))]];
-  entries.forEach(e => aoa.push([e.k, ...metricKeys.map(k => reportRawExportVal(k, e[k]))]));
-  aoa.push(['합계', ...metricKeys.map(k => reportRawExportVal(k, reportMetricFromAgg(totalAgg, k)))]);
+  const aoa = [[...dimLabels, ...metricKeys.map((k, i) => metricLabels[i] + reportUnitSuffix(k))]];
+  entries.forEach(e => aoa.push([...e.tuple, ...metricKeys.map(k => reportRawExportVal(k, e[k]))]));
+  aoa.push([...dimLabels.map((_, i) => i === 0 ? '합계' : ''), ...metricKeys.map(k => reportRawExportVal(k, reportMetricFromAgg(totalAgg, k)))]);
   reportExportAOA = aoa;
 }
 
@@ -7051,10 +7112,13 @@ function renderReportFlatTable(data) {
 // (헤더 2줄: 1줄=열 값, 2줄=그 아래 지표명) — 지표가 1개면 자연스럽게
 // 서브컬럼이 1개짜리 그룹으로 표시된다.
 function renderReportPivotTable(data) {
-  const { rowDim, colDim, metricKeys, mat, rowKeys, colKeys } = data;
+  const { rowDims, colDims, metricKeys, mat, rowKeys, colKeys, rowTupleMap } = data;
   const table = document.getElementById('report-table');
   const metricLabels = metricKeys.map(k => REPORT_METRICS.find(m => m.key === k).label);
+  const dimLabels = rowDims.map(d => d.label);
+  const colDimLabel = colDims.map(d => d.label).join(' / ');
   const nMetrics = metricKeys.length;
+  const nDims = dimLabels.length;
 
   function cellAgg(rk, ck) { return (mat[rk] && mat[rk][ck]) || { imp: 0, clk: 0, cost: 0, conv: 0 }; }
   function sumAgg(list) {
@@ -7068,11 +7132,12 @@ function renderReportPivotTable(data) {
   const metricHeaderRow = () => metricLabels.map(l => `<th>${escHtml(l)}</th>`).join('');
   const metricCells = (agg) => metricKeys.map(m => `<td>${reportFmtCell(m, reportMetricFromAgg(agg, m))}</td>`).join('');
   const metricTotalCells = (agg) => metricKeys.map(m => `<td class="report-total-col">${reportFmtCell(m, reportMetricFromAgg(agg, m))}</td>`).join('');
+  const rowLabelCells = (rk) => (rowTupleMap[rk] || [rk]).map(v => `<td style="text-align:left">${escHtml(v)}</td>`).join('');
 
   table.innerHTML =
     `<thead>
       <tr>
-        <th style="text-align:left" rowspan="2">${escHtml(rowDim.label)} \\ ${escHtml(colDim.label)}</th>
+        <th style="text-align:left" colspan="${nDims}" rowspan="2">${escHtml(dimLabels.join(' / '))} \\ ${escHtml(colDimLabel)}</th>
         ${colKeys.map(ck => `<th colspan="${nMetrics}">${escHtml(ck)}</th>`).join('')}
         <th colspan="${nMetrics}">합계</th>
       </tr>
@@ -7083,36 +7148,36 @@ function renderReportPivotTable(data) {
     </thead>` +
     `<tbody>` +
       rowKeys.map(rk => `<tr>
-        <td style="text-align:left">${escHtml(rk)}</td>
+        ${rowLabelCells(rk)}
         ${colKeys.map(ck => metricCells(cellAgg(rk, ck))).join('')}
         ${metricTotalCells(rowTotalAgg(rk))}
       </tr>`).join('') +
       `<tr class="report-total-row">
-        <td style="text-align:left">합계</td>
+        <td style="text-align:left" colspan="${nDims}">합계</td>
         ${colKeys.map(ck => metricCells(colTotalAgg(ck))).join('')}
         ${metricTotalCells(grandAgg)}
       </tr>` +
     `</tbody>`;
 
   document.getElementById('report-summary').textContent =
-    `${escHtml(rowDim.label)} × ${escHtml(colDim.label)} · ${metricLabels.join(', ')}`;
+    `${escHtml(dimLabels.join(' → '))} × ${escHtml(colDimLabel)} · ${metricLabels.join(', ')}`;
 
   // 엑셀 export: 다단 헤더는 "열값 - 지표명" 한 줄로 펼쳐서 표현
   const exportMetricCells = (agg) => metricKeys.map(m => reportRawExportVal(m, reportMetricFromAgg(agg, m)));
   const aoa = [[
-    `${rowDim.label}\\${colDim.label}`,
+    ...dimLabels,
     ...colKeys.flatMap(ck => metricKeys.map((m, i) => `${ck} - ${metricLabels[i]}${reportUnitSuffix(m)}`)),
     ...metricKeys.map((m, i) => `합계 - ${metricLabels[i]}${reportUnitSuffix(m)}`)
   ]];
   rowKeys.forEach(rk => {
     aoa.push([
-      rk,
+      ...(rowTupleMap[rk] || [rk]),
       ...colKeys.flatMap(ck => exportMetricCells(cellAgg(rk, ck))),
       ...exportMetricCells(rowTotalAgg(rk))
     ]);
   });
   aoa.push([
-    '합계',
+    ...dimLabels.map((_, i) => i === 0 ? '합계' : ''),
     ...colKeys.flatMap(ck => exportMetricCells(colTotalAgg(ck))),
     ...exportMetricCells(grandAgg)
   ]);
