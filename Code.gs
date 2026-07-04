@@ -1439,15 +1439,28 @@ function getABTestPerformance(codes, startDate, endDate) {
     ? rawSheet.getRange(2, 1, rawSheet.getLastRow() - 1, CONSOLIDATED_RAW_HEADERS.length).getValues()
     : [];
 
+  const masterSheet = ss.getSheetByName(MASTER_SHEET_NAME);
+  const masterRows = (masterSheet && masterSheet.getLastRow() >= 2)
+    ? masterSheet.getRange(2, 1, masterSheet.getLastRow() - 1, 16).getValues()
+    : [];
+
   return codes.map(code => {
-    const creative = getCreativeByImageCode(code);
-    if (!creative) return { code, notFound: true };
+    // 같은 이미지코드가 여러 매체/캠페인/그룹에 재사용될 수 있다. 예전엔 "가장 최근에
+    // 등록된 조합" 하나만 보고 소재_통합RAW를 매체+캠페인+그룹+소재이름으로 정확히
+    // 매칭했는데, 실제 집행은 다른 캠페인/그룹에서 이뤄진 경우 그 실적이 통째로
+    // 누락됐다. 그래서 이 이미지코드에 연결된 모든 조합을 모아, 그 중 하나라도
+    // 일치하면 실적에 포함시키도록 수정.
+    const rowsForCode = masterRows.filter(r => String(r[0] || '').trim() === code);
+    if (!rowsForCode.length) return { code, notFound: true };
+
+    const contexts = rowsForCode.map(r => ({
+      매체: String(r[2] || ''), 캠페인: String(r[3] || ''), 그룹: String(r[4] || ''), 소재이름: String(r[5] || '')
+    }));
+    const latest = rowsForCode[rowsForCode.length - 1]; // 표시용 메타(보종/소재유형 등)는 최신 값 사용
 
     const matched = rawRows.filter(r => {
-      if (String(r[0] || '') !== creative.매체   ||
-          String(r[2] || '') !== creative.캠페인 ||
-          String(r[3] || '') !== creative.그룹   ||
-          String(r[4] || '') !== creative.소재이름) return false;
+      const media = String(r[0] || ''), campaign = String(r[2] || ''), group = String(r[3] || ''), name = String(r[4] || '');
+      if (!contexts.some(c => c.매체 === media && c.캠페인 === campaign && c.그룹 === group && c.소재이름 === name)) return false;
       const d = _abDateStr(r[1]);
       if (startDate && d < startDate) return false;
       if (endDate   && d > endDate)   return false;
@@ -1463,12 +1476,12 @@ function getABTestPerformance(codes, startDate, endDate) {
 
     return {
       code,
-      매체:     creative.매체,
-      소재이름: creative.소재이름,
-      보종:     creative.보종,
-      소재유형: creative.소재유형,
-      모델유형: creative.모델유형,
-      imageUrl: creative.이미지URL,
+      매체:     String(latest[2]  || ''),
+      소재이름: String(latest[5]  || ''),
+      보종:     String(latest[6]  || ''),
+      소재유형: String(latest[8]  || ''),
+      모델유형: String(latest[13] || ''),
+      imageUrl: String(latest[14] || ''),
       imp: sum.imp, clk: sum.clk, cost: sum.cost, conv: sum.conv,
       ctr: sum.imp  > 0 ? sum.clk  / sum.imp  * 100 : 0,
       cvr: sum.clk  > 0 ? sum.conv / sum.clk  * 100 : 0,
