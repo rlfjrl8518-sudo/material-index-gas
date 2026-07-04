@@ -894,6 +894,8 @@
 
     .container-single { padding: 16px; }
 
+    .az-filter-row-2.show { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+
   }
 
   /* ============================================================
@@ -1020,7 +1022,10 @@
     display: none; margin-top: 10px !important; padding: 10px 12px 8px;
     background: var(--az-in-bg); border: 1px dashed var(--az-bd2); border-radius: 8px;
   }
-  .az-filter-row-2.show { display: flex; }
+  /* 1행(매체/캠페인/광고그룹/소재이름)과 같은 4열 그리드로 맞춰서, flex-wrap일 때
+     생기던 들쭉날쭉한 줄바꿈 대신 항목들이 열을 이루며 가지런히 보이도록 함 */
+  .az-filter-row-2.show { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 10px 16px; }
+  .az-filter-row-2 .az-filter-select { width: 100%; }
 
   /* 목표 임계값 알림 */
   .az-threshold-bar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
@@ -5847,7 +5852,12 @@ function cacheCreativeTrendOptions(rows) {
     if (!name || map[name]) return;
     const rawUrl = String(r[AZ.IMGURL] || '');
     const url = /[?&]unit=/.test(rawUrl) ? (azResolveBundleThumb(rawUrl, name) || rawUrl) : rawUrl;
-    map[name] = { name, url };
+    map[name] = {
+      name, url,
+      media:  String(r[AZ.MEDIA]  || ''),
+      group:  String(r[AZ.GROUP]  || ''),
+      bojong: String(r[AZ.BOJONG] || '')
+    };
   });
   azCreativeTrendOptions = Object.values(map).sort((a, b) => a.name.localeCompare(b.name));
   if (azCreativeTrendSelectedName && !map[azCreativeTrendSelectedName]) {
@@ -5883,7 +5893,10 @@ function ensureCreativeTrendModal() {
   modal.innerHTML =
     '<div class="modal-header">' +
       '<span class="modal-title">소재 선택</span>' +
-      '<div style="display:flex;gap:8px;align-items:center;">' +
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
+        '<select id="ctPickerFilterMedia" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;color:#374151;background:#fff;"><option value="">매체 전체</option></select>' +
+        '<select id="ctPickerFilterGroup" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;color:#374151;background:#fff;"><option value="">그룹 전체</option></select>' +
+        '<select id="ctPickerFilterBoJong" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;color:#374151;background:#fff;"><option value="">보종 전체</option></select>' +
         '<input type="text" class="modal-search" id="ctPickerSearch" placeholder="소재명 검색...">' +
         '<button class="btn btn-ghost btn-sm" id="ctPickerCloseBtn">닫기</button>' +
       '</div>' +
@@ -5893,6 +5906,9 @@ function ensureCreativeTrendModal() {
   document.body.appendChild(overlay);
 
   document.getElementById('ctPickerSearch').addEventListener('input', filterCreativeTrendPicker);
+  document.getElementById('ctPickerFilterMedia').addEventListener('change', filterCreativeTrendPicker);
+  document.getElementById('ctPickerFilterGroup').addEventListener('change', filterCreativeTrendPicker);
+  document.getElementById('ctPickerFilterBoJong').addEventListener('change', filterCreativeTrendPicker);
   document.getElementById('ctPickerCloseBtn').addEventListener('click', closeCreativeTrendPicker);
   document.getElementById('ctPickerGrid').addEventListener('click', e => {
     const item = e.target.closest('.img-pick-item');
@@ -5908,17 +5924,54 @@ function ensureCreativeTrendModal() {
 function openCreativeTrendPicker() {
   ensureCreativeTrendModal();
   document.getElementById('ctPickerSearch').value = '';
+  document.getElementById('ctPickerFilterMedia').value  = '';
+  document.getElementById('ctPickerFilterGroup').value  = '';
+  document.getElementById('ctPickerFilterBoJong').value = '';
   document.getElementById('azCtModalOverlay').classList.add('open');
-  renderCreativeTrendPickerGrid(azCreativeTrendOptions);
+  filterCreativeTrendPicker();
 }
 
 function closeCreativeTrendPicker() {
   document.getElementById('azCtModalOverlay')?.classList.remove('open');
 }
 
+// 매체/그룹/보종 필터 드롭다운도, 다른 필터가 이미 적용된 상태에서 실제로
+// 존재하는 값만 옵션으로 남도록 매번 다시 채운다 (캐스케이드)
+function refreshCreativeTrendFilterOptions(media, group, boJong) {
+  function fillSelect(id, excludeField, field, label) {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const prevVal = sel.value;
+    const scoped = azCreativeTrendOptions.filter(o => {
+      if (excludeField !== 'media'  && media  && o.media  !== media)  return false;
+      if (excludeField !== 'group'  && group  && o.group  !== group)  return false;
+      if (excludeField !== 'boJong' && boJong && o.bojong !== boJong) return false;
+      return true;
+    });
+    const vals = [...new Set(scoped.map(o => o[field]).filter(Boolean))].sort();
+    sel.innerHTML = `<option value="">${label} 전체</option>` + vals.map(v => `<option value="${escHtml(v)}">${escHtml(v)}</option>`).join('');
+    if (vals.includes(prevVal)) sel.value = prevVal;
+  }
+  fillSelect('ctPickerFilterMedia',  'media',  'media',  '매체');
+  fillSelect('ctPickerFilterGroup',  'group',  'group',  '그룹');
+  fillSelect('ctPickerFilterBoJong', 'boJong', 'bojong', '보종');
+}
+
 function filterCreativeTrendPicker() {
-  const q = (document.getElementById('ctPickerSearch').value || '').trim().toLowerCase();
-  const filtered = !q ? azCreativeTrendOptions : azCreativeTrendOptions.filter(o => o.name.toLowerCase().includes(q));
+  const q      = (document.getElementById('ctPickerSearch').value || '').trim().toLowerCase();
+  const media  = document.getElementById('ctPickerFilterMedia')?.value  || '';
+  const group  = document.getElementById('ctPickerFilterGroup')?.value  || '';
+  const boJong = document.getElementById('ctPickerFilterBoJong')?.value || '';
+
+  refreshCreativeTrendFilterOptions(media, group, boJong);
+
+  const filtered = azCreativeTrendOptions.filter(o => {
+    if (media  && o.media  !== media)  return false;
+    if (group  && o.group  !== group)  return false;
+    if (boJong && o.bojong !== boJong) return false;
+    if (q && !o.name.toLowerCase().includes(q)) return false;
+    return true;
+  });
   renderCreativeTrendPickerGrid(filtered);
 }
 
