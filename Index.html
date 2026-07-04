@@ -2191,6 +2191,14 @@
     </div><!-- /.az-dash-wrap -->
   </div><!-- /#az-dashboard -->
 
+  <!-- 소재이름 호버 이미지 팝업 / 섹션 설명 호버 툴팁 — #panel-analyze 안에 둬야
+       --az-* 테마 변수를 그대로 물려받아 배경이 투명해지지 않는다
+       (예전엔 body 최하단에 있어서 테마 변수가 안 닿아 배경이 비어 보였음) -->
+  <div id="az-img-preview">
+    <div id="az-img-preview-content"></div>
+  </div>
+  <div id="az-info-tooltip"></div>
+
 </div><!-- /#panel-analyze -->
 
 <div class="tab-panel" id="panel-report">
@@ -2229,9 +2237,9 @@
         <div class="report-config-group">
           <div class="report-config-title">기간</div>
           <div style="display:flex;align-items:center;gap:5px">
-            <input type="date" id="report-f-start" class="form-control" style="padding:5px 6px;font-size:11px" onchange="generateReport()">
+            <input type="date" id="report-f-start" class="form-control" style="padding:5px 6px;font-size:11px" onchange="reportRefreshAllFilterOptions();generateReport()">
             <span style="font-size:11px;color:#9ca3af">~</span>
-            <input type="date" id="report-f-end" class="form-control" style="padding:5px 6px;font-size:11px" onchange="generateReport()">
+            <input type="date" id="report-f-end" class="form-control" style="padding:5px 6px;font-size:11px" onchange="reportRefreshAllFilterOptions();generateReport()">
           </div>
         </div>
 
@@ -3911,29 +3919,7 @@ function loadExistingCodes() {
 
       imageCodesLoaded = true;
 
-      // 필터 드롭다운 옵션 동적 생성
-      const boJongVals = [...new Set(codes.map(c => c.보종).filter(Boolean))].sort();
-
-      const mediaVals  = [...new Set(codes.map(c => c.매체).filter(Boolean))].sort();
-
-      const bjSel = document.getElementById('imgFilterBoJong');
-
-      const mdSel = document.getElementById('imgFilterMedia');
-
-      if (bjSel) {
-
-        bjSel.innerHTML = '<option value="">보종 전체</option>' +
-          boJongVals.map(v => `<option value="${escHtml(v)}">${escHtml(v)}</option>`).join('');
-
-      }
-
-      if (mdSel) {
-
-        mdSel.innerHTML = '<option value="">매체 전체</option>' +
-          mediaVals.map(v => `<option value="${escHtml(v)}">${escHtml(v)}</option>`).join('');
-
-      }
-
+      // 필터 드롭다운 옵션은 filterImagePicker() 안에서 캐스케이드로 채워진다
       filterImagePicker();
 
     })
@@ -3950,6 +3936,26 @@ function loadExistingCodes() {
 
 
 
+// 보종/매체 필터 드롭다운도, 다른 필터가 이미 적용된 상태에서 실제로
+// 존재하는 값만 옵션으로 남도록 매번 다시 채운다 (캐스케이드)
+function refreshImagePickerFilterOptions(boJong, media) {
+  function fillSelect(id, excludeField, field, label) {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const prevVal = sel.value;
+    const scoped = allImageCodes.filter(c => {
+      if (excludeField !== 'boJong' && boJong && c.보종 !== boJong) return false;
+      if (excludeField !== 'media'  && media  && c.매체 !== media)  return false;
+      return true;
+    });
+    const vals = [...new Set(scoped.map(c => c[field]).filter(Boolean))].sort();
+    sel.innerHTML = `<option value="">${label} 전체</option>` + vals.map(v => `<option value="${escHtml(v)}">${escHtml(v)}</option>`).join('');
+    if (vals.includes(prevVal)) sel.value = prevVal;
+  }
+  fillSelect('imgFilterBoJong', 'boJong', '보종', '보종');
+  fillSelect('imgFilterMedia',  'media',  '매체', '매체');
+}
+
 function filterImagePicker() {
 
   const q      = document.getElementById('imgSearch').value.trim().toLowerCase();
@@ -3957,6 +3963,8 @@ function filterImagePicker() {
   const boJong = document.getElementById('imgFilterBoJong')?.value || '';
 
   const media  = document.getElementById('imgFilterMedia')?.value  || '';
+
+  refreshImagePickerFilterOptions(boJong, media);
 
   const filtered = allImageCodes.filter(c => {
 
@@ -7016,22 +7024,7 @@ function reportApplyConfig(config) {
   const wantedMetrics = new Set(Array.isArray(config.metrics) && config.metrics.length ? config.metrics : REPORT_METRICS.map(m => m.key));
   document.querySelectorAll('.report-metric-check').forEach(el => { el.checked = wantedMetrics.has(el.value); });
 
-  reportFilterSeq = 0;
-  document.getElementById('report-filter-list').innerHTML = '';
-  const filters = Array.isArray(config.filters) ? config.filters : [];
-  if (filters.length) {
-    filters.forEach(f => {
-      addReportFilter();
-      const rowEls = document.querySelectorAll('.report-filter-row');
-      const row = rowEls[rowEls.length - 1];
-      row.querySelector('select').value = f.dim;
-      onReportFilterDimChange(row.id);
-      row.querySelector('.rf-value').value = f.value;
-    });
-  } else {
-    addReportFilter();
-  }
-
+  // 필터 값 옵션이 기간을 기준으로 계산되므로, 필터를 복원하기 전에 기간부터 맞춰둔다
   if (config.dateStart || config.dateEnd) {
     document.getElementById('report-f-start').value = config.dateStart || '';
     document.getElementById('report-f-end').value   = config.dateEnd   || '';
@@ -7042,6 +7035,23 @@ function reportApplyConfig(config) {
       document.getElementById('report-f-end').value   = dates[dates.length - 1];
     }
   }
+
+  reportFilterSeq = 0;
+  document.getElementById('report-filter-list').innerHTML = '';
+  const filters = Array.isArray(config.filters) ? config.filters : [];
+  if (filters.length) {
+    filters.forEach(f => {
+      addReportFilter();
+      const rowEls = document.querySelectorAll('.report-filter-row');
+      const row = rowEls[rowEls.length - 1];
+      row.querySelector('select').value = f.dim;
+      reportRefreshFilterRowOptions(row);
+      row.querySelector('.rf-value').value = f.value;
+    });
+  } else {
+    addReportFilter();
+  }
+  reportRefreshAllFilterOptions(); // 모든 필터가 다 채워진 뒤 서로를 기준으로 한번 더 정리
 
   generateReport();
 }
@@ -7186,26 +7196,71 @@ function addReportFilter() {
       `<option value="">차원 선택</option>` +
       REPORT_DIMENSIONS.filter(d => !d.noFilter).map(d => `<option value="${d.key}">${d.label}</option>`).join('') +
     `</select>` +
-    `<select class="rf-value" disabled onchange="generateReport()"><option value="">-</option></select>` +
+    `<select class="rf-value" disabled onchange="onReportFilterValueChange()"><option value="">-</option></select>` +
     `<button onclick="removeReportFilter('${id}')" title="삭제">✕</button>`;
   container.appendChild(row);
 }
 
-function onReportFilterDimChange(id) {
-  const row = document.getElementById(id);
-  const dimKey = row.querySelector('select').value;
+// 날짜 범위 + "다른" 필터 행들의 현재 선택값을 반영한 행 목록 (자기 자신 필터는 제외 —
+// 그래야 그 필터의 값 후보 자체를 계산할 수 있다)
+function reportScopedRowsExcluding(excludeRowId) {
+  const startD = document.getElementById('report-f-start').value;
+  const endD   = document.getElementById('report-f-end').value;
+  const otherFilters = Array.from(document.querySelectorAll('.report-filter-row'))
+    .filter(row => row.id !== excludeRowId)
+    .map(row => {
+      const selects = row.querySelectorAll('select');
+      return { dim: selects[0].value, value: selects[1].value };
+    })
+    .filter(f => f.dim && f.value);
+
+  return azRawData.slice(1).filter(r => {
+    if (startD || endD) {
+      const d = azDateStr(r[AZ.DATE]);
+      if (startD && d < startD) return false;
+      if (endD   && d > endD)   return false;
+    }
+    return otherFilters.every(f => {
+      const dim = REPORT_DIMENSIONS.find(d => d.key === f.dim);
+      return dim ? reportDimValues(r, dim).includes(f.value) : true;
+    });
+  });
+}
+
+// 필터 행 하나의 값 옵션을, 기간+다른 필터들을 반영해 "실제로 결과가 있는 값"만 다시 채운다
+function reportRefreshFilterRowOptions(row) {
+  const dimSel = row.querySelector('select');
   const valueSel = row.querySelector('.rf-value');
-  const dim = REPORT_DIMENSIONS.find(d => d.key === dimKey);
-  if (!dim) { valueSel.innerHTML = '<option value="">-</option>'; valueSel.disabled = true; generateReport(); return; }
-  const rows = azRawData.slice(1);
+  const dim = REPORT_DIMENSIONS.find(d => d.key === dimSel.value);
+  if (!dim) { valueSel.innerHTML = '<option value="">-</option>'; valueSel.disabled = true; return; }
+
+  const rows = reportScopedRowsExcluding(row.id);
   const values = [...new Set(rows.flatMap(r => reportDimValues(r, dim)))].filter(Boolean).sort();
+  const prevVal = valueSel.value;
   valueSel.innerHTML = '<option value="">전체</option>' + values.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
   valueSel.disabled = false;
+  if (values.includes(prevVal)) valueSel.value = prevVal;
+}
+
+// 필터 하나가 바뀌면 나머지 필터들의 값 후보도 그 변경을 반영해서 다시 계산한다
+// (예: 매체=구글DA를 고르면, 보종 필터엔 구글DA에 실제로 존재하는 보종만 남는다)
+function reportRefreshAllFilterOptions() {
+  document.querySelectorAll('.report-filter-row').forEach(reportRefreshFilterRowOptions);
+}
+
+function onReportFilterDimChange(id) {
+  reportRefreshAllFilterOptions();
+  generateReport();
+}
+
+function onReportFilterValueChange() {
+  reportRefreshAllFilterOptions();
   generateReport();
 }
 
 function removeReportFilter(id) {
   document.getElementById(id)?.remove();
+  reportRefreshAllFilterOptions();
   generateReport();
 }
 
@@ -7721,32 +7776,37 @@ function openABPicker(slotIndex) {
   ensureABModal();
   document.getElementById('abImgModalOverlay').classList.add('open');
   document.getElementById('abImgSearch').value = '';
+  document.getElementById('abImgFilterMedia').value  = '';
+  document.getElementById('abImgFilterGroup').value  = '';
+  document.getElementById('abImgFilterCrtype').value = '';
+  document.getElementById('abImgFilterBoJong').value = '';
   const grid = document.getElementById('abImgPickerGrid');
   grid.innerHTML = '<div class="modal-empty">불러오는 중...</div>';
   google.script.run
-    .withSuccessHandler(codes => { abAllCodes = codes; abPopulateFilterOptions(codes); filterABPicker(); })
+    .withSuccessHandler(codes => { abAllCodes = codes; filterABPicker(); })
     .withFailureHandler(() => { grid.innerHTML = '<div class="modal-empty" style="color:#ef4444;">로드 실패 - 다시 시도해 주세요.</div>'; })
     .getImageCodes();
 }
 
-// 매체/그룹/소재유형/보종 필터 드롭다운 옵션을 실제 데이터 기준으로 채운다
-function abPopulateFilterOptions(codes) {
-  function fillSelect(id, field, label) {
+function closeABPicker() {
+  document.getElementById('abImgModalOverlay')?.classList.remove('open');
+}
+
+// 매체/그룹/소재유형/보종 필터 드롭다운 옵션을, 다른 필터들이 이미 적용된
+// 상태에서 실제로 존재하는 값만 남도록 매번 다시 채운다 (캐스케이드)
+function abRefreshFilterOptions(scopeFn) {
+  function fillSelect(id, excludeField, field, label) {
     const sel = document.getElementById(id);
     if (!sel) return;
     const prevVal = sel.value;
-    const vals = [...new Set(codes.map(c => c[field]).filter(Boolean))].sort();
+    const vals = [...new Set(scopeFn(excludeField).map(c => c[field]).filter(Boolean))].sort();
     sel.innerHTML = `<option value="">${label} 전체</option>` + vals.map(v => `<option value="${escHtml(v)}">${escHtml(v)}</option>`).join('');
     if (vals.includes(prevVal)) sel.value = prevVal;
   }
-  fillSelect('abImgFilterMedia',  '매체',    '매체');
-  fillSelect('abImgFilterGroup',  '그룹',    '그룹');
-  fillSelect('abImgFilterCrtype', '소재유형', '소재유형');
-  fillSelect('abImgFilterBoJong', '보종',    '보종');
-}
-
-function closeABPicker() {
-  document.getElementById('abImgModalOverlay')?.classList.remove('open');
+  fillSelect('abImgFilterMedia',  'media',  '매체',    '매체');
+  fillSelect('abImgFilterGroup',  'group',  '그룹',    '그룹');
+  fillSelect('abImgFilterCrtype', 'crtype', '소재유형', '소재유형');
+  fillSelect('abImgFilterBoJong', 'boJong', '보종',    '보종');
 }
 
 function filterABPicker() {
@@ -7755,6 +7815,16 @@ function filterABPicker() {
   const group  = document.getElementById('abImgFilterGroup')?.value  || '';
   const crtype = document.getElementById('abImgFilterCrtype')?.value || '';
   const boJong = document.getElementById('abImgFilterBoJong')?.value || '';
+
+  // 필터 드롭다운 자체는, "자기 자신 필드를 제외한" 다른 필터들만 적용된 목록을
+  // 기준으로 옵션을 다시 채운다 — 그래야 지금 고른 값이 사라지지 않는다
+  abRefreshFilterOptions(excludeField => abAllCodes.filter(c => {
+    if (excludeField !== 'media'  && media  && c.매체     !== media)  return false;
+    if (excludeField !== 'group'  && group  && c.그룹     !== group)  return false;
+    if (excludeField !== 'crtype' && crtype && c.소재유형 !== crtype) return false;
+    if (excludeField !== 'boJong' && boJong && c.보종     !== boJong) return false;
+    return true;
+  }));
 
   const filtered = abAllCodes.filter(c => {
     if (media  && c.매체     !== media)  return false;
@@ -7982,13 +8052,6 @@ async function deleteABTestConfirm(testId) {
 
 </script>
 
-<!-- 소재이름 호버 이미지 팝업 -->
-<div id="az-img-preview">
-  <div id="az-img-preview-content"></div>
-</div>
-
-<!-- 섹션 설명 호버 툴팁 -->
-<div id="az-info-tooltip"></div>
 
 </body>
 
