@@ -981,6 +981,10 @@ function testPing() {
   };
 }
 
+// 소재_통합RAW의 '일' 컬럼 인덱스 (CONSOLIDATED_RAW_HEADERS 기준) — Date 객체 변환 시
+// 이 컬럼만 검사하면 되므로, 21개 컬럼 전부를 매번 instanceof 체크하던 것보다 훨씬 가볍다.
+const CONSOLIDATED_RAW_DATE_COL = 1;
+
 function getAllData() {
   const ss = getSpreadsheet();
   const sheet = ss.getSheetByName(CONSOLIDATED_RAW_SHEET_NAME);
@@ -988,13 +992,35 @@ function getAllData() {
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
   const raw = sheet.getRange(1, 1, lastRow, CONSOLIDATED_RAW_HEADERS.length).getValues();
-  // google.script.run은 Date 객체 직렬화 실패 시 null 반환 → 문자열로 변환
-  return raw.map(row => row.map(cell => {
-    if (cell instanceof Date) {
-      return Utilities.formatDate(cell, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-    }
-    return cell;
-  }));
+  const tz = Session.getScriptTimeZone();
+  // google.script.run은 Date 객체 직렬화 실패 시 null 반환 → 문자열로 변환 ('일' 컬럼만 검사)
+  for (let i = 1; i < raw.length; i++) { // 0번째(헤더 행)는 건너뜀
+    const cell = raw[i][CONSOLIDATED_RAW_DATE_COL];
+    if (cell instanceof Date) raw[i][CONSOLIDATED_RAW_DATE_COL] = Utilities.formatDate(cell, tz, 'yyyy-MM-dd');
+  }
+  return raw;
+}
+
+// 이전에 불러온 시트 행 번호(sinceLastRow, 헤더 포함) 이후로 새로 추가된 행만 반환.
+// 소재_통합RAW은 기존 행을 수정하지 않고 뒤에만 추가(append-only)하는 구조라서
+// 클라이언트가 이미 가진 데이터에 이어붙이기만 하면 되고, 그러면 데이터가 아무리
+// 쌓여도 로드 시간은 "지난번 이후 늘어난 양"에만 비례하게 된다.
+function getAllDataSince(sinceLastRow) {
+  const ss = getSpreadsheet();
+  const sheet = ss.getSheetByName(CONSOLIDATED_RAW_SHEET_NAME);
+  if (!sheet) return { rows: [], lastRow: 0 };
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2 || lastRow <= sinceLastRow) return { rows: [], lastRow: Math.max(lastRow, 0) };
+
+  const startRow = Math.max(sinceLastRow + 1, 2); // 1행은 헤더라 항상 건너뜀
+  const numRows = lastRow - startRow + 1;
+  const raw = sheet.getRange(startRow, 1, numRows, CONSOLIDATED_RAW_HEADERS.length).getValues();
+  const tz = Session.getScriptTimeZone();
+  for (let i = 0; i < raw.length; i++) {
+    const cell = raw[i][CONSOLIDATED_RAW_DATE_COL];
+    if (cell instanceof Date) raw[i][CONSOLIDATED_RAW_DATE_COL] = Utilities.formatDate(cell, tz, 'yyyy-MM-dd');
+  }
+  return { rows: raw, lastRow };
 }
 
 // --------------------------------------------------

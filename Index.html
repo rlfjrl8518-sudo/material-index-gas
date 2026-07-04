@@ -1725,6 +1725,7 @@
           🔄 데이터 로드
           <div class="spinner" id="az-load-spinner"></div>
         </button>
+        <button class="az-filter-more-btn" title="캐시를 지우고 전체를 처음부터 다시 불러옵니다" onclick="fullResyncAnalysisData()">↺ 전체 새로고침</button>
         <button class="az-theme-btn" onclick="azToggleTheme(this)" title="테마 전환">
           🌙 다크
         </button>
@@ -4744,6 +4745,7 @@ let azDgpmThumbMap = {};
 let azCharts     = {};     // Chart.js 인스턴스 맵
 let azRankTab    = 'ctr';
 let azDimData    = {};     // 차원별 집계 캐시 { crtype:[{k,ctr,cvr,cpa,...}], ... }
+let azLastLoadedRow = 0;   // 마지막으로 동기화한 소재_통합RAW의 시트 행 번호(헤더 포함)
 
 // 컬럼 인덱스 (CONSOLIDATED_RAW_HEADERS 기준)
 const AZ = {
@@ -4827,6 +4829,77 @@ function onAnalyzeTabActivate() {
   loadAnalysisData();
 }
 
+// ── 소재_통합RAW 브라우저 캐시 (IndexedDB) ────────────────
+// 적재(consolidateRawData)가 기존 행은 안 건드리고 뒤에만 추가하는 구조라서,
+// 한 번 받은 데이터는 브라우저에 계속 갖고 있다가 "지난번 이후 늘어난 만큼"만
+// 새로 받아서 이어붙이면 된다. 데이터가 몇 년 치 쌓여도 매번 받는 양은
+// 항상 "최근 늘어난 양"으로 고정된다.
+const AZ_CACHE_DB_NAME = 'materialIndexCache';
+const AZ_CACHE_STORE   = 'rawData';
+
+function azOpenCacheDB() {
+  return new Promise((resolve, reject) => {
+    if (!window.indexedDB) { reject(new Error('IndexedDB 미지원')); return; }
+    const req = indexedDB.open(AZ_CACHE_DB_NAME, 1);
+    req.onupgradeneeded = () => { req.result.createObjectStore(AZ_CACHE_STORE); };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+async function azLoadRawCache() {
+  try {
+    const db = await azOpenCacheDB();
+    return await new Promise((resolve, reject) => {
+      const tx  = db.transaction(AZ_CACHE_STORE, 'readonly');
+      const req = tx.objectStore(AZ_CACHE_STORE).get('main');
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror   = () => reject(req.error);
+    });
+  } catch (e) {
+    console.warn('[분석 캐시] 로드 실패, 전체 로드로 대체:', e);
+    return null;
+  }
+}
+
+async function azSaveRawCache(rows, lastRow) {
+  try {
+    const db = await azOpenCacheDB();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(AZ_CACHE_STORE, 'readwrite');
+      tx.objectStore(AZ_CACHE_STORE).put({ rows, lastRow, savedAt: Date.now() }, 'main');
+      tx.oncomplete = () => resolve();
+      tx.onerror    = () => reject(tx.error);
+    });
+  } catch (e) {
+    console.warn('[분석 캐시] 저장 실패 (다음에도 전체 로드가 필요할 수 있음):', e);
+  }
+}
+
+async function azClearRawCache() {
+  try {
+    const db = await azOpenCacheDB();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(AZ_CACHE_STORE, 'readwrite');
+      tx.objectStore(AZ_CACHE_STORE).delete('main');
+      tx.oncomplete = () => resolve();
+      tx.onerror    = () => reject(tx.error);
+    });
+  } catch (e) {
+    console.warn('[분석 캐시] 삭제 실패:', e);
+  }
+}
+
+// 캐시를 지우고 처음부터 전체를 다시 불러온다 (시트를 수동으로 고쳤거나
+// 캐시가 꼬였다고 의심될 때 쓰는 안전판)
+async function fullResyncAnalysisData() {
+  if (!confirm('캐시를 지우고 처음부터 전체 데이터를 다시 불러옵니다. 데이터가 많으면 시간이 걸릴 수 있어요. 계속할까요?')) return;
+  await azClearRawCache();
+  azLoaded = false;
+  azLastLoadedRow = 0;
+  loadAnalysisData();
+}
+
 // ── 데이터 로드 ────────────────────────────────────────────
 async function loadAnalysisData() {
   const btn     = document.getElementById('az-load-btn');
@@ -4865,12 +4938,25 @@ async function loadAnalysisData() {
       return;
     }
 
-    // ── 2단계: 실데이터 로드 ──
-    const [raw, master, dgpmThumbs] = await Promise.all([
-      gasRun('getAllData'),
+    // ── 2단계: 실데이터 로드 (캐시가 있으면 지난번 이후 늘어난 만큼만) ──
+    const cached = await azLoadRawCache();
+    const usableCache = cached && Array.isArray(cached.rows) && cached.rows.length && cached.lastRow;
+
+    const rawDataPromise = usableCache
+      ? gasRun('getAllDataSince', cached.lastRow).then(delta => ({
+          rows: cached.rows.concat(Array.isArray(delta.rows) ? delta.rows : []),
+          lastRow: delta.lastRow,
+          isDelta: true,
+          deltaCount: (delta.rows || []).length
+        }))
+      : gasRun('getAllData').then(rows => ({ rows, lastRow: Array.isArray(rows) ? rows.length : 0, isDelta: false }));
+
+    const [rawResult, master, dgpmThumbs] = await Promise.all([
+      rawDataPromise,
       gasRun('getMasterData'),
       gasRun('getDGPMThumbMap').catch(() => ({}))  // 구버전 Code.gs 대응 — 실패해도 나머지는 계속 진행
     ]);
+    const raw = rawResult.rows;
     if (!Array.isArray(raw)) {
       loadEl.innerHTML = `<div style="color:#f87171;font-size:13px">
         getAllData 오류 — ping은 정상(${ping.lastRow}행), 데이터 직렬화 실패<br>
@@ -4882,6 +4968,7 @@ async function loadAnalysisData() {
     azMasterData = Array.isArray(master) ? master : [];
     azLoaded     = true;
     azDgpmThumbMap = (dgpmThumbs && typeof dgpmThumbs === 'object') ? dgpmThumbs : {};
+    azLastLoadedRow = rawResult.lastRow;
 
     // 소재이름 → 대표 이미지URL 맵 (소재_마스터: 5=소재이름, 14=이미지URL) — 보조 수단
     azCreativeThumbMap = {};
@@ -4891,7 +4978,12 @@ async function loadAnalysisData() {
       if (name && url && !azCreativeThumbMap[name]) azCreativeThumbMap[name] = url;
     });
     const totalRows = azRawData.length - 1;
-    console.log(`[분석 대시보드] 로드 완료: RAW ${totalRows}행, MASTER ${Math.max(0,azMasterData.length-1)}행`);
+    console.log(rawResult.isDelta
+      ? `[분석 대시보드] 캐시 사용 — 기존 ${cached.rows.length - 1}행 + 신규 ${rawResult.deltaCount}행 = 총 ${totalRows}행`
+      : `[분석 대시보드] 최초 전체 로드 — RAW ${totalRows}행, MASTER ${Math.max(0,azMasterData.length-1)}행`);
+
+    // 다음 방문 때 늘어난 만큼만 받을 수 있도록 캐시 갱신 (렌더링을 막지 않도록 결과는 기다리지 않음)
+    azSaveRawCache(raw, azLastLoadedRow);
     if (totalRows <= 0) {
       loadEl.innerHTML = `<div style="color:#f59e0b;font-size:13px;text-align:center">
         소재_통합RAW 시트에 데이터가 없습니다.<br>
