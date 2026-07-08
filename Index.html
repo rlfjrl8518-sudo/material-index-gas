@@ -330,10 +330,30 @@
     flex: 1; min-width: 0; font-size: 11px; padding: 5px 6px;
     border: 1px solid #d1d5db; border-radius: 5px; background: #fff;
   }
+  .report-filter-row .az-ms { flex: 1; min-width: 0; }
+  .report-filter-row .az-ms-btn { font-size: 11px; padding: 5px 20px 5px 6px; height: auto; }
+  .report-filter-row .az-ms-btn:disabled { cursor: not-allowed; opacity: .6; }
   .report-filter-row button {
     background: none; border: none; color: #ef4444; cursor: pointer; font-size: 14px; flex-shrink: 0;
   }
   .report-metric-item { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 0; color: #374151; }
+
+  /* 행/열 기준 선택된 항목 — 드래그로 순서 변경 */
+  .report-dim-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+  .report-dim-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 6px 4px 8px; border: 1px solid #4f6ef7; border-radius: 6px;
+    background: #eff2ff; color: #3b5beb; font-size: 11px; font-weight: 600;
+    cursor: grab; user-select: none;
+  }
+  .report-dim-chip.dragging { opacity: .4; }
+  .report-dim-chip.drag-over { border-style: dashed; box-shadow: inset 0 0 0 1px #4f6ef7; }
+  .report-dim-chip b { font-weight: 700; opacity: .7; }
+  .report-dim-chip button {
+    background: none; border: none; color: #3b5beb; opacity: .6; cursor: pointer;
+    font-size: 12px; line-height: 1; padding: 0;
+  }
+  .report-dim-chip button:hover { opacity: 1; }
   .report-result { flex: 1; min-width: 0; }
   #report-table td, #report-table th { white-space: nowrap; }
   .report-total-row td { font-weight: 700; background: #f9fafb; }
@@ -961,6 +981,40 @@
   .az-filter-input { width: 120px; }
   .az-filter-select { min-width: 100px; }
   .az-filter-select option { background: var(--az-surf); }
+
+  /* 다중 선택 드롭다운 (버튼 + 체크박스 패널) — 소재 분석 탭 필터 + 보고서 탭 필터 값 공용 */
+  .az-ms { position: relative; min-width: 100px; }
+  .az-ms-btn {
+    width: 100%; text-align: left; background: var(--az-in-bg, #f8fafc); border: 1px solid var(--az-in-bd, #d1d5db);
+    color: var(--az-t1, #1e293b); border-radius: 6px; padding: 6px 22px 6px 9px; font-size: 12px; height: 32px;
+    cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative;
+    transition: border-color .15s;
+  }
+  .az-ms-btn::after {
+    content: '▾'; position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    font-size: 9px; color: var(--az-t4, #9ca3af);
+  }
+  .az-ms-btn:hover { border-color: #4f6ef7; }
+  .az-ms.open .az-ms-btn { border-color: #4f6ef7; }
+  .az-ms-panel {
+    display: none; position: absolute; top: calc(100% + 4px); left: 0; z-index: 200;
+    min-width: 190px; max-height: 260px; overflow-y: auto;
+    background: var(--az-surf, #fff); border: 1px solid var(--az-bd2, #d1d5db); border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.18); padding: 6px;
+  }
+  .az-ms.open .az-ms-panel { display: block; }
+  .az-ms-opt {
+    display: flex; align-items: center; gap: 7px; padding: 5px 7px; font-size: 12px;
+    color: var(--az-t1, #374151); border-radius: 5px; cursor: pointer; white-space: nowrap;
+  }
+  .az-ms-opt:hover { background: var(--az-in-bg, #f3f4f6); }
+  .az-ms-opt input { margin: 0; flex-shrink: 0; }
+  .az-ms-optgroup-label {
+    font-size: 10px; font-weight: 700; color: var(--az-t4, #9ca3af); padding: 6px 7px 2px; text-transform: uppercase;
+  }
+  .az-ms-empty { font-size: 11px; color: var(--az-t4, #9ca3af); padding: 5px 7px; }
+  .az-ms-actions { display: flex; gap: 6px; padding: 4px 7px 2px; border-top: 1px solid var(--az-bd2, #e5e7eb); margin-top: 4px; }
+  .az-ms-actions button { font-size: 10px; background: none; border: none; color: #4f6ef7; cursor: pointer; padding: 2px 0; }
   .az-load-btn {
     display: inline-flex; align-items: center; gap: 6px;
     background: #4f6ef7; color: #fff; border: none; border-radius: 6px;
@@ -1026,6 +1080,7 @@
      생기던 들쭉날쭉한 줄바꿈 대신 항목들이 열을 이루며 가지런히 보이도록 함 */
   .az-filter-row-2.show { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 10px 16px; }
   .az-filter-row-2 .az-filter-select { width: 100%; }
+  .az-filter-row-2 .az-ms { width: 100%; }
 
   /* 목표 임계값 알림 */
   .az-threshold-bar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
@@ -1742,19 +1797,23 @@
       <div class="az-filter-group">
         <div class="az-filter-item">
           <label>매체</label>
-          <select id="az-f-media" class="az-filter-select" onchange="azCascade('az-f-media')"><option value="">전체</option></select>
+          <div class="az-ms" id="az-f-media"><button type="button" class="az-ms-btn" onclick="msToggleOpen('az-f-media', event)">전체</button><div class="az-ms-panel"></div></div>
         </div>
         <div class="az-filter-item">
           <label>캠페인</label>
-          <select id="az-f-campaign" class="az-filter-select" onchange="azCascade('az-f-campaign')" style="min-width:130px"><option value="">전체</option></select>
+          <div class="az-ms" id="az-f-campaign" style="min-width:130px"><button type="button" class="az-ms-btn" onclick="msToggleOpen('az-f-campaign', event)">전체</button><div class="az-ms-panel"></div></div>
         </div>
         <div class="az-filter-item">
           <label>광고그룹</label>
-          <select id="az-f-group" class="az-filter-select" onchange="azCascade('az-f-group')" style="min-width:130px"><option value="">전체</option></select>
+          <div class="az-ms" id="az-f-group" style="min-width:130px"><button type="button" class="az-ms-btn" onclick="msToggleOpen('az-f-group', event)">전체</button><div class="az-ms-panel"></div></div>
         </div>
         <div class="az-filter-item">
           <label>소재이름</label>
-          <select id="az-f-creative" class="az-filter-select" onchange="azCascade('az-f-creative')" style="min-width:150px"><option value="">전체</option></select>
+          <div class="az-ms" id="az-f-creative" style="min-width:150px"><button type="button" class="az-ms-btn" onclick="msToggleOpen('az-f-creative', event)">전체</button><div class="az-ms-panel"></div></div>
+        </div>
+        <div class="az-filter-item">
+          <label>보종</label>
+          <div class="az-ms" id="az-f-bojong"><button type="button" class="az-ms-btn" onclick="msToggleOpen('az-f-bojong', event)">전체</button><div class="az-ms-panel"></div></div>
         </div>
       </div>
       <div class="az-filter-group">
@@ -1786,32 +1845,28 @@
     <!-- 2행: 소재 속성 필터 (기본 접힘) -->
     <div class="az-filter-row az-filter-row-2" id="az-filter-row-2">
       <div class="az-filter-item">
-        <label>보종</label>
-        <select id="az-f-bojong" class="az-filter-select" onchange="azCascade(this.id)"><option value="">전체</option></select>
-      </div>
-      <div class="az-filter-item">
         <label>소재유형</label>
-        <select id="az-f-crtype" class="az-filter-select" onchange="azCascade(this.id)"><option value="">전체</option></select>
+        <div class="az-ms" id="az-f-crtype"><button type="button" class="az-ms-btn" onclick="msToggleOpen('az-f-crtype', event)">전체</button><div class="az-ms-panel"></div></div>
       </div>
       <div class="az-filter-item">
         <label>소구포인트</label>
-        <select id="az-f-appeal" class="az-filter-select" onchange="azCascade(this.id)"><option value="">전체</option></select>
+        <div class="az-ms" id="az-f-appeal"><button type="button" class="az-ms-btn" onclick="msToggleOpen('az-f-appeal', event)">전체</button><div class="az-ms-panel"></div></div>
       </div>
       <div class="az-filter-item">
         <label>광고유형</label>
-        <select id="az-f-adtype" class="az-filter-select" onchange="azCascade(this.id)"><option value="">전체</option></select>
+        <div class="az-ms" id="az-f-adtype"><button type="button" class="az-ms-btn" onclick="msToggleOpen('az-f-adtype', event)">전체</button><div class="az-ms-panel"></div></div>
       </div>
       <div class="az-filter-item">
         <label>후킹방식</label>
-        <select id="az-f-hook" class="az-filter-select" onchange="azCascade(this.id)"><option value="">전체</option></select>
+        <div class="az-ms" id="az-f-hook"><button type="button" class="az-ms-btn" onclick="msToggleOpen('az-f-hook', event)">전체</button><div class="az-ms-panel"></div></div>
       </div>
       <div class="az-filter-item">
         <label>이미지유형</label>
-        <select id="az-f-imgtype" class="az-filter-select" onchange="azCascade(this.id)"><option value="">전체</option></select>
+        <div class="az-ms" id="az-f-imgtype"><button type="button" class="az-ms-btn" onclick="msToggleOpen('az-f-imgtype', event)">전체</button><div class="az-ms-panel"></div></div>
       </div>
       <div class="az-filter-item">
         <label>모델유형</label>
-        <select id="az-f-model" class="az-filter-select" onchange="azCascade(this.id)"><option value="">전체</option></select>
+        <div class="az-ms" id="az-f-model"><button type="button" class="az-ms-btn" onclick="msToggleOpen('az-f-model', event)">전체</button><div class="az-ms-panel"></div></div>
       </div>
     </div>
   </div>
@@ -2257,12 +2312,14 @@
         </div>
 
         <div class="report-config-group">
-          <div class="report-config-title">행 기준 <span style="font-weight:400;color:#9ca3af">(여러 개 선택 시 선택 순서대로 그룹핑)</span></div>
+          <div class="report-config-title">행 기준 <span style="font-weight:400;color:#9ca3af">(여러 개 선택 시 그룹핑 순서 — 드래그로 순서 변경)</span></div>
+          <div class="report-dim-chips" id="report-row-dim-chips"></div>
           <div class="model-type-picker" id="report-row-dims"></div>
         </div>
 
         <div class="report-config-group">
-          <div class="report-config-title">열 기준 <span style="font-weight:400;color:#9ca3af">(선택 시 교차표, 여러 개면 조합)</span></div>
+          <div class="report-config-title">열 기준 <span style="font-weight:400;color:#9ca3af">(선택 시 교차표, 여러 개면 조합 — 드래그로 순서 변경)</span></div>
+          <div class="report-dim-chips" id="report-col-dim-chips"></div>
           <div class="model-type-picker" id="report-col-dims"></div>
         </div>
 
@@ -4933,6 +4990,11 @@ function azColMatch(row, col, filterVal) {
   }
   return azColValues(row, col).includes(filterVal);
 }
+// 다중 선택 필터: 선택값이 하나도 없으면 "전체"(통과), 있으면 그 중 하나라도 일치하면 통과(OR)
+function azColMatchAny(row, col, filterVals) {
+  if (!filterVals || !filterVals.length) return true;
+  return filterVals.some(v => azColMatch(row, col, v));
+}
 function azColDistinctValues(rows, col) {
   const set = new Set();
   rows.forEach(r => azColValues(r, col).forEach(v => set.add(v)));
@@ -4959,22 +5021,19 @@ function azModelFilterGroups(rows) {
   return { types, combos: [...comboSet].sort() };
 }
 
-// 캐스케이드 드롭다운 하나의 <option> HTML + 유효값 목록을 만든다.
-// 모델유형 컬럼만 "개별 유형" / "조합" 두 optgroup으로 분리해서 보여준다.
+// 캐스케이드 다중선택 드롭다운 하나의 옵션 목록 + 유효값 목록을 만든다.
+// 모델유형 컬럼만 "개별 유형" / "조합" 두 그룹으로 분리해서 보여준다.
 function azFilterOptions(rows, col) {
   if (col === AZ.MODELTYPE) {
     const { types, combos } = azModelFilterGroups(rows);
-    let html = '';
-    if (types.length)
-      html += '<optgroup label="개별 유형">' +
-        types.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('') + '</optgroup>';
-    if (combos.length)
-      html += '<optgroup label="조합 (정확히 일치)">' +
-        combos.map(v => `<option value="${esc(v)}">🔗 ${esc(v)}</option>`).join('') + '</optgroup>';
-    return { html, values: [...types, ...combos] };
+    const options = [
+      ...types.map(v => ({ value: v, label: v, group: '개별 유형' })),
+      ...combos.map(v => ({ value: v, label: '🔗 ' + v, group: '조합 (정확히 일치)' })),
+    ];
+    return { options, values: [...types, ...combos] };
   }
   const vals = azColDistinctValues(rows, col);
-  return { html: vals.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join(''), values: vals };
+  return { options: vals.map(v => ({ value: v, label: v })), values: vals };
 }
 function azGroupModelCombo(rows) {
   return rows.reduce((m, r) => {
@@ -4983,6 +5042,105 @@ function azGroupModelCombo(rows) {
     return m;
   }, {});
 }
+
+// ============================================================
+// 다중 선택 드롭다운 공통 모듈 (버튼 + 체크박스 패널)
+// 소재 분석 탭의 캐스케이드 필터와 보고서 탭의 필터 값 선택에서 공용으로 쓴다.
+// 마크업 규약: <div class="az-ms" id="{id}"><button class="az-ms-btn" .../><div class="az-ms-panel"></div></div>
+// ============================================================
+const msState    = {};  // id -> Set(선택된 값들). 비어있으면 "전체"(필터 없음)
+const msOnChange = {};  // id -> 선택이 바뀔 때 호출할 콜백
+
+function msSelected(id) {
+  return msState[id] ? Array.from(msState[id]) : [];
+}
+function msSetOnChange(id, fn) {
+  msOnChange[id] = fn;
+}
+
+// options: [{ value, label, group? }] — group이 연속으로 같으면 그룹 라벨은 한 번만 표시
+function msRenderOptions(id, options) {
+  const wrap = document.getElementById(id);
+  if (!wrap) return;
+  const panel = wrap.querySelector('.az-ms-panel');
+  const sel = msState[id] || (msState[id] = new Set());
+
+  // 더 이상 존재하지 않는 옵션은 선택에서 제거
+  const validSet = new Set(options.map(o => o.value));
+  Array.from(sel).forEach(v => { if (!validSet.has(v)) sel.delete(v); });
+
+  if (!options.length) {
+    panel.innerHTML = '<div class="az-ms-empty">선택 가능한 값 없음</div>';
+  } else {
+    let html = '';
+    let lastGroup;
+    options.forEach(o => {
+      if (o.group !== undefined && o.group !== lastGroup) {
+        html += `<div class="az-ms-optgroup-label">${escHtml(o.group)}</div>`;
+        lastGroup = o.group;
+      }
+      html += `<label class="az-ms-opt"><input type="checkbox" value="${esc(o.value)}" ${sel.has(o.value) ? 'checked' : ''} onchange="msToggle('${id}', this)">${escHtml(o.label)}</label>`;
+    });
+    html += `<div class="az-ms-actions"><button type="button" onclick="msClear('${id}')">전체 해제</button></div>`;
+    panel.innerHTML = html;
+  }
+  msUpdateButtonLabel(id);
+}
+
+function msButtonLabel(id) {
+  const sel = msState[id] ? Array.from(msState[id]) : [];
+  if (!sel.length) return '전체';
+  if (sel.length === 1) return sel[0];
+  return sel.length + '개 선택';
+}
+function msUpdateButtonLabel(id) {
+  const wrap = document.getElementById(id);
+  if (!wrap) return;
+  const btn = wrap.querySelector('.az-ms-btn');
+  if (!btn) return;
+  const label = msButtonLabel(id);
+  btn.textContent = label;
+  btn.title = label;
+}
+
+function msToggle(id, checkboxEl) {
+  const sel = msState[id] || (msState[id] = new Set());
+  if (checkboxEl.checked) sel.add(checkboxEl.value); else sel.delete(checkboxEl.value);
+  msUpdateButtonLabel(id);
+  if (msOnChange[id]) msOnChange[id]();
+}
+
+// 이미 렌더링된 옵션 목록(체크박스)은 그대로 두고, 저장된 값 목록을 선택 상태로 복원한다
+// (저장된 보고서를 불러올 때처럼, "옵션 렌더링 이후 선택값만 나중에 채워넣기"가 필요한 경우용)
+function msApplySelection(id, values) {
+  const wrap = document.getElementById(id);
+  if (!wrap) return;
+  const checkboxes = Array.from(wrap.querySelectorAll('.az-ms-opt input'));
+  const validSet = new Set(checkboxes.map(cb => cb.value));
+  const sel = new Set((values || []).filter(v => validSet.has(v)));
+  msState[id] = sel;
+  checkboxes.forEach(cb => { cb.checked = sel.has(cb.value); });
+  msUpdateButtonLabel(id);
+}
+
+function msClear(id) {
+  if (!msState[id] || !msState[id].size) return;
+  msState[id] = new Set();
+  const wrap = document.getElementById(id);
+  if (wrap) wrap.querySelectorAll('.az-ms-opt input:checked').forEach(cb => cb.checked = false);
+  msUpdateButtonLabel(id);
+  if (msOnChange[id]) msOnChange[id]();
+}
+
+function msToggleOpen(id, ev) {
+  ev.stopPropagation();
+  document.querySelectorAll('.az-ms.open').forEach(w => { if (w.id !== id) w.classList.remove('open'); });
+  const wrap = document.getElementById(id);
+  if (wrap) wrap.classList.toggle('open');
+}
+document.addEventListener('click', () => {
+  document.querySelectorAll('.az-ms.open').forEach(w => w.classList.remove('open'));
+});
 
 // ── 탭 진입 시 최초 1회 자동 로드 ─────────────────────────
 function onAnalyzeTabActivate() {
@@ -5209,14 +5367,11 @@ function azDateChange() {
     let scope = rows;
     for (let j = 0; j < i; j++) {
       const { id: jid, col: jcol } = AZ_CASCADE[j];
-      const v = document.getElementById(jid).value;
-      if (v) scope = scope.filter(r => azColMatch(r, jcol, v));
+      const vals = msSelected(jid);
+      if (vals.length) scope = scope.filter(r => azColMatchAny(r, jcol, vals));
     }
-    const { html, values } = azFilterOptions(scope, col);
-    const el = document.getElementById(id);
-    const prev = el.value;
-    el.innerHTML = `<option value="">전체</option>` + html;
-    el.value = (prev && values.includes(prev)) ? prev : '';
+    const { options } = azFilterOptions(scope, col);
+    msRenderOptions(id, options);
   });
   updateDashboard();
 }
@@ -5229,18 +5384,15 @@ function azCascade(changedId) {
 
   for (let i = changedIdx + 1; i < AZ_CASCADE.length; i++) {
     const { id, col } = AZ_CASCADE[i];
-    const el = document.getElementById(id);
-    const prev = el.value;
 
     let scope = rows;
     for (let j = 0; j < i; j++) {
       const { id: jid, col: jcol } = AZ_CASCADE[j];
-      const v = document.getElementById(jid).value;
-      if (v) scope = scope.filter(r => azColMatch(r, jcol, v));
+      const vals = msSelected(jid);
+      if (vals.length) scope = scope.filter(r => azColMatchAny(r, jcol, vals));
     }
-    const { html, values } = azFilterOptions(scope, col);
-    el.innerHTML = `<option value="">전체</option>` + html;
-    el.value = (prev && values.includes(prev)) ? prev : '';
+    const { options } = azFilterOptions(scope, col);
+    msRenderOptions(id, options);
   }
 
   updateDashboard();
@@ -5252,10 +5404,10 @@ function initFilterDropdowns() {
   const rows = azRawData.slice(1);
 
   AZ_CASCADE.forEach(({ id, col }) => {
-    const { html } = azFilterOptions(rows, col);
-    const el = document.getElementById(id);
-    el.innerHTML = `<option value="">전체</option>` + html;
-    el.value = '';
+    const { options } = azFilterOptions(rows, col);
+    msState[id] = new Set();
+    msSetOnChange(id, () => azCascade(id));
+    msRenderOptions(id, options);
   });
 
   // 날짜 범위 (최초 1회만)
@@ -5313,14 +5465,14 @@ function getFilteredRows() {
   const fEnd      = document.getElementById('az-f-end').value;
 
   // 연쇄 필터 값 일괄 수집
-  const cascadeFilters = AZ_CASCADE.map(({ id, col }) => ({ col, val: document.getElementById(id).value }));
+  const cascadeFilters = AZ_CASCADE.map(({ id, col }) => ({ col, vals: msSelected(id) }));
 
   const liveFilter = document.getElementById('az-f-livestatus').value;
   const liveInfo = liveFilter ? azComputeLiveInfo() : null;
 
   return rows.filter(r => {
-    for (const { col, val } of cascadeFilters) {
-      if (!azColMatch(r, col, val)) return false;
+    for (const { col, vals } of cascadeFilters) {
+      if (!azColMatchAny(r, col, vals)) return false;
     }
     if (liveFilter) {
       const name = String(r[AZ.CREATIVE] || '').trim();
@@ -5430,22 +5582,26 @@ function toggleAzFilterMore() {
   btn.textContent = show ? '🔼 필터 접기' : '🔽 필터 더보기';
 }
 
-// ── 전기간(직전 동일 길이 기간) rows — KPI 증감 비교용 ────
+// ── 전기간(직전 동일 길이·동일 요일 시작 기간) rows — KPI 증감 비교용 ────
+// 일수는 동일하게 유지하면서, 시작 요일도 현재 기간과 같도록 7의 배수만큼(일수를
+// 7로 나눠 올림한 값) 앞으로 이동시킨다. 예: 7일 기간이면 7일 전, 5일 기간이면
+// 7일 전(요일 정렬을 위해 기간 사이 며칠 간격이 생길 수 있음).
 function azPrevPeriodRows() {
   const fStart = document.getElementById('az-f-start').value;
   const fEnd   = document.getElementById('az-f-end').value;
   if (!fStart || !fEnd || !azRawData || azRawData.length < 2) return [];
 
   const start = new Date(fStart), end = new Date(fEnd);
-  const days = Math.round((end - start) / 86400000) + 1;
-  const prevEnd   = new Date(start); prevEnd.setDate(prevEnd.getDate() - 1);
-  const prevStart = new Date(prevEnd); prevStart.setDate(prevStart.getDate() - (days - 1));
+  const days  = Math.round((end - start) / 86400000) + 1;
+  const shift = Math.ceil(days / 7) * 7;
+  const prevStart = new Date(start); prevStart.setDate(prevStart.getDate() - shift);
+  const prevEnd   = new Date(end);   prevEnd.setDate(prevEnd.getDate() - shift);
   const prevStartStr = azDateStr(prevStart), prevEndStr = azDateStr(prevEnd);
 
   const rows = azRawData.slice(1);
-  const cascadeFilters = AZ_CASCADE.map(({ id, col }) => ({ col, val: document.getElementById(id).value }));
+  const cascadeFilters = AZ_CASCADE.map(({ id, col }) => ({ col, vals: msSelected(id) }));
   return rows.filter(r => {
-    for (const { col, val } of cascadeFilters) { if (!azColMatch(r, col, val)) return false; }
+    for (const { col, vals } of cascadeFilters) { if (!azColMatchAny(r, col, vals)) return false; }
     const d = azDateStr(r[AZ.DATE]);
     return d >= prevStartStr && d <= prevEndStr;
   });
@@ -5693,9 +5849,9 @@ function renderRanking(rows) {
 function azAllRowsIgnoringDateFilter() {
   if (!azRawData || azRawData.length < 2) return [];
   const rows = azRawData.slice(1);
-  const cascadeFilters = AZ_CASCADE.map(({ id, col }) => ({ col, val: document.getElementById(id).value }));
+  const cascadeFilters = AZ_CASCADE.map(({ id, col }) => ({ col, vals: msSelected(id) }));
   return rows.filter(r => {
-    for (const { col, val } of cascadeFilters) { if (!azColMatch(r, col, val)) return false; }
+    for (const { col, vals } of cascadeFilters) { if (!azColMatchAny(r, col, vals)) return false; }
     return true;
   });
 }
@@ -6264,8 +6420,9 @@ const AZ_INFO_TEXT = {
 
   kpiDelta:
     '<div class="az-info-title">전기간 대비란?</div>' +
-    '지금 설정한 기간과 <b>정확히 같은 길이</b>의 바로 직전 기간과 비교합니다.<br>' +
-    '예: 기간을 7/1~7/7(7일)로 잡으면 → 전기간은 6/24~6/30(마찬가지로 7일)입니다.<br><br>' +
+    '지금 설정한 기간과 <b>일수는 같고 시작 요일도 같은</b> 이전 기간과 비교합니다.<br>' +
+    '예: 기간을 7/1(수)~7/7(화)(7일)로 잡으면 → 전기간은 6/24(수)~6/30(화)(마찬가지로 7일, 같은 수요일 시작)입니다.<br>' +
+    '일수가 7의 배수가 아니면(예: 5일) 요일을 맞추기 위해 전기간이 바로 어제까지 붙지 않고 며칠 간격을 두고 떨어질 수 있습니다.<br><br>' +
     '<b>다른 필터는 그대로 유지</b><br>' +
     '매체·소재유형 등 나머지 필터는 전기간 계산에도 동일하게 적용됩니다.<br>' +
     '단, <b>"라이브 상태" 필터는 전기간 비교에는 적용되지 않습니다</b> — 라이브중만 걸어놔도 비교 대상 기간은 그때 있던 소재 전체 기준입니다.<br><br>' +
@@ -6763,19 +6920,19 @@ async function runAIInsight() {
 
   // 매체 필터가 걸려 있으면 그 매체 안에서 캠페인·그룹 운영 인사이트를,
   // 매체 없이 보종만 걸려 있으면 매체별 보종 운영전략 인사이트를 추가로 요청한다.
-  const mediaVal  = document.getElementById('az-f-media').value;
-  const bojongVal = document.getElementById('az-f-bojong').value;
-  if (mediaVal) {
+  const mediaVals  = msSelected('az-f-media');
+  const bojongVals = msSelected('az-f-bojong');
+  if (mediaVals.length) {
     agg.필터컨텍스트 = {
       유형: '매체별_캠페인그룹',
-      매체: mediaVal,
+      매체: mediaVals.join(', '),
       캠페인별: dimSum(AZ.CAMPAIGN, '캠페인'),
       그룹별:   dimSum(AZ.GROUP,    '광고그룹')
     };
-  } else if (bojongVal) {
+  } else if (bojongVals.length) {
     agg.필터컨텍스트 = {
       유형: '보종별_매체전략',
-      보종: bojongVal,
+      보종: bojongVals.join(', '),
       매체별: dimSum(AZ.MEDIA, '매체')
     };
   }
@@ -7099,7 +7256,9 @@ function reportApplyConfig(config) {
       const row = rowEls[rowEls.length - 1];
       row.querySelector('select').value = f.dim;
       reportRefreshFilterRowOptions(row);
-      row.querySelector('.rf-value').value = f.value;
+      // 구버전 저장 형식(f.value 단일값)과 신버전(f.values 배열) 둘 다 지원
+      const vals = Array.isArray(f.values) ? f.values : (f.value ? [f.value] : []);
+      msApplySelection(row.querySelector('.az-ms').id, vals);
     });
   } else {
     addReportFilter();
@@ -7209,6 +7368,7 @@ function renderReportRowDimPicker() {
       <input type="checkbox" ${selected ? 'checked' : ''} onchange="toggleReportRowDim('${d.key}', this.checked)">${escHtml(d.label)}${badge}
     </label>`;
   }).join('');
+  renderReportDimChips('report-row-dim-chips');
 }
 
 function renderReportColDimPicker() {
@@ -7221,6 +7381,7 @@ function renderReportColDimPicker() {
       <input type="checkbox" ${selected ? 'checked' : ''} onchange="toggleReportColDim('${d.key}', this.checked)">${escHtml(d.label)}${badge}
     </label>`;
   }).join('');
+  renderReportDimChips('report-col-dim-chips');
 }
 
 function toggleReportRowDim(key, checked) {
@@ -7237,9 +7398,96 @@ function toggleReportColDim(key, checked) {
   generateReport();
 }
 
+// ── 행/열 기준 선택 칩 — 네이버 검색광고 보고서처럼 드래그로 순서 변경 ───
+let reportDimDragKey = null;
+
+const REPORT_DIM_CHIP_CONFIG = {
+  'report-row-dim-chips': {
+    getOrder: () => reportRowDimOrder,
+    setOrder: (o) => { reportRowDimOrder = o; },
+    rerenderPicker: renderReportRowDimPicker
+  },
+  'report-col-dim-chips': {
+    getOrder: () => reportColDimOrder,
+    setOrder: (o) => { reportColDimOrder = o; },
+    rerenderPicker: renderReportColDimPicker
+  }
+};
+
+function renderReportDimChips(containerId) {
+  const container = document.getElementById(containerId);
+  const order = REPORT_DIM_CHIP_CONFIG[containerId].getOrder();
+  if (!order.length) { container.innerHTML = ''; return; }
+  container.innerHTML = order.map((key, i) => {
+    const d = REPORT_DIMENSIONS.find(x => x.key === key);
+    return `<span class="report-dim-chip" draggable="true" data-key="${key}"
+      ondragstart="reportDimDragStart(event, '${containerId}')"
+      ondragover="reportDimDragOver(event)"
+      ondragleave="reportDimDragLeave(event)"
+      ondrop="reportDimDrop(event, '${containerId}')"
+      ondragend="reportDimDragEnd(event)">
+      <b>${i + 1}</b>${escHtml(d ? d.label : key)}<button type="button" title="제거" onclick="reportDimChipRemove('${containerId}', '${key}')">✕</button>
+    </span>`;
+  }).join('');
+}
+
+function reportDimChipRemove(containerId, key) {
+  const cfg = REPORT_DIM_CHIP_CONFIG[containerId];
+  cfg.setOrder(cfg.getOrder().filter(k => k !== key));
+  cfg.rerenderPicker();
+  generateReport();
+}
+
+function reportDimDragStart(e, containerId) {
+  const chip = e.target.closest('.report-dim-chip');
+  reportDimDragKey = chip ? chip.dataset.key : null;
+  if (chip) chip.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', reportDimDragKey || '');
+}
+
+function reportDimDragOver(e) {
+  e.preventDefault();
+  const chip = e.target.closest('.report-dim-chip');
+  if (chip) chip.classList.add('drag-over');
+}
+
+function reportDimDragLeave(e) {
+  const chip = e.target.closest('.report-dim-chip');
+  if (chip) chip.classList.remove('drag-over');
+}
+
+function reportDimDrop(e, containerId) {
+  e.preventDefault();
+  const chip = e.target.closest('.report-dim-chip');
+  if (chip) chip.classList.remove('drag-over');
+  if (!chip || !reportDimDragKey) return;
+  const targetKey = chip.dataset.key;
+  if (targetKey === reportDimDragKey) return;
+
+  const cfg = REPORT_DIM_CHIP_CONFIG[containerId];
+  const order = cfg.getOrder().slice();
+  const fromIdx = order.indexOf(reportDimDragKey);
+  const toIdx   = order.indexOf(targetKey);
+  if (fromIdx === -1 || toIdx === -1) return;
+  order.splice(fromIdx, 1);
+  order.splice(toIdx, 0, reportDimDragKey);
+  cfg.setOrder(order);
+  cfg.rerenderPicker();
+  generateReport();
+}
+
+function reportDimDragEnd(e) {
+  const chip = e.target.closest('.report-dim-chip');
+  if (chip) chip.classList.remove('dragging');
+  document.querySelectorAll('.report-dim-chip.drag-over').forEach(el => el.classList.remove('drag-over'));
+  reportDimDragKey = null;
+}
+
 // ── 필터 행 관리 ──────────────────────────────────────────
 function addReportFilter() {
   const id = 'rf-' + (reportFilterSeq++);
+  const valueId = id + '-value';
   const container = document.getElementById('report-filter-list');
   const row = document.createElement('div');
   row.className = 'report-filter-row';
@@ -7249,9 +7497,10 @@ function addReportFilter() {
       `<option value="">차원 선택</option>` +
       REPORT_DIMENSIONS.filter(d => !d.noFilter).map(d => `<option value="${d.key}">${d.label}</option>`).join('') +
     `</select>` +
-    `<select class="rf-value" disabled onchange="onReportFilterValueChange()"><option value="">-</option></select>` +
+    `<div class="az-ms" id="${valueId}"><button type="button" class="az-ms-btn" disabled onclick="msToggleOpen('${valueId}', event)">-</button><div class="az-ms-panel"></div></div>` +
     `<button onclick="removeReportFilter('${id}')" title="삭제">✕</button>`;
   container.appendChild(row);
+  msSetOnChange(valueId, onReportFilterValueChange);
 }
 
 // 날짜 범위 + "다른" 필터 행들의 현재 선택값을 반영한 행 목록 (자기 자신 필터는 제외 —
@@ -7262,10 +7511,11 @@ function reportScopedRowsExcluding(excludeRowId) {
   const otherFilters = Array.from(document.querySelectorAll('.report-filter-row'))
     .filter(row => row.id !== excludeRowId)
     .map(row => {
-      const selects = row.querySelectorAll('select');
-      return { dim: selects[0].value, value: selects[1].value };
+      const dimSel = row.querySelector('select');
+      const valueWrap = row.querySelector('.az-ms');
+      return { dim: dimSel.value, values: msSelected(valueWrap.id) };
     })
-    .filter(f => f.dim && f.value);
+    .filter(f => f.dim && f.values.length);
 
   return azRawData.slice(1).filter(r => {
     if (startD || endD) {
@@ -7275,7 +7525,7 @@ function reportScopedRowsExcluding(excludeRowId) {
     }
     return otherFilters.every(f => {
       const dim = REPORT_DIMENSIONS.find(d => d.key === f.dim);
-      return dim ? reportDimValues(r, dim).includes(f.value) : true;
+      return dim ? f.values.some(v => reportDimValues(r, dim).includes(v)) : true;
     });
   });
 }
@@ -7283,16 +7533,21 @@ function reportScopedRowsExcluding(excludeRowId) {
 // 필터 행 하나의 값 옵션을, 기간+다른 필터들을 반영해 "실제로 결과가 있는 값"만 다시 채운다
 function reportRefreshFilterRowOptions(row) {
   const dimSel = row.querySelector('select');
-  const valueSel = row.querySelector('.rf-value');
+  const valueWrap = row.querySelector('.az-ms');
+  const valueBtn = valueWrap.querySelector('.az-ms-btn');
   const dim = REPORT_DIMENSIONS.find(d => d.key === dimSel.value);
-  if (!dim) { valueSel.innerHTML = '<option value="">-</option>'; valueSel.disabled = true; return; }
+  if (!dim) {
+    msState[valueWrap.id] = new Set();
+    valueWrap.querySelector('.az-ms-panel').innerHTML = '';
+    valueBtn.disabled = true;
+    valueBtn.textContent = '-';
+    return;
+  }
 
   const rows = reportScopedRowsExcluding(row.id);
   const values = [...new Set(rows.flatMap(r => reportDimValues(r, dim)))].filter(Boolean).sort();
-  const prevVal = valueSel.value;
-  valueSel.innerHTML = '<option value="">전체</option>' + values.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
-  valueSel.disabled = false;
-  if (values.includes(prevVal)) valueSel.value = prevVal;
+  valueBtn.disabled = false;
+  msRenderOptions(valueWrap.id, values.map(v => ({ value: v, label: v })));
 }
 
 // 필터 하나가 바뀌면 나머지 필터들의 값 후보도 그 변경을 반영해서 다시 계산한다
@@ -7319,9 +7574,10 @@ function removeReportFilter(id) {
 
 function getReportFilters() {
   return Array.from(document.querySelectorAll('.report-filter-row')).map(row => {
-    const selects = row.querySelectorAll('select');
-    return { dim: selects[0].value, value: selects[1].value };
-  }).filter(f => f.dim && f.value);
+    const dimSel = row.querySelector('select');
+    const valueWrap = row.querySelector('.az-ms');
+    return { dim: dimSel.value, values: msSelected(valueWrap.id) };
+  }).filter(f => f.dim && f.values.length);
 }
 
 function reportFilteredRows() {
@@ -7336,7 +7592,7 @@ function reportFilteredRows() {
     }
     return filters.every(f => {
       const dim = REPORT_DIMENSIONS.find(d => d.key === f.dim);
-      return dim ? reportDimValues(r, dim).includes(f.value) : true;
+      return dim ? f.values.some(v => reportDimValues(r, dim).includes(v)) : true;
     });
   });
 }
@@ -8039,7 +8295,7 @@ function renderABCompare(perf) {
     const thumb = isVid
       ? '<div class="ab-thumb-placeholder">▶</div>'
       : `<img src="${esc(driveThumbnail(p.imageUrl))}" onerror="this.style.display='none'">`;
-    const isWinner = bestCtr !== null && p.imp > 0 && p.ctr === bestCtr;
+    const isWinner = bestCpa !== null && p.conv > 0 && p.cpa === bestCpa;
 
     const impCls  = bestImp  !== null && p.imp  === bestImp  && p.imp  > 0 ? 'best' : '';
     const clkCls  = bestClk  !== null && p.clk  === bestClk  && p.clk  > 0 ? 'best' : '';
