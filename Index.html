@@ -318,7 +318,7 @@
   .report-config-group { border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; background: #fff; }
   .report-config-title {
     font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 8px;
-    display: flex; align-items: center; justify-content: space-between;
+    display: flex; align-items: center; flex-wrap: wrap; row-gap: 2px; justify-content: space-between;
   }
   .report-mini-btn {
     font-size: 11px; background: none; border: 1px solid #d1d5db; border-radius: 6px;
@@ -2312,13 +2312,13 @@
         </div>
 
         <div class="report-config-group">
-          <div class="report-config-title">행 기준 <span style="font-weight:400;color:#9ca3af">(여러 개 선택 시 그룹핑 순서 — 드래그로 순서 변경)</span></div>
+          <div class="report-config-title"><span style="white-space:nowrap">행 기준</span> <span style="font-weight:400;color:#9ca3af">(여러 개 선택 시 그룹핑 순서 — 드래그로 순서 변경)</span></div>
           <div class="report-dim-chips" id="report-row-dim-chips"></div>
           <div class="model-type-picker" id="report-row-dims"></div>
         </div>
 
         <div class="report-config-group">
-          <div class="report-config-title">열 기준 <span style="font-weight:400;color:#9ca3af">(선택 시 교차표, 여러 개면 조합 — 드래그로 순서 변경)</span></div>
+          <div class="report-config-title"><span style="white-space:nowrap">열 기준</span> <span style="font-weight:400;color:#9ca3af">(선택 시 교차표, 여러 개면 조합 — 드래그로 순서 변경)</span></div>
           <div class="report-dim-chips" id="report-col-dim-chips"></div>
           <div class="model-type-picker" id="report-col-dims"></div>
         </div>
