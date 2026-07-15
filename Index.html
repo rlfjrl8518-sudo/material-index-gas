@@ -5329,7 +5329,8 @@ async function loadAnalysisData() {
 }
 
 // ── 필터 연쇄(cascade) 정의 ───────────────────────────────
-// 순서: 매체 → 캠페인 → 광고그룹 → 소재이름 → 보종 → 소재유형 → 소구포인트 → 광고유형 → 후킹방식 → 이미지유형 → 모델유형
+// 목록 순서는 화면 배치 순서일 뿐, 캐스케이드는 아래 목록 전체가 서로를
+// 상호 참조한다 (어떤 필터를 고르든 나머지 전부가 실제 존재하는 값만 남도록 갱신됨)
 const AZ_CASCADE = [
   { id:'az-f-media',    col:AZ.MEDIA },
   { id:'az-f-campaign', col:AZ.CAMPAIGN },
@@ -5359,42 +5360,34 @@ function azDateRows() {
   });
 }
 
-// 날짜 변경 → 전체 캐스케이드 드롭다운 재구성 후 대시보드 갱신
-function azDateChange() {
-  if (!azLoaded) { updateDashboard(); return; }
-  const rows = azDateRows();
-  AZ_CASCADE.forEach(({ id, col }, i) => {
+// 캐스케이드 드롭다운 전체를 "자기 자신을 제외한 나머지 필터들의 현재 선택값"
+// 기준으로 다시 채운다 (상호 참조 캐스케이드: 순서와 무관하게 어떤 필터를
+// 바꾸든 나머지 전부가 실제로 존재하는 값만 남도록 갱신된다)
+function azRebuildCascadeOptions() {
+  const rows = azDateRows();  // 날짜 필터 먼저 적용
+  AZ_CASCADE.forEach(({ id, col }) => {
     let scope = rows;
-    for (let j = 0; j < i; j++) {
-      const { id: jid, col: jcol } = AZ_CASCADE[j];
-      const vals = msSelected(jid);
-      if (vals.length) scope = scope.filter(r => azColMatchAny(r, jcol, vals));
+    for (const other of AZ_CASCADE) {
+      if (other.id === id) continue;
+      const vals = msSelected(other.id);
+      if (vals.length) scope = scope.filter(r => azColMatchAny(r, other.col, vals));
     }
     const { options } = azFilterOptions(scope, col);
     msRenderOptions(id, options);
   });
+}
+
+// 날짜 변경 → 전체 캐스케이드 드롭다운 재구성 후 대시보드 갱신
+function azDateChange() {
+  if (!azLoaded) { updateDashboard(); return; }
+  azRebuildCascadeOptions();
   updateDashboard();
 }
 
-// changedId 이후의 드롭다운을 날짜+상위 선택 기준으로 재구성
-function azCascade(changedId) {
+// 필터 하나가 바뀌면 나머지 전체 드롭다운을 상호 참조로 재구성
+function azCascade() {
   if (!azLoaded) return;
-  const rows = azDateRows();  // 날짜 필터 먼저 적용
-  const changedIdx = AZ_CASCADE.findIndex(f => f.id === changedId);
-
-  for (let i = changedIdx + 1; i < AZ_CASCADE.length; i++) {
-    const { id, col } = AZ_CASCADE[i];
-
-    let scope = rows;
-    for (let j = 0; j < i; j++) {
-      const { id: jid, col: jcol } = AZ_CASCADE[j];
-      const vals = msSelected(jid);
-      if (vals.length) scope = scope.filter(r => azColMatchAny(r, jcol, vals));
-    }
-    const { options } = azFilterOptions(scope, col);
-    msRenderOptions(id, options);
-  }
-
+  azRebuildCascadeOptions();
   updateDashboard();
 }
 
