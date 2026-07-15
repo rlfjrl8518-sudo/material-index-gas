@@ -6911,23 +6911,37 @@ async function runAIInsight() {
     모델유형별: dimSum(AZ.MODELTYPE, '모델유형'),
   };
 
-  // 매체 필터가 걸려 있으면 그 매체 안에서 캠페인·그룹 운영 인사이트를,
-  // 매체 없이 보종만 걸려 있으면 매체별 보종 운영전략 인사이트를 추가로 요청한다.
-  const mediaVals  = msSelected('az-f-media');
-  const bojongVals = msSelected('az-f-bojong');
-  if (mediaVals.length) {
+  // 매체 → 캠페인 → 광고그룹 → 소재이름 계층 중 "가장 깊이" 선택된 필터를 찾아,
+  // 그 바로 다음 단계 성과를 캠페인/그룹/소재이름 운영 인사이트 근거로 넘긴다.
+  // (예: 그룹까지 필터를 걸었으면 그 그룹 안의 소재이름별 성과를 근거로 삼는다.
+  //  전엔 az-f-media / az-f-bojong 두 필터만 봐서, 캠페인·그룹·소재이름 필터를
+  //  걸어도 이 컨텍스트가 전혀 반영되지 않았다.)
+  const HIER = [
+    { id:'az-f-media',    col:AZ.MEDIA,    key:'매체'   },
+    { id:'az-f-campaign', col:AZ.CAMPAIGN, key:'캠페인'  },
+    { id:'az-f-group',    col:AZ.GROUP,    key:'광고그룹' },
+    { id:'az-f-creative', col:AZ.CREATIVE, key:'소재이름' },
+  ];
+  let deepestIdx = -1;
+  HIER.forEach((h, i) => { if (msSelected(h.id).length) deepestIdx = i; });
+
+  if (deepestIdx >= 0 && deepestIdx < HIER.length - 1) {
+    const cur  = HIER[deepestIdx];
+    const next = HIER[deepestIdx + 1];
     agg.필터컨텍스트 = {
-      유형: '매체별_캠페인그룹',
-      매체: mediaVals.join(', '),
-      캠페인별: dimSum(AZ.CAMPAIGN, '캠페인'),
-      그룹별:   dimSum(AZ.GROUP,    '광고그룹')
+      유형: cur.key + '별_' + next.key,
+      [cur.key]: msSelected(cur.id).join(', '),
+      [next.key + '별']: dimSum(next.col, next.key)
     };
-  } else if (bojongVals.length) {
-    agg.필터컨텍스트 = {
-      유형: '보종별_매체전략',
-      보종: bojongVals.join(', '),
-      매체별: dimSum(AZ.MEDIA, '매체')
-    };
+  } else {
+    const bojongVals = msSelected('az-f-bojong');
+    if (bojongVals.length) {
+      agg.필터컨텍스트 = {
+        유형: '보종별_매체전략',
+        보종: bojongVals.join(', '),
+        매체별: dimSum(AZ.MEDIA, '매체')
+      };
+    }
   }
 
   try {

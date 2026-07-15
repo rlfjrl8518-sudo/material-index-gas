@@ -1101,15 +1101,20 @@ function getOpenAIInsight(aggregatedData) {
     message: 'OPENAI_API_KEY가 설정되지 않았습니다.\nApps Script 편집기 > 프로젝트 설정 > 스크립트 속성에서 OPENAI_API_KEY를 추가하세요.'
   };
 
-  // 매체/보종 필터가 걸려 있으면 그 맥락에 맞는 운영 인사이트를 별도 섹션으로 요청한다.
+  // 매체/캠페인/광고그룹/소재이름/보종 필터가 걸려 있으면 그 맥락에 맞는 운영
+  // 인사이트를 별도 섹션으로 요청한다. 프론트에서 넘기는 필터컨텍스트.유형은
+  // "현재단계별_다음단계"(예: "캠페인별_광고그룹") 형식이라, 어떤 계층 조합이
+  // 오든 그 두 라벨만으로 지시문을 만들 수 있다. 보종 케이스만 계층이 달라 예외 처리.
   const fc = aggregatedData.필터컨텍스트;
   let filterInstruction = '';
-  if (fc && fc.유형 === '매체별_캠페인그룹') {
-    filterInstruction = `현재 "${fc.매체}" 매체로 필터가 걸려 있습니다. 이 매체의 일반적인 특성(광고 노출 방식, 타겟팅 방식 등)을 고려해서, ` +
-      `데이터의 캠페인별·광고그룹별 성과를 바탕으로 이 매체 안에서 어떤 캠페인·그룹 운영 전략이 필요한지 2~3개 작성하세요.`;
-  } else if (fc && fc.유형 === '보종별_매체전략') {
+  if (fc && fc.유형 === '보종별_매체전략') {
     filterInstruction = `현재 "${fc.보종}" 보종으로 필터가 걸려 있습니다. 데이터의 매체별 성과를 바탕으로, ` +
       `이 보종을 운영할 때 매체별로 예산 배분이나 소재 전략을 어떻게 다르게 가져가야 하는지 2~3개 작성하세요.`;
+  } else if (fc && fc.유형 && fc.유형.indexOf('별_') !== -1) {
+    const [curLabel, nextLabel] = fc.유형.split('별_');
+    const curVal = fc[curLabel];
+    filterInstruction = `현재 "${curVal}" ${curLabel}(으)로 필터가 걸려 있습니다. ` +
+      `데이터의 ${nextLabel}별 성과를 바탕으로, 이 ${curLabel} 안에서 ${nextLabel}별로 어떤 운영·예산·소재 전략이 필요한지 2~3개 작성하세요.`;
   }
 
   const sectionInstruction = fc
