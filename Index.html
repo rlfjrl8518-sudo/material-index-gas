@@ -1184,6 +1184,17 @@
   .az-trend-controls label { font-size: 11px; color: var(--az-t3); }
   .az-trend-controls select { background: var(--az-surf2); border: 1px solid var(--az-bd2); color: var(--az-t1); border-radius: 6px; padding: 5px 9px; font-size: 12px; }
 
+  /* 지표 2개 이상 선택 시, 지표별 막대/선 표시 방식을 고르는 토글 칩 */
+  .az-metric-type-row { display: flex; gap: 6px; flex-wrap: wrap; margin: -6px 0 14px; }
+  .az-metric-type-row:empty { display: none; margin: 0; }
+  .az-metric-type-btn {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600;
+    border: 1px solid var(--metric-color, var(--az-bd2)); color: var(--metric-color, var(--az-t2));
+    background: color-mix(in srgb, var(--metric-color, transparent) 12%, transparent);
+    border-radius: 999px; padding: 4px 10px; cursor: pointer; transition: background .15s;
+  }
+  .az-metric-type-btn:hover { background: color-mix(in srgb, var(--metric-color, transparent) 22%, transparent); }
+
   /* 생애주기 */
   .az-flag-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--az-bd); font-size: 12px; }
   .az-flag-row:last-child { border-bottom: none; }
@@ -2162,12 +2173,13 @@
                 <option value="week" selected>주별</option>
                 <option value="month">월별</option>
               </select>
-              <label>지표</label>
-              <select id="az-trend-metric" onchange="azLoaded && renderTrend(getFilteredRows())">
-                <option>CTR</option><option>CVR</option><option>CPA</option>
-                <option>비용</option><option>전환</option>
-              </select>
+              <label>지표 <span style="color:var(--az-t4);font-weight:400">(2개 이상 선택 가능)</span></label>
+              <div class="az-ms" id="az-trend-metric">
+                <button type="button" class="az-ms-btn" onclick="msToggleOpen('az-trend-metric', event)"></button>
+                <div class="az-ms-panel"></div>
+              </div>
             </div>
+            <div class="az-metric-type-row" id="az-trend-metric-types"></div>
             <div style="height:280px"><canvas id="az-trend-chart"></canvas></div>
           </div>
         </div>
@@ -2181,11 +2193,13 @@
                 <div class="az-ct-thumb" id="az-ct-thumb"><span>🔍</span></div>
                 <span id="az-ct-selected-name">소재를 선택하세요 (이미지로 검색)</span>
               </div>
-              <label style="margin-left:4px">지표</label>
-              <select id="az-creative-trend-metric" onchange="azLoaded && renderCreativeTrend(getFilteredRows())">
-                <option>CTR</option><option>CVR</option><option>CPA</option>
-              </select>
+              <label style="margin-left:4px">지표 <span style="color:var(--az-t4);font-weight:400">(2개 이상 선택 가능)</span></label>
+              <div class="az-ms" id="az-creative-trend-metric">
+                <button type="button" class="az-ms-btn" onclick="msToggleOpen('az-creative-trend-metric', event)"></button>
+                <div class="az-ms-panel"></div>
+              </div>
             </div>
+            <div class="az-metric-type-row" id="az-creative-trend-metric-types"></div>
             <div style="height:240px;position:relative">
               <canvas id="az-creative-trend-chart" style="display:none"></canvas>
               <div id="az-creative-trend-nodata" class="az-no-data">소재를 선택하면 일별 추이를 볼 수 있습니다.</div>
@@ -5403,6 +5417,18 @@ function initFilterDropdowns() {
     msRenderOptions(id, options);
   });
 
+  // 추이 차트 지표 멀티셀렉트 (기본값 CTR 1개 — 기존 단일 선택 동작 그대로 시작해서,
+  // 더 보고 싶은 지표를 사용자가 직접 추가로 체크하는 방식)
+  const metricOptions = Object.keys(AZ_METRIC_GROUP).map(m => ({ value: m, label: m }));
+  [
+    { id: 'az-trend-metric',          fn: renderTrend },
+    { id: 'az-creative-trend-metric', fn: renderCreativeTrend },
+  ].forEach(({ id, fn }) => {
+    msState[id] = new Set(['CTR']);
+    msSetOnChange(id, () => { if (azLoaded) fn(getFilteredRows()); });
+    msRenderOptions(id, metricOptions);
+  });
+
   // 날짜 범위 (최초 1회만)
   if (!document.getElementById('az-f-start').value) {
     const dates = rows.map(r => azDateStr(r[AZ.DATE])).filter(Boolean).sort();
@@ -5524,6 +5550,63 @@ function azMetricVal(s, metric) {
     case '전환': return s.conv;
     default: return 0;
   }
+}
+
+// ── 추이 차트 지표 공통 메타 (기간별 성과 추이 + 개별 소재 추이 공용) ──────
+// 지표를 2개 이상 겹쳐 볼 때, 단위가 다른 값(퍼센트 vs 원 vs 건)을 한 축에
+// 욱여넣으면 한쪽이 눌려서 안 보이므로 단위별로 축을 분리한다(pct/money/count).
+// 막대·선 구분도 지표마다 기본값을 다르게 둬서(비율=선, 절대값=막대) 아무 설정
+// 없이 켜도 바로 읽기 편한 조합이 뜨고, 사용자가 칩을 눌러 얼마든지 바꿀 수 있다.
+const AZ_METRIC_GROUP        = { CTR:'pct', CVR:'pct', CPA:'money', 비용:'money', 전환:'count' };
+const AZ_METRIC_GROUP_LABEL  = { pct:'%', money:'원', count:'건' };
+const AZ_METRIC_COLOR        = { CTR:'#4f6ef7', CVR:'#10b981', CPA:'#f59e0b', 비용:'#e879f9', 전환:'#34d399' };
+const AZ_METRIC_DEFAULT_TYPE = { CTR:'line', CVR:'line', CPA:'bar', 비용:'bar', 전환:'bar' };
+const AZ_METRIC_AXIS_ORDER   = ['pct', 'money', 'count'];
+
+function azMetricFmt(metric, v) {
+  if (AZ_METRIC_GROUP[metric] === 'pct')   return v.toFixed(2) + '%';
+  if (metric === 'CPA')                    return azWon(v);
+  if (metric === '비용')                   return azWon(v);
+  return azFmt(v);
+}
+
+// 차트 하나의 Y축들(퍼센트/원/건)을 지금 선택된 지표 조합에 맞춰 만든다.
+// 실제로 쓰이는 축만 생성하므로, 지표를 CTR·CVR처럼 같은 그룹으로만 고르면
+// 축이 하나만 뜨고, 서로 다른 단위를 섞으면 그만큼 축이 늘어난다.
+function azBuildMetricScales(metrics, colors) {
+  const usedGroups = AZ_METRIC_AXIS_ORDER.filter(g => metrics.some(m => AZ_METRIC_GROUP[m] === g));
+  const scales = {
+    x: { grid: { color: colors.grid }, ticks: { color: colors.tick, font: { size: 10 }, maxRotation: 45 } }
+  };
+  usedGroups.forEach((g, i) => {
+    scales['y_' + g] = {
+      position: i === 0 ? 'left' : 'right',
+      grid: { color: i === 0 ? colors.grid : 'transparent' },
+      ticks: {
+        color: colors.tick, font: { size: 10 },
+        callback: v => g === 'pct' ? v + '%' : g === 'money' ? azFmt(v) : v
+      },
+      title: { display: usedGroups.length > 1, text: AZ_METRIC_GROUP_LABEL[g], color: colors.tick, font: { size: 10 } }
+    };
+  });
+  return scales;
+}
+
+// 지표를 2개 이상 고르면, 지표별로 "막대로 볼지 선으로 볼지" 고를 수 있는
+// 작은 토글 칩을 그린다. 1개만 골랐을 땐 고를 게 없으니 그냥 비워둔다.
+function azRenderMetricTypeChips(containerId, metrics, typeState, onToggleFn) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  if (metrics.length < 2) { el.innerHTML = ''; return; }
+  el.innerHTML = metrics.map(m => {
+    const type  = typeState[m] || AZ_METRIC_DEFAULT_TYPE[m] || 'line';
+    const color = AZ_METRIC_COLOR[m] || '#4f6ef7';
+    const icon  = type === 'line' ? '📈' : '📊';
+    const label = type === 'line' ? '선' : '막대';
+    return `<button type="button" class="az-metric-type-btn" style="--metric-color:${color}" ` +
+      `onclick="${onToggleFn}('${esc(m)}')" title="클릭해서 ${type === 'line' ? '막대' : '선'} 그래프로 전환">` +
+      `${esc(m)} ${icon} ${label}</button>`;
+  }).join('');
 }
 
 // ── 포맷 헬퍼 ─────────────────────────────────────────────
@@ -6141,17 +6224,35 @@ function renderCreativeTrendPickerGrid(options) {
   }).join('');
 }
 
+// 지표별로 막대/선 표시 방식을 따로 저장한다 (없으면 AZ_METRIC_DEFAULT_TYPE 사용).
+const azCreativeTrendMetricType = {};
+
+function azToggleCreativeTrendMetricType(metric) {
+  const cur = azCreativeTrendMetricType[metric] || AZ_METRIC_DEFAULT_TYPE[metric] || 'line';
+  azCreativeTrendMetricType[metric] = cur === 'line' ? 'bar' : 'line';
+  renderCreativeTrend(getFilteredRows());
+}
+
 function renderCreativeTrend(rows) {
   const name    = azCreativeTrendSelectedName;
-  const metric  = document.getElementById('az-creative-trend-metric').value;
+  const metrics = msSelected('az-creative-trend-metric');
   const canvas  = document.getElementById('az-creative-trend-chart');
   const nodata  = document.getElementById('az-creative-trend-nodata');
+
+  azRenderMetricTypeChips('az-creative-trend-metric-types', metrics, azCreativeTrendMetricType, 'azToggleCreativeTrendMetricType');
 
   if (!name) {
     azDestroyChart('az-creative-trend-chart');
     canvas.style.display = 'none';
     nodata.style.display = 'block';
     nodata.textContent = '소재를 선택하면 일별 추이를 볼 수 있습니다.';
+    return;
+  }
+  if (!metrics.length) {
+    azDestroyChart('az-creative-trend-chart');
+    canvas.style.display = 'none';
+    nodata.style.display = 'block';
+    nodata.textContent = '지표를 1개 이상 선택하세요.';
     return;
   }
 
@@ -6177,27 +6278,31 @@ function renderCreativeTrend(rows) {
   canvas.style.display = 'block';
   nodata.style.display = 'none';
 
-  const vals = dates.map(d => {
-    const v = azMetricVal(byDate[d], metric);
-    return metric === 'CPA' ? Math.round(v) : +v.toFixed(3);
+  const multi  = metrics.length > 1;
+  const colors = azChartColors();
+  const datasets = metrics.map(metric => {
+    const vals = dates.map(d => {
+      const v = azMetricVal(byDate[d], metric);
+      return metric === 'CPA' || metric === '비용' || metric === '전환' ? Math.round(v) : +v.toFixed(3);
+    });
+    const color = AZ_METRIC_COLOR[metric] || '#4f6ef7';
+    const type  = multi ? (azCreativeTrendMetricType[metric] || AZ_METRIC_DEFAULT_TYPE[metric] || 'line') : 'line';
+    const base  = { label: multi ? metric : name + ' ' + metric, data: vals, type, yAxisID: 'y_' + AZ_METRIC_GROUP[metric] };
+    return type === 'line'
+      ? { ...base, borderColor: color, backgroundColor: color + (multi ? '11' : '33'), tension: .25, fill: !multi, pointRadius: multi ? 2 : 2 }
+      : { ...base, backgroundColor: color + '99', borderColor: color, borderWidth: 1, borderRadius: 4, maxBarThickness: 24 };
   });
 
-  const c = azChartColors();
-  const colorMap = { CTR:'#4f6ef7', CVR:'#10b981', CPA:'#f59e0b' };
-  const color = colorMap[metric] || '#4f6ef7';
   azCharts['az-creative-trend-chart'] = new Chart(canvas.getContext('2d'), {
-    type: 'line',
-    data: {
-      labels: dates,
-      datasets: [{ label: name + ' ' + metric, data: vals, borderColor: color, backgroundColor: color + '33', tension: .25, fill: true, pointRadius: 2 }]
-    },
+    type: 'bar',
+    data: { labels: dates, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: c.legend } } },
-      scales: {
-        x: { grid: { color: c.grid }, ticks: { color: c.tick, font: { size: 10 } } },
-        y: { grid: { color: c.grid }, ticks: { color: c.tick } }
-      }
+      plugins: {
+        legend: { labels: { color: colors.legend, boxWidth: 12, font: { size: 11 } } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${azMetricFmt(metrics[ctx.datasetIndex], ctx.parsed.y)}` } }
+      },
+      scales: azBuildMetricScales(metrics, colors)
     }
   });
 }
@@ -6708,9 +6813,25 @@ function azOpenDimDrill(dimKey, label) {
 }
 
 // ── 10. 기간별 추이 라인 차트 ─────────────────────────────
+// 지표별로 막대/선 표시 방식을 따로 저장한다 (없으면 AZ_METRIC_DEFAULT_TYPE 사용).
+const azTrendMetricType = {};
+
+function azToggleTrendMetricType(metric) {
+  const cur = azTrendMetricType[metric] || AZ_METRIC_DEFAULT_TYPE[metric] || 'line';
+  azTrendMetricType[metric] = cur === 'line' ? 'bar' : 'line';
+  renderTrend(getFilteredRows());
+}
+
 function renderTrend(rows) {
-  const unit   = document.getElementById('az-trend-unit').value;
-  const metric = document.getElementById('az-trend-metric').value;
+  const unit    = document.getElementById('az-trend-unit').value;
+  const metrics = msSelected('az-trend-metric');
+
+  azRenderMetricTypeChips('az-trend-metric-types', metrics, azTrendMetricType, 'azToggleTrendMetricType');
+
+  azDestroyChart('az-trend-chart');
+  const el = document.getElementById('az-trend-chart');
+  if (!el) return;
+  if (!metrics.length) { el.parentElement.innerHTML = '<div class="az-no-data">지표를 1개 이상 선택하세요.</div>'; return; }
 
   const grouped = {};
   rows.forEach(r => {
@@ -6726,42 +6847,34 @@ function renderTrend(rows) {
   });
 
   const entries = Object.entries(grouped).sort((a,b) => a[0].localeCompare(b[0]));
-  const labels  = entries.map(([k]) => azPeriodLabel(k, unit));
-  const vals    = entries.map(([, s]) => {
-    const v = azMetricVal(s, metric);
-    return metric === 'CPA' || metric === '비용' || metric === '전환'
-      ? Math.round(v) : +v.toFixed(3);
+  if (!entries.length) { el.parentElement.innerHTML = '<div class="az-no-data">데이터 없음</div>'; return; }
+  const labels = entries.map(([k]) => azPeriodLabel(k, unit));
+
+  const multi   = metrics.length > 1;
+  const colors  = azChartColors();
+  const datasets = metrics.map(metric => {
+    const vals = entries.map(([, s]) => {
+      const v = azMetricVal(s, metric);
+      return metric === 'CPA' || metric === '비용' || metric === '전환' ? Math.round(v) : +v.toFixed(3);
+    });
+    const color = AZ_METRIC_COLOR[metric] || '#4f6ef7';
+    const type  = multi ? (azTrendMetricType[metric] || AZ_METRIC_DEFAULT_TYPE[metric] || 'line') : 'line';
+    const base  = { label: metric, data: vals, type, yAxisID: 'y_' + AZ_METRIC_GROUP[metric] };
+    return type === 'line'
+      ? { ...base, borderColor: color, backgroundColor: color + (multi ? '11' : '22'), borderWidth: 2, pointRadius: multi ? 2 : 3, pointBackgroundColor: color, fill: !multi, tension: 0.3 }
+      : { ...base, backgroundColor: color + '99', borderColor: color, borderWidth: 1, borderRadius: 4, maxBarThickness: 28 };
   });
 
-  azDestroyChart('az-trend-chart');
-  const el = document.getElementById('az-trend-chart');
-  if (!el) return;
-  if (!entries.length) { el.parentElement.innerHTML = '<div class="az-no-data">데이터 없음</div>'; return; }
-
-  const colorMap = { CTR:'#4f6ef7', CVR:'#10b981', CPA:'#f59e0b', 비용:'#e879f9', 전환:'#34d399' };
-  const color = colorMap[metric] || '#4f6ef7';
-
   azCharts['az-trend-chart'] = new Chart(el.getContext('2d'), {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [{
-        label: metric, data: vals,
-        borderColor: color, backgroundColor: color + '22',
-        borderWidth: 2, pointRadius: 3, pointBackgroundColor: color,
-        fill: true, tension: 0.3
-      }]
-    },
+    type: 'bar',
+    data: { labels, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: ctx => ` ${metric}: ${Number(ctx.parsed.y).toLocaleString('ko-KR')}` } }
+        legend: { display: multi, labels: { color: colors.legend, boxWidth: 12, font: { size: 11 } } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${azMetricFmt(ctx.dataset.label, ctx.parsed.y)}` } }
       },
-      scales: {
-        x: { grid: { color: azChartColors().grid }, ticks: { color: azChartColors().tick, font:{ size:10 }, maxRotation:45 } },
-        y: { grid: { color: azChartColors().grid }, ticks: { color: azChartColors().tick, font:{ size:10 } } }
-      }
+      scales: azBuildMetricScales(metrics, colors)
     }
   });
 }
