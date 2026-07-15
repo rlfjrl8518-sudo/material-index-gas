@@ -5581,15 +5581,15 @@ function azMetricVal(s, metric) {
 }
 
 // ── 추이 차트 지표 공통 메타 (기간별 성과 추이 + 개별 소재 추이 공용) ──────
-// 지표를 2개 이상 겹쳐 볼 때, 단위가 다른 값(퍼센트 vs 원 vs 건)을 한 축에
-// 욱여넣으면 한쪽이 눌려서 안 보이므로 단위별로 축을 분리한다(pct/money/count).
+// 지표를 2개 이상 겹쳐 볼 때, 값의 크기가 다른 지표를 한 축에 욱여넣으면 작은
+// 쪽이 0에 눌려붙어 안 보인다. 단위(퍼센트/원/건)가 같아도 크기가 전혀 다를 수
+// 있어서(예: CPA는 건당 수만원인데 비용은 전체 합계라 수백만원 — 같은 "원"이지만
+// 자릿수가 다르다) 단위별로만 묶으면 부족하고, 지표마다 축을 따로 둬야 한다.
 // 막대·선 구분도 지표마다 기본값을 다르게 둬서(비율=선, 절대값=막대) 아무 설정
 // 없이 켜도 바로 읽기 편한 조합이 뜨고, 사용자가 칩을 눌러 얼마든지 바꿀 수 있다.
 const AZ_METRIC_GROUP        = { CTR:'pct', CVR:'pct', CPA:'money', 비용:'money', 전환:'count' };
-const AZ_METRIC_GROUP_LABEL  = { pct:'%', money:'원', count:'건' };
 const AZ_METRIC_COLOR        = { CTR:'#4f6ef7', CVR:'#10b981', CPA:'#f59e0b', 비용:'#e879f9', 전환:'#34d399' };
 const AZ_METRIC_DEFAULT_TYPE = { CTR:'line', CVR:'line', CPA:'bar', 비용:'bar', 전환:'bar' };
-const AZ_METRIC_AXIS_ORDER   = ['pct', 'money', 'count'];
 
 function azMetricFmt(metric, v) {
   if (AZ_METRIC_GROUP[metric] === 'pct')   return v.toFixed(2) + '%';
@@ -5598,23 +5598,26 @@ function azMetricFmt(metric, v) {
   return azFmt(v);
 }
 
-// 차트 하나의 Y축들(퍼센트/원/건)을 지금 선택된 지표 조합에 맞춰 만든다.
-// 실제로 쓰이는 축만 생성하므로, 지표를 CTR·CVR처럼 같은 그룹으로만 고르면
-// 축이 하나만 뜨고, 서로 다른 단위를 섞으면 그만큼 축이 늘어난다.
+// 차트 하나의 Y축을 지표마다 독립적으로 만든다 — 같은 "원"이라도 CPA와 비용처럼
+// 자릿수가 크게 다른 지표를 억지로 같은 축에 묶으면 눈금 범위가 큰 쪽에 맞춰져서
+// 작은 쪽이 바닥에 눌려 보이지 않는다. 축 눈금은 축이 너무 많아 어수선해지지
+// 않도록 앞의 2개(왼쪽/오른쪽)만 보여주고, 3번째 지표부터는 눈금을 감추되
+// 스케일 자체는 계속 독립적으로 유지한다(다른 지표에 눌리지 않는다).
 function azBuildMetricScales(metrics, colors) {
-  const usedGroups = AZ_METRIC_AXIS_ORDER.filter(g => metrics.some(m => AZ_METRIC_GROUP[m] === g));
   const scales = {
     x: { grid: { color: colors.grid }, ticks: { color: colors.tick, font: { size: 10 }, maxRotation: 45 } }
   };
-  usedGroups.forEach((g, i) => {
-    scales['y_' + g] = {
-      position: i === 0 ? 'left' : 'right',
+  metrics.forEach((m, i) => {
+    const visible = i < 2;
+    scales['y_' + m] = {
+      position: i % 2 === 0 ? 'left' : 'right',
+      display: visible,
       grid: { color: i === 0 ? colors.grid : 'transparent' },
       ticks: {
         color: colors.tick, font: { size: 10 },
-        callback: v => g === 'pct' ? v + '%' : g === 'money' ? azFmt(v) : v
+        callback: v => AZ_METRIC_GROUP[m] === 'pct' ? v + '%' : AZ_METRIC_GROUP[m] === 'money' ? azFmt(v) : v
       },
-      title: { display: usedGroups.length > 1, text: AZ_METRIC_GROUP_LABEL[g], color: colors.tick, font: { size: 10 } }
+      title: { display: visible && metrics.length > 1, text: m, color: colors.tick, font: { size: 10 } }
     };
   });
   return scales;
@@ -6315,7 +6318,7 @@ function renderCreativeTrend(rows) {
     });
     const color = AZ_METRIC_COLOR[metric] || '#4f6ef7';
     const type  = multi ? (azCreativeTrendMetricType[metric] || AZ_METRIC_DEFAULT_TYPE[metric] || 'line') : 'line';
-    const base  = { label: multi ? metric : name + ' ' + metric, data: vals, type, yAxisID: 'y_' + AZ_METRIC_GROUP[metric] };
+    const base  = { label: multi ? metric : name + ' ' + metric, data: vals, type, yAxisID: 'y_' + metric };
     return type === 'line'
       ? { ...base, borderColor: color, backgroundColor: color + (multi ? '11' : '33'), tension: .25, fill: !multi, pointRadius: multi ? 2 : 2 }
       : { ...base, backgroundColor: color + '99', borderColor: color, borderWidth: 1, borderRadius: 4, maxBarThickness: 24 };
@@ -6887,7 +6890,7 @@ function renderTrend(rows) {
     });
     const color = AZ_METRIC_COLOR[metric] || '#4f6ef7';
     const type  = multi ? (azTrendMetricType[metric] || AZ_METRIC_DEFAULT_TYPE[metric] || 'line') : 'line';
-    const base  = { label: metric, data: vals, type, yAxisID: 'y_' + AZ_METRIC_GROUP[metric] };
+    const base  = { label: metric, data: vals, type, yAxisID: 'y_' + metric };
     return type === 'line'
       ? { ...base, borderColor: color, backgroundColor: color + (multi ? '11' : '22'), borderWidth: 2, pointRadius: multi ? 2 : 3, pointBackgroundColor: color, fill: !multi, tension: 0.3 }
       : { ...base, backgroundColor: color + '99', borderColor: color, borderWidth: 1, borderRadius: 4, maxBarThickness: 28 };
