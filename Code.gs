@@ -37,10 +37,14 @@ const CONSOLIDATED_RAW_HEADERS = [
 ];
 
 // AB테스트 시트 헤더
+// 매체/캠페인/그룹은 뒤에 이어붙인 컬럼 — 기존에 저장된 시트(이 3개 컬럼이
+// 없던 버전)와의 호환을 위해 중간에 끼워넣지 않고 항상 맨 끝에 추가한다.
+// (_getOrCreateABTestSheet가 기존 시트를 열 때 헤더 행을 이 길이에 맞춰 늘림)
 const AB_TEST_HEADERS = [
   '테스트ID', '테스트명', '가설', '변경요소', '타겟',
   '시작일', '종료일', '소재코드목록', '결론메모',
-  '등록일시', '최근수정일시'
+  '등록일시', '최근수정일시',
+  '매체', '캠페인', '그룹'
 ];
 
 // 저장된보고서 시트 헤더 — 보고서 설정(행/열 기준, 지표, 필터, 기간 등)은
@@ -334,7 +338,7 @@ function getImageCodes() {
   if (!sheet || sheet.getLastRow() < 2) return [];
 
   const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 15).getValues();
-  // col: 0=이미지코드, 1=등록일자, 2=매체, 4=그룹, 5=소재이름, 6=보종, 8=소재유형, 14=이미지URL
+  // col: 0=이미지코드, 1=등록일자, 2=매체, 3=캠페인, 4=그룹, 5=소재이름, 6=보종, 8=소재유형, 14=이미지URL
   const seen = new Map();
   data.forEach(row => {
     const code = String(row[0] || '').trim();
@@ -343,6 +347,7 @@ function getImageCodes() {
       code,
       등록일자: row[1] ? String(row[1]).slice(0, 10) : '',
       매체:     String(row[2] || ''),
+      캠페인:   String(row[3] || ''),
       그룹:     String(row[4] || ''),
       소재이름: String(row[5] || ''),
       보종:     String(row[6] || ''),
@@ -1274,6 +1279,11 @@ function _getOrCreateABTestSheet() {
     sheet.getRange(1, 1, 1, AB_TEST_HEADERS.length)
       .setValues([AB_TEST_HEADERS]).setFontWeight('bold');
     sheet.setFrozenRows(1);
+  } else if (sheet.getLastColumn() < AB_TEST_HEADERS.length) {
+    // 매체/캠페인/그룹 컬럼이 없던 이전 버전 시트 — 뒤에 이어붙인다
+    const from = sheet.getLastColumn();
+    sheet.getRange(1, from + 1, 1, AB_TEST_HEADERS.length - from)
+      .setValues([AB_TEST_HEADERS.slice(from)]).setFontWeight('bold');
   }
   return sheet;
 }
@@ -1304,7 +1314,13 @@ function getABTests() {
     소재코드목록: _splitList(r[7]),
     결론메모:     String(r[8] || ''),
     등록일시:     r[9]  ? Utilities.formatDate(new Date(r[9]),  tz, 'yyyy-MM-dd HH:mm') : '',
-    최근수정일시: r[10] ? Utilities.formatDate(new Date(r[10]), tz, 'yyyy-MM-dd HH:mm') : ''
+    최근수정일시: r[10] ? Utilities.formatDate(new Date(r[10]), tz, 'yyyy-MM-dd HH:mm') : '',
+    // 이 테스트가 비교하는 매체/캠페인/그룹 범위. 예전에 저장된 테스트는 이 3개가
+    // 비어 있는데, getABTestPerformance가 그 경우 범위 제한 없이(과거 방식대로)
+    // 소재코드 하나에 얽힌 모든 조합의 실적을 합산하는 쪽으로 자동 대체된다.
+    매체:         String(r[11] || ''),
+    캠페인:       String(r[12] || ''),
+    그룹:         String(r[13] || '')
   })).reverse();
 }
 
@@ -1315,6 +1331,15 @@ function saveABTest(data) {
     if (codes.length < 2)  return { error: true, message: '소재는 최소 2개 이상 선택해야 합니다.' };
     if (codes.length > 4)  return { error: true, message: '소재는 최대 4개까지 비교할 수 있습니다.' };
     if (!data.테스트명)     return { error: true, message: '테스트명을 입력하세요.' };
+    // 매체/캠페인/그룹이 비어 있으면 같은 소재코드가 다른 캠페인·그룹에서도
+    // 집행된 실적까지 전부 합쳐져서 비교 자체가 무의미해지므로, 신규 테스트는
+    // 이 셋을 필수로 받는다. 기존 테스트 수정(결론메모만 다시 저장하는 경우
+    // 포함)은 여기서 막지 않는다 — 예전에 저장된, 아직 범위가 없는 테스트도
+    // 계속 열람·수정할 수 있어야 한다. 편집 폼 자체는 클라이언트에서 별도로
+    // 범위 선택을 요구한다.
+    if (!data.테스트ID && (!data.매체 || !data.캠페인 || !data.그룹)) {
+      return { error: true, message: '비교 범위(매체·캠페인·그룹)를 모두 선택하세요.' };
+    }
 
     const sheet = _getOrCreateABTestSheet();
     const now = new Date();
@@ -1322,6 +1347,7 @@ function saveABTest(data) {
       data.테스트명, data.가설 || '', data.변경요소 || '', data.타겟 || '',
       data.시작일 || '', data.종료일 || '', codes.join(','), data.결론메모 || ''
     ];
+    const scopeValues = [data.매체, data.캠페인, data.그룹];
 
     if (data.테스트ID) {
       const ids = sheet.getLastRow() >= 2
@@ -1332,11 +1358,12 @@ function saveABTest(data) {
       const rowNum = idx + 2;
       sheet.getRange(rowNum, 2, 1, rowValues.length).setValues([rowValues]);
       sheet.getRange(rowNum, 11).setValue(now);
+      sheet.getRange(rowNum, 12, 1, 3).setValues([scopeValues]);
       return { success: true, 테스트ID: data.테스트ID };
     }
 
     const testId = 'AB' + Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyMMddHHmmss');
-    sheet.appendRow([testId, ...rowValues, now, now]);
+    sheet.appendRow([testId, ...rowValues, now, now, ...scopeValues]);
     return { success: true, 테스트ID: testId };
   } catch (e) {
     return { error: true, message: e.message };
@@ -1434,10 +1461,38 @@ function deleteSavedReport(reportId) {
   }
 }
 
-// 선택한 소재코드들의 "테스트 기간(startDate~endDate)" 실적만 집계해 비교 반환
+// AB테스트 "비교 범위" 선택용 — 소재_통합RAW에 실제로 실적이 있는 매체·캠페인·
+// 그룹 조합만 distinct하게 뽑아 돌려준다. 조합 개수만 반환하므로 RAW가 아무리
+// 커도(수만 행) 응답 크기는 항상 작다.
+function getRawMediaCampaignGroups() {
+  const ss = getSpreadsheet();
+  const sheet = ss.getSheetByName(CONSOLIDATED_RAW_SHEET_NAME);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 4).getValues(); // 매체,일,캠페인,광고그룹
+  const seen = new Set();
+  const out = [];
+  rows.forEach(r => {
+    const 매체   = String(r[0] || '').trim();
+    const 캠페인 = String(r[2] || '').trim();
+    const 그룹   = String(r[3] || '').trim();
+    if (!매체 || !캠페인 || !그룹) return;
+    const key = [매체, 캠페인, 그룹].join('\x00');
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ 매체, 캠페인, 그룹 });
+  });
+  return out;
+}
+
+// 선택한 소재코드들의 "테스트 기간(startDate~endDate)" 실적만 집계해 비교 반환.
+// scope({매체,캠페인,그룹})가 주어지면 그 조합에서 집행된 실적만 집계한다 —
+// 이게 없으면 같은 이미지코드가 여러 캠페인/그룹에서 재사용된 경우 전부 합쳐져서
+// "이 캠페인·그룹 안에서 소재 A/B 성과 비교"라는 AB테스트 본래 목적이 깨진다.
+// scope가 없는(과거에 저장된) 테스트는 예전 방식대로 이 코드에 연결된 모든
+// 조합의 실적을 합산한다(하위호환).
 // 소재_통합RAW은 이미지코드가 아니라 (매체,캠페인,그룹,소재이름) 기준이라
 // 소재_마스터에서 각 코드의 배치 정보를 먼저 찾은 뒤 그 키로 매칭한다.
-function getABTestPerformance(codes, startDate, endDate) {
+function getABTestPerformance(codes, startDate, endDate, scope) {
   const ss = getSpreadsheet();
   const rawSheet = ss.getSheetByName(CONSOLIDATED_RAW_SHEET_NAME);
   const rawRows = (rawSheet && rawSheet.getLastRow() >= 2)
@@ -1449,14 +1504,22 @@ function getABTestPerformance(codes, startDate, endDate) {
     ? masterSheet.getRange(2, 1, masterSheet.getLastRow() - 1, 16).getValues()
     : [];
 
+  const hasScope = scope && (scope.매체 || scope.캠페인 || scope.그룹);
+
   return codes.map(code => {
-    // 같은 이미지코드가 여러 매체/캠페인/그룹에 재사용될 수 있다. 예전엔 "가장 최근에
-    // 등록된 조합" 하나만 보고 소재_통합RAW를 매체+캠페인+그룹+소재이름으로 정확히
-    // 매칭했는데, 실제 집행은 다른 캠페인/그룹에서 이뤄진 경우 그 실적이 통째로
-    // 누락됐다. 그래서 이 이미지코드에 연결된 모든 조합을 모아, 그 중 하나라도
-    // 일치하면 실적에 포함시키도록 수정.
-    const rowsForCode = masterRows.filter(r => String(r[0] || '').trim() === code);
-    if (!rowsForCode.length) return { code, notFound: true };
+    // 같은 이미지코드가 여러 매체/캠페인/그룹에 재사용될 수 있다. scope가 있으면
+    // 그 조합과 정확히 일치하는 등록 건만 남기고, scope가 없으면(과거 테스트)
+    // 이 이미지코드에 연결된 모든 조합을 모아 그 중 하나라도 일치하면 실적에
+    // 포함시킨다(하위호환 — 예전엔 이 필터가 아예 없어서 매번 이렇게 동작했다).
+    let rowsForCode = masterRows.filter(r => String(r[0] || '').trim() === code);
+    if (hasScope) {
+      rowsForCode = rowsForCode.filter(r =>
+        (!scope.매체   || String(r[2] || '') === scope.매체)   &&
+        (!scope.캠페인 || String(r[3] || '') === scope.캠페인) &&
+        (!scope.그룹   || String(r[4] || '') === scope.그룹)
+      );
+    }
+    if (!rowsForCode.length) return { code, notFound: true, scopeMismatch: !!hasScope };
 
     const contexts = rowsForCode.map(r => ({
       매체: String(r[2] || ''), 캠페인: String(r[3] || ''), 그룹: String(r[4] || ''), 소재이름: String(r[5] || '')
