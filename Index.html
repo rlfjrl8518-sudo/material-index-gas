@@ -8304,15 +8304,30 @@ function openABPicker(slotIndex) {
   // 범위로 미리 좁혀서 시작한다 — 실제로 그 조합에서 실행된 소재를 고르기 쉽게.
   // (필터일 뿐이라 필요하면 넓혀서 볼 수 있고, 실제 비교 계산은 이 값과 무관하게
   // 테스트에 저장된 매체/캠페인/그룹으로 항상 정확히 스코프된다)
-  document.getElementById('abImgFilterMedia').value    = document.getElementById('ab-f-media')?.value    || '';
-  document.getElementById('abImgFilterCampaign').value = document.getElementById('ab-f-campaign')?.value || '';
-  document.getElementById('abImgFilterGroup').value    = document.getElementById('ab-f-group')?.value    || '';
+  // 주의: abImgFilterMedia/Campaign/Group의 <option>은 아직 채워지지 않은
+  // 상태다(getImageCodes 응답 후 filterABPicker → abRefreshFilterOptions가 채움).
+  // 일치하는 option이 없는 상태에서 select.value를 대입하면 브라우저가 그냥
+  // 무시하고 빈 값으로 남기 때문에, 여기서 바로 대입하면 스코프 필터가 반영되지
+  // 않는다 — 코드에 저장해뒀다가 옵션이 채워진 뒤에 대입해야 한다.
+  const scopeMedia    = document.getElementById('ab-f-media')?.value    || '';
+  const scopeCampaign = document.getElementById('ab-f-campaign')?.value || '';
+  const scopeGroup    = document.getElementById('ab-f-group')?.value    || '';
+  document.getElementById('abImgFilterMedia').value    = '';
+  document.getElementById('abImgFilterCampaign').value = '';
+  document.getElementById('abImgFilterGroup').value    = '';
   document.getElementById('abImgFilterCrtype').value = '';
   document.getElementById('abImgFilterBoJong').value = '';
   const grid = document.getElementById('abImgPickerGrid');
   grid.innerHTML = '<div class="modal-empty">불러오는 중...</div>';
   google.script.run
-    .withSuccessHandler(codes => { abAllCodes = codes; filterABPicker(); })
+    .withSuccessHandler(codes => {
+      abAllCodes = codes;
+      filterABPicker(); // 옵션 목록부터 채운다
+      document.getElementById('abImgFilterMedia').value    = scopeMedia;
+      document.getElementById('abImgFilterCampaign').value = scopeCampaign;
+      document.getElementById('abImgFilterGroup').value    = scopeGroup;
+      filterABPicker(); // 채워진 스코프 값 기준으로 다시 필터링
+    })
     .withFailureHandler(() => { grid.innerHTML = '<div class="modal-empty" style="color:#ef4444;">로드 실패 - 다시 시도해 주세요.</div>'; })
     .getImageCodes();
 }
