@@ -1484,6 +1484,48 @@ function getRawMediaCampaignGroups() {
   return out;
 }
 
+// 진단용: getRawMediaCampaignGroups()가 왜 비어 보이는지 확인.
+// Apps Script 편집기 상단 함수 선택 드롭다운에서 이 함수를 고른 뒤 ▶ 실행하고,
+// "실행 로그"(왼쪽 시계 아이콘 또는 보기 > 실행 기록)에서 결과를 확인한다.
+function debugABScopeData() {
+  const ss = getSpreadsheet();
+  const sheet = ss.getSheetByName(CONSOLIDATED_RAW_SHEET_NAME);
+  if (!sheet) {
+    const result = { error: '시트를 찾을 수 없음: ' + CONSOLIDATED_RAW_SHEET_NAME, allSheets: ss.getSheets().map(s => s.getName()) };
+    Logger.log(JSON.stringify(result, null, 2));
+    return result;
+  }
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    const result = { error: '데이터 없음', lastRow };
+    Logger.log(JSON.stringify(result, null, 2));
+    return result;
+  }
+  const rows = sheet.getRange(2, 1, lastRow - 1, 4).getValues(); // 매체,일,캠페인,광고그룹
+  let hasMedia = 0, hasMediaCampaign = 0, hasAll3 = 0;
+  const sampleIncomplete = [];
+  rows.forEach((r, i) => {
+    const 매체   = String(r[0] || '').trim();
+    const 캠페인 = String(r[2] || '').trim();
+    const 그룹   = String(r[3] || '').trim();
+    if (매체) hasMedia++;
+    if (매체 && 캠페인) hasMediaCampaign++;
+    if (매체 && 캠페인 && 그룹) hasAll3++;
+    if (매체 && (!캠페인 || !그룹) && sampleIncomplete.length < 8) {
+      sampleIncomplete.push({ row: i + 2, 매체, 캠페인: 캠페인 || '(빈칸)', 그룹: 그룹 || '(빈칸)' });
+    }
+  });
+  const result = {
+    총행수: rows.length,
+    매체만있음: hasMedia,
+    매체_캠페인까지있음: hasMediaCampaign,
+    매체_캠페인_그룹_모두있음: hasAll3,
+    캠페인또는그룹빠진샘플: sampleIncomplete
+  };
+  Logger.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
 // 선택한 소재코드들의 "테스트 기간(startDate~endDate)" 실적만 집계해 비교 반환.
 // scope({매체,캠페인,그룹})가 주어지면 그 조합에서 집행된 실적만 집계한다 —
 // 이게 없으면 같은 이미지코드가 여러 캠페인/그룹에서 재사용된 경우 전부 합쳐져서
