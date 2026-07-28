@@ -1194,7 +1194,14 @@ ${JSON.stringify(aggregatedData, null, 2)}`;
     const resp = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', options);
     const json = JSON.parse(resp.getContentText());
     if (json.error) return { error: true, message: json.error.message };
-    return { success: true, text: json.choices[0].message.content };
+    const text = json.choices[0].message.content;
+    // reasoning 모델이 토큰 예산을 전부 reasoning에 써버리면 content가 빈 문자열인 채로
+    // finish_reason='length'가 온다 — 이걸 그냥 success:true로 넘기면 화면엔 빈 결과만
+    // 남아 "답이 안 나온다"로 보인다(2026-07-28 채팅에서 실제로 겪은 문제). 명확한 에러로 변환.
+    if (!text && json.choices[0].finish_reason === 'length') {
+      return { error: true, message: '응답이 비어 있습니다(토큰 한도 초과) — 다시 시도해보세요.' };
+    }
+    return { success: true, text };
   } catch (e) {
     return { error: true, message: e.message };
   }
@@ -1220,8 +1227,12 @@ function getOpenAIChatReply(messages) {
     payload: JSON.stringify({
       model: 'gpt-5-mini',
       messages: messages,
-      max_completion_tokens: 900,
-      reasoning_effort: 'low'
+      // "질문하면 답이 안 나온다"는 신고를 실제 API 호출로 재현했다(2026-07-28): reasoning_effort
+      // 'low' + max_completion_tokens 900이면 짧은 후속 질문에도 모델이 900 토큰을 전부
+      // reasoning에 써버려서 finish_reason=length, 실제 답변 내용은 빈 문자열로 나왔다.
+      // 'minimal'로 낮추고 여유분도 늘려 같은 조건에서 정상 답변 나오는 것 확인.
+      max_completion_tokens: 1200,
+      reasoning_effort: 'minimal'
     }),
     muteHttpExceptions: true
   };
@@ -1230,7 +1241,14 @@ function getOpenAIChatReply(messages) {
     const resp = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', options);
     const json = JSON.parse(resp.getContentText());
     if (json.error) return { error: true, message: json.error.message };
-    return { success: true, text: json.choices[0].message.content };
+    const text = json.choices[0].message.content;
+    // reasoning 모델이 토큰 예산을 전부 reasoning에 써버리면 content가 빈 문자열인 채로
+    // finish_reason='length'가 온다 — 이걸 그냥 success:true로 넘기면 화면엔 빈 결과만
+    // 남아 "답이 안 나온다"로 보인다(2026-07-28 채팅에서 실제로 겪은 문제). 명확한 에러로 변환.
+    if (!text && json.choices[0].finish_reason === 'length') {
+      return { error: true, message: '응답이 비어 있습니다(토큰 한도 초과) — 다시 시도해보세요.' };
+    }
+    return { success: true, text };
   } catch (e) {
     return { error: true, message: e.message };
   }

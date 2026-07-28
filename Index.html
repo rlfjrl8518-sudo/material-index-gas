@@ -5919,7 +5919,7 @@ function renderRanking(rows) {
   const minImp = parseInt(document.getElementById('az-rank-min-imp').value) || 0;
   const minClk = parseInt(document.getElementById('az-rank-min-clk').value) || 0;
 
-  const grouped = azGroup(rows, AZ.CREATIVE);
+  const grouped = azGroupByCreative(rows);
   let entries = Object.entries(grouped).map(([k, rs]) => {
     const s = azSum(rs);
     const kk = azKPI(s);
@@ -6081,7 +6081,7 @@ function renderThresholdAlerts(rows) {
     return;
   }
 
-  const grouped = azGroup(rows, AZ.CREATIVE);
+  const grouped = azGroupByCreative(rows);
   const entries = Object.entries(grouped).map(([k, rs]) => {
     const s = azSum(rs);
     const url = (rs.find(r => r[AZ.IMGURL]) || {})[AZ.IMGURL] || '';
@@ -6115,26 +6115,50 @@ function renderThresholdAlerts(rows) {
 // ── 개별 소재 일별 추이 ───────────────────────────────────
 // 소재명만 나열하면 규칙 없는 이름들 사이에서 뭐가 뭔지 알기 어려우므로
 // 썸네일 이미지로 검색/선택하는 피커를 사용한다 (네이티브 select는 이미지를 못 담음)
-let azCreativeTrendOptions     = [];  // [{name, url}]
-let azCreativeTrendSelectedName = '';
+//
+// 2026-07-28: 예전엔 소재이름만으로 옵션 맵을 만들어서, 같은 이름이 다른 매체/캠페인/
+// 그룹에서 재사용되면(azCreativeContextKey 주석 참고) 피커에 하나만 보이고 나머지는
+// 아예 선택할 수 없었으며, 선택 후에도 이름만으로 매칭해서 서로 다른 소재의 실적이
+// 섞여 나왔다. azCreativeContextKey(매체+캠페인+그룹+소재이름)를 진짜 식별자로 쓰고,
+// 화면에 보여주는 이름만 사람이 읽기 쉬운 라벨로 분리했다.
+let azCreativeTrendOptions     = [];  // [{key, name, label, url}]
+let azCreativeTrendSelectedKey  = ''; // 매칭용 — azCreativeContextKey 값
+let azCreativeTrendSelectedName = ''; // 표시용
 let azCreativeTrendSelectedUrl  = '';
 
 function cacheCreativeTrendOptions(rows) {
   const map = {};
   rows.forEach(r => {
     const name = String(r[AZ.CREATIVE] || '').trim();
-    if (!name || map[name]) return;
+    if (!name) return;
+    const key = azCreativeContextKey(r);
+    if (map[key]) return;
     const rawUrl = String(r[AZ.IMGURL] || '');
     const url = /[?&]unit=/.test(rawUrl) ? (azResolveBundleThumb(rawUrl, name) || rawUrl) : rawUrl;
-    map[name] = {
-      name, url,
-      media:  String(r[AZ.MEDIA]  || ''),
-      group:  String(r[AZ.GROUP]  || ''),
-      bojong: String(r[AZ.BOJONG] || '')
+    const media = String(r[AZ.MEDIA] || '');
+    const group = String(r[AZ.GROUP] || '');
+    map[key] = {
+      key, name, url,
+      media, group,
+      bojong: String(r[AZ.BOJONG] || ''),
+      // 같은 이름이 다른 매체/그룹에서도 쓰이는지는 아래 라벨 계산 시 한 번 더 확인한다.
+      label: name
     };
   });
-  azCreativeTrendOptions = Object.values(map).sort((a, b) => a.name.localeCompare(b.name));
-  if (azCreativeTrendSelectedName && !map[azCreativeTrendSelectedName]) {
+
+  // 같은 소재이름이 매체/그룹별로 여러 개 있으면 피커에서 구분 가능하도록 라벨에 붙인다.
+  const nameCounts = {};
+  Object.values(map).forEach(o => { nameCounts[o.name] = (nameCounts[o.name] || 0) + 1; });
+  Object.values(map).forEach(o => {
+    if (nameCounts[o.name] > 1) {
+      const ctx = [o.media, o.group].filter(Boolean).join('·');
+      o.label = ctx ? `${o.name} (${ctx})` : o.name;
+    }
+  });
+
+  azCreativeTrendOptions = Object.values(map).sort((a, b) => a.label.localeCompare(b.label));
+  if (azCreativeTrendSelectedKey && !map[azCreativeTrendSelectedKey]) {
+    azCreativeTrendSelectedKey  = '';
     azCreativeTrendSelectedName = '';
     azCreativeTrendSelectedUrl  = '';
   }
@@ -6144,7 +6168,7 @@ function cacheCreativeTrendOptions(rows) {
 function updateCreativeTrendSelectedUI() {
   const nameEl  = document.getElementById('az-ct-selected-name');
   const thumbEl = document.getElementById('az-ct-thumb');
-  if (!azCreativeTrendSelectedName) {
+  if (!azCreativeTrendSelectedKey) {
     nameEl.textContent = '소재를 선택하세요 (이미지로 검색)';
     thumbEl.innerHTML = '<span>🔍</span>';
     return;
@@ -6187,6 +6211,7 @@ function ensureCreativeTrendModal() {
   document.getElementById('ctPickerGrid').addEventListener('click', e => {
     const item = e.target.closest('.img-pick-item');
     if (!item) return;
+    azCreativeTrendSelectedKey  = item.dataset.key;
     azCreativeTrendSelectedName = item.dataset.name;
     azCreativeTrendSelectedUrl  = item.dataset.url;
     updateCreativeTrendSelectedUI();
@@ -6259,9 +6284,9 @@ function renderCreativeTrendPickerGrid(options) {
            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
          <div class="img-pick-placeholder" style="display:none;pointer-events:none">🖼️</div>`
       : '<div class="img-pick-placeholder" style="pointer-events:none">🖼️</div>';
-    return `<div class="img-pick-item" data-name="${esc(o.name)}" data-url="${esc(o.url)}">
+    return `<div class="img-pick-item" data-key="${esc(o.key)}" data-name="${esc(o.name)}" data-url="${esc(o.url)}">
       ${media}
-      <div class="img-pick-info"><div class="img-pick-name">${escHtml(o.name)}</div></div>
+      <div class="img-pick-info"><div class="img-pick-name">${escHtml(o.label)}</div></div>
     </div>`;
   }).join('');
 }
@@ -6276,14 +6301,14 @@ function azToggleCreativeTrendMetricType(metric) {
 }
 
 function renderCreativeTrend(rows) {
-  const name    = azCreativeTrendSelectedName;
+  const key     = azCreativeTrendSelectedKey;
   const metrics = msSelected('az-creative-trend-metric');
   const canvas  = document.getElementById('az-creative-trend-chart');
   const nodata  = document.getElementById('az-creative-trend-nodata');
 
   azRenderMetricTypeChips('az-creative-trend-metric-types', metrics, azCreativeTrendMetricType, 'azToggleCreativeTrendMetricType');
 
-  if (!name) {
+  if (!key) {
     azDestroyChart('az-creative-trend-chart');
     canvas.style.display = 'none';
     nodata.style.display = 'block';
@@ -6298,7 +6323,9 @@ function renderCreativeTrend(rows) {
     return;
   }
 
-  const matched = rows.filter(r => String(r[AZ.CREATIVE] || '').trim() === name);
+  // 소재이름만으로 매칭하면 같은 이름이 다른 매체/캠페인/그룹에서 재사용될 때 서로 다른
+  // 소재의 실적이 합쳐진다(azCreativeContextKey 주석 참고) — 조합 키로 매칭(2026-07-28).
+  const matched = rows.filter(r => azCreativeContextKey(r) === key);
   const byDate = {};
   matched.forEach(r => {
     const d = azDateStr(r[AZ.DATE]);
@@ -6329,7 +6356,7 @@ function renderCreativeTrend(rows) {
     });
     const color = AZ_METRIC_COLOR[metric] || '#4f6ef7';
     const type  = multi ? (azCreativeTrendMetricType[metric] || AZ_METRIC_DEFAULT_TYPE[metric] || 'line') : 'line';
-    const base  = { label: multi ? metric : name + ' ' + metric, data: vals, type, yAxisID: 'y_' + metric };
+    const base  = { label: multi ? metric : azCreativeTrendSelectedName + ' ' + metric, data: vals, type, yAxisID: 'y_' + metric };
     return type === 'line'
       ? { ...base, borderColor: color, backgroundColor: color + (multi ? '11' : '33'), tension: .25, fill: !multi, pointRadius: multi ? 2 : 2 }
       : { ...base, backgroundColor: color + '99', borderColor: color, borderWidth: 1, borderRadius: 4, maxBarThickness: 24 };
@@ -6355,7 +6382,7 @@ function renderPareto(rows) {
   const nodata = document.getElementById('az-pareto-nodata');
   const summaryEl = document.getElementById('az-pareto-summary');
 
-  const grouped = azGroup(rows, AZ.CREATIVE);
+  const grouped = azGroupByCreative(rows);
   let entries = Object.entries(grouped).map(([k, rs]) => {
     const s = azSum(rs);
     return { k, ...s, ...azKPI(s) };
@@ -6403,7 +6430,10 @@ function renderPareto(rows) {
       onClick: (evt, elements) => {
         if (!elements.length) return;
         const name = labels[elements[0].index];
-        const matched = rows.filter(r => String(r[AZ.CREATIVE] || '').trim() === name);
+        // 소재이름만으로 다시 필터링하면 같은 이름이 다른 매체/캠페인/그룹에서 재사용될 때
+        // 서로 다른 소재의 실적이 함께 딸려온다 — 위에서 이미 조합 키로 정확히 나눠둔
+        // grouped[label]을 그대로 쓴다(2026-07-28).
+        const matched = grouped[name] || [];
         if (matched.length) azRenderDrillModal(`파레토 소재: ${name}`, matched);
       },
       onHover: (evt, elements) => { evt.native.target.style.cursor = elements.length ? 'pointer' : 'default'; },
@@ -6952,6 +6982,35 @@ function azPeriodLabel(key, unit) {
 // 잘못 분류되는 버그가 있었다(2026-07-28 확인).
 function azCreativeContextKey(r) {
   return [String(r[AZ.MEDIA]||''), String(r[AZ.CAMPAIGN]||''), String(r[AZ.GROUP]||''), String(r[AZ.CREATIVE]||'').trim()].join('\x00');
+}
+
+// 소재이름 기준 그룹핑 — azGroup(rows, AZ.CREATIVE)를 그대로 쓰면 같은 이름이 다른
+// 매체/캠페인/그룹에서 재사용될 때 서로 다른 소재가 하나로 합쳐진다(2026-07-28,
+// 랭킹·임계치 알림·파레토 3곳에서 같은 버그 발견, azCreativeContextKey 주석 참고).
+// (매체,캠페인,그룹,소재이름) 조합으로 실제 그룹핑하고, 화면에 보여줄 라벨은 이름만
+// (동명이인이 있을 때만 매체·그룹을 붙여 구분)으로 만든다. 반환 형태는
+// azGroup(rows, col)과 같은 {라벨: rows[]} — 기존 호출부를 그대로 재사용할 수 있게.
+function azGroupByCreative(rows) {
+  const byKey = {};
+  rows.forEach(r => {
+    const name = String(r[AZ.CREATIVE] || '').trim();
+    if (!name) return;
+    const key = azCreativeContextKey(r);
+    if (!byKey[key]) byKey[key] = { name, media: String(r[AZ.MEDIA]||''), group: String(r[AZ.GROUP]||''), rows: [] };
+    byKey[key].rows.push(r);
+  });
+
+  const nameCounts = {};
+  Object.values(byKey).forEach(g => { nameCounts[g.name] = (nameCounts[g.name] || 0) + 1; });
+
+  const result = {};
+  Object.values(byKey).forEach(g => {
+    const label = nameCounts[g.name] > 1
+      ? `${g.name} (${[g.media, g.group].filter(Boolean).join('·')})`
+      : g.name;
+    result[label] = g.rows;
+  });
+  return result;
 }
 
 function renderLifecycle(rows) {
