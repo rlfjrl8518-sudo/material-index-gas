@@ -5529,8 +5529,9 @@ function getFilteredRows() {
       if (!azColMatchAny(r, col, vals)) return false;
     }
     if (liveFilter) {
-      const name = String(r[AZ.CREATIVE] || '').trim();
-      const isLive = liveInfo.liveSet.has(name);
+      // 소재이름만으로 라이브 여부를 판단하면, 같은 이름이 다른 캠페인/그룹에서 재사용될 때
+      // (azCreativeContextKey 주석 참고) 전혀 다른 소재의 라이브 상태가 뒤섞인다(2026-07-28).
+      const isLive = liveInfo.liveSet.has(azCreativeContextKey(r));
       if (liveFilter === 'live'  && !isLive) return false;
       if (liveFilter === 'ended' &&  isLive) return false;
     }
@@ -5974,18 +5975,21 @@ function azLiveDaysThreshold() {
   return parseInt(document.getElementById('az-live-days').value) || 0;
 }
 
-// 소재(이름)별 마지막 활동일을 구하고, "적재된 데이터의 최신일" 기준
-// N일 이내에 실적이 있으면 라이브로 판단한다.
+// (매체,캠페인,그룹,소재이름) 조합별 마지막 활동일을 구하고, "적재된 데이터의 최신일" 기준
+// N일 이내에 실적이 있으면 라이브로 판단한다. 예전엔 소재이름만으로 키를 잡아서, 같은
+// 이름이 다른 캠페인/그룹에서 재사용되면(azCreativeContextKey 주석 참고) 신규 소재가 옛날
+// 소재의 최근 활동일을 그대로 물려받아 라이브 상태가 뒤섞이는 버그가 있었다(2026-07-28).
 function azComputeLiveInfo() {
   const scope = azAllRowsIgnoringDateFilter();
   let refDate = '';
-  const lastActive = {}; // name -> { date, row }
+  const lastActive = {}; // ctxKey -> { date, row }
   scope.forEach(r => {
     const name = String(r[AZ.CREATIVE] || '').trim();
     const d = azDateStr(r[AZ.DATE]);
     if (!name || !d) return;
     if (d > refDate) refDate = d;
-    if (!lastActive[name] || d > lastActive[name].date) lastActive[name] = { date: d, row: r };
+    const ctxKey = azCreativeContextKey(r);
+    if (!lastActive[ctxKey] || d > lastActive[ctxKey].date) lastActive[ctxKey] = { date: d, row: r };
   });
 
   if (!refDate) return { liveSet: new Set(), lastActive, refDate: '' };
@@ -6012,10 +6016,10 @@ function renderStatusChart() {
   const { liveSet, lastActive, refDate } = azComputeLiveInfo();
 
   const counts = {}; // category -> {live, ended}
-  Object.entries(lastActive).forEach(([name, info]) => {
+  Object.entries(lastActive).forEach(([ctxKey, info]) => {
     const cats = azColValues(info.row, col);
     const keys = cats.length ? cats : ['(미입력)'];
-    const isLive = liveSet.has(name);
+    const isLive = liveSet.has(ctxKey);
     keys.forEach(k => {
       if (!counts[k]) counts[k] = { live: 0, ended: 0 };
       counts[k][isLive ? 'live' : 'ended']++;
@@ -7499,6 +7503,9 @@ function reportEnsureDerivedCaches() {
   if (reportCacheRowCount === azRawData.length) return;
   reportCacheRowCount = azRawData.length;
 
+  // (매체,캠페인,그룹,소재이름) 조합 키로 통일(2026-07-28) — 소재이름만으로 묶으면 같은
+  // 이름이 다른 캠페인/그룹에서 재사용될 때 라이브상태/생애주기가 뒤섞인다(분석 탭의
+  // azComputeLiveInfo/renderLifecycle과 같은 버그, azCreativeContextKey 주석 참고).
   const rows = azRawData.slice(1);
   const lastActive = {}, firstSeen = {};
   let refDate = '';
@@ -7507,8 +7514,9 @@ function reportEnsureDerivedCaches() {
     const d = azDateStr(r[AZ.DATE]);
     if (!name || !d) return;
     if (d > refDate) refDate = d;
-    if (!lastActive[name] || d > lastActive[name]) lastActive[name] = d;
-    if (!firstSeen[name]  || d < firstSeen[name])  firstSeen[name]  = d;
+    const ctxKey = azCreativeContextKey(r);
+    if (!lastActive[ctxKey] || d > lastActive[ctxKey]) lastActive[ctxKey] = d;
+    if (!firstSeen[ctxKey]  || d < firstSeen[ctxKey])  firstSeen[ctxKey]  = d;
   });
 
   reportLiveSetCache = new Set();
@@ -7516,14 +7524,14 @@ function reportEnsureDerivedCaches() {
     const cutoff = new Date(refDate);
     cutoff.setDate(cutoff.getDate() - REPORT_LIVE_DAYS);
     const cutoffStr = azDateStr(cutoff);
-    Object.keys(lastActive).forEach(n => { if (lastActive[n] >= cutoffStr) reportLiveSetCache.add(n); });
+    Object.keys(lastActive).forEach(k => { if (lastActive[k] >= cutoffStr) reportLiveSetCache.add(k); });
   }
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
   reportLifecycleCache = {};
-  Object.keys(firstSeen).forEach(name => {
-    const elapsed = Math.floor((today - new Date(firstSeen[name] + 'T00:00:00')) / 86400000);
-    reportLifecycleCache[name] = elapsed <= 14 ? '초기' : elapsed <= 28 ? '중기' : '후기';
+  Object.keys(firstSeen).forEach(ctxKey => {
+    const elapsed = Math.floor((today - new Date(firstSeen[ctxKey] + 'T00:00:00')) / 86400000);
+    reportLifecycleCache[ctxKey] = elapsed <= 14 ? '초기' : elapsed <= 28 ? '중기' : '후기';
   });
 }
 
@@ -7552,11 +7560,10 @@ function reportDimValues(row, dim) {
   if (dim.special === 'livestatus') {
     const name = String(row[AZ.CREATIVE] || '').trim();
     if (!name) return [];
-    return [reportLiveSetCache && reportLiveSetCache.has(name) ? '라이브중' : '종료'];
+    return [reportLiveSetCache && reportLiveSetCache.has(azCreativeContextKey(row)) ? '라이브중' : '종료'];
   }
   if (dim.special === 'lifecycle') {
-    const name = String(row[AZ.CREATIVE] || '').trim();
-    const phase = reportLifecycleCache && reportLifecycleCache[name];
+    const phase = reportLifecycleCache && reportLifecycleCache[azCreativeContextKey(row)];
     return phase ? [phase] : [];
   }
   return azColValues(row, dim.col);
