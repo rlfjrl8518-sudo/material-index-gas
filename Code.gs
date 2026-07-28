@@ -130,6 +130,25 @@ function getBundleData(unitCode) {
     imageCodes.forEach(code => { if (codeMap[code]) images.push(codeMap[code]); });
   }
 
+  // Drive 공개 썸네일(drive.google.com/thumbnail?id=...) 핫링크는 간헐적으로 막혀서
+  // "구글DA 번들 이미지가 안 보인다"는 문제가 있었다(2026-07-28) — 브라우저가 매번
+  // drive.google.com에 별도로 요청해야 하는데, 파일 소유자/뷰어 인증 상태나 Google의
+  // 핫링크 방지 정책에 따라 종종 실패한다. 번들 뷰는 이미지 개수가 적으니(광고단위 1개
+  // 분량) 여기서 직접 blob을 읽어 base64 data URI로 내려준다 — Drive에 별도 요청이
+  // 전혀 필요 없어져 훨씬 안정적이다. 동영상(/preview URL)은 원래도 iframe 임베드라 대상
+  // 아니고, blob 조회가 실패하면(권한 등) 기존 URL로 조용히 폴백한다.
+  images.forEach(img => {
+    if (!img.url || img.url.indexOf('/preview') !== -1) return;
+    try {
+      const m = img.url.match(/[?&]id=([^&]+)/) || img.url.match(/\/d\/([^/?]+)/);
+      if (!m) return;
+      const blob = DriveApp.getFileById(m[1]).getBlob();
+      img.dataUri = 'data:' + blob.getContentType() + ';base64,' + Utilities.base64Encode(blob.getBytes());
+    } catch (e) {
+      // 폴백: dataUri 없이 반환 — 클라이언트가 기존 driveThumb(img.url) 핫링크 방식 사용
+    }
+  });
+
   return {
     광고단위코드: String(unitRow[DGPM_COL['광고단위코드']]),
     매체:         String(unitRow[DGPM_COL['매체']]),
@@ -1138,9 +1157,17 @@ ${filterInstruction}
 번호를 붙여 줄바꿈으로 구분하세요.
 [[/소재인사이트]]`;
 
+  // 2026-07-28: 데이터에 일자별추이(또는 기간이 길면 주간 버킷)가 포함되어 있으니, 선택
+  // 기간의 총합/평균만 보고 판단하지 말고 추세(상승/하락, 특정 구간의 급변, 변동성)를
+  // 반영하라고 명시적으로 지시한다 — 전엔 총합만 넘겨서 "최근 며칠새 CTR이 떨어지고
+  // 있다" 같은 판단을 AI가 아예 할 수 없었다.
+  const trendInstruction = (aggregatedData.일자별추이 && aggregatedData.일자별추이.length > 1)
+    ? `\n\n일자별추이 데이터가 포함되어 있습니다 — 기간 전체의 총합/평균만 보지 말고, 추세(상승/하락 흐름, 특정 구간의 급격한 변화, 변동성)를 반드시 반영해서 분석하세요. "최근 들어 ~가 개선/악화되고 있어 ~를 검토하세요" 같은 시계열 근거를 최소 1개 이상 포함하세요.`
+    : '';
+
   const prompt = `당신은 한화손해보험 DA 광고 소재 전략 전문가입니다.
 아래는 현재 필터 조건에서 집계된 성과 데이터입니다.
-광고 운영자가 즉시 활용할 수 있도록, 단순 수치 나열이 아닌 "~하기 때문에 ~를 검토하세요" 형식으로 한국어로 작성하세요.
+광고 운영자가 즉시 활용할 수 있도록, 단순 수치 나열이 아닌 "~하기 때문에 ~를 검토하세요" 형식으로 한국어로 작성하세요.${trendInstruction}
 
 ${sectionInstruction}
 
@@ -1151,10 +1178,14 @@ ${JSON.stringify(aggregatedData, null, 2)}`;
     contentType: 'application/json',
     headers: { Authorization: 'Bearer ' + apiKey },
     payload: JSON.stringify({
-      model: 'gpt-5-chat-latest',
+      model: 'gpt-5-mini',
       messages: [{ role: 'user', content: prompt }],
-      max_tokens: 1600,
-      temperature: 0.7
+      // gpt-5 계열은 max_tokens가 아니라 max_completion_tokens를 쓰고, temperature도 기본값(1)
+      // 외엔 거부한다(2026-07-28 실제 호출로 확인: 둘 다 넣으면 400 에러). reasoning_effort를
+      // 안 주면 기본 reasoning에 토큰을 다 쓰고 정작 답변 내용은 비어서 나오는 것도 실측
+      // 확인했다 — 데이터 분석·전략 제안이라 분류 작업보다는 약간 여유를 둬서 'low'로 설정.
+      max_completion_tokens: 1600,
+      reasoning_effort: 'low'
     }),
     muteHttpExceptions: true
   };
@@ -1187,10 +1218,10 @@ function getOpenAIChatReply(messages) {
     contentType: 'application/json',
     headers: { Authorization: 'Bearer ' + apiKey },
     payload: JSON.stringify({
-      model: 'gpt-5-chat-latest',
+      model: 'gpt-5-mini',
       messages: messages,
-      max_tokens: 900,
-      temperature: 0.7
+      max_completion_tokens: 900,
+      reasoning_effort: 'low'
     }),
     muteHttpExceptions: true
   };

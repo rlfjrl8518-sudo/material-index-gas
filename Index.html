@@ -2717,11 +2717,14 @@ function buildBundleHtml(d) {
 
   const cards = (d.images || []).map(img => {
     const isVideo = img.url && img.url.indexOf('/preview') !== -1;
+    // dataUri가 있으면(정상 케이스) 그걸 우선 쓴다 — Drive 공개 썸네일 핫링크는
+    // 간헐적으로 막혀서 "번들 이미지 안 보임" 문제가 있었다(2026-07-28, getBundleData
+    // 참고). blob 조회가 실패했을 때만 기존 driveThumb() 핫링크로 폴백.
     const media = !img.url
       ? '<div class="bv-placeholder">📷</div>'
       : isVideo
         ? '<iframe class="bv-video" src="' + esc(img.url) + '" allowfullscreen></iframe>'
-        : '<img class="bv-img" src="' + esc(driveThumb(img.url)) + '" alt="' + esc(img.code) + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">'
+        : '<img class="bv-img" src="' + esc(img.dataUri || driveThumb(img.url)) + '" alt="' + esc(img.code) + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">'
           + '<div class="bv-placeholder" style="display:none">🖼️</div>';
     const link = img.url ? '<a class="bv-link" href="' + esc(img.url) + '" target="_blank">원본 열기</a>' : '';
     return '<div class="bv-card"><div class="bv-media">' + media + '</div>'
@@ -5457,11 +5460,15 @@ function initFilterDropdowns() {
     msRenderOptions(id, metricOptions);
   });
 
-  // 날짜 범위 (최초 1회만)
+  // 날짜 범위 (최초 1회만) — 기본값은 데이터 전체 기간이 아니라 "당월 1일 ~ 데이터가
+  // 있는 최근 날짜"로 좁힌다. 데이터가 몇 달치 쌓이면 접속할 때마다 전체 기간이 잡혀서
+  // 매번 다시 좁혀야 하는 문제가 있었다(2026-07-28).
   if (!document.getElementById('az-f-start').value) {
     const dates = rows.map(r => azDateStr(r[AZ.DATE])).filter(Boolean).sort();
     if (dates.length) {
-      document.getElementById('az-f-start').value = dates[0];
+      const today = new Date();
+      const monthStart = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-01';
+      document.getElementById('az-f-start').value = dates[0] > monthStart ? dates[0] : monthStart;
       document.getElementById('az-f-end').value   = dates[dates.length - 1];
     }
   }
@@ -6677,10 +6684,11 @@ function renderHeatmap(rows) {
       if (!mat[y]) mat[y] = {};
       if (!mat[y][x]) mat[y][x] = {imp:0,clk:0,cost:0,conv:0,rows:[]};
       const c = mat[y][x];
-      c.imp  += Number(r[AZ.IMP])   || 0;
-      c.clk  += Number(r[AZ.CLICK]) || 0;
-      c.cost += Number(r[AZ.COST])  || 0;
-      c.conv += Number(r[AZ.CONV])  || 0;
+      // azNum()으로 통일(2026-07-28) — renderTrend와 같은 콤마 숫자 파싱 버그.
+      c.imp  += azNum(r[AZ.IMP]);
+      c.clk  += azNum(r[AZ.CLICK]);
+      c.cost += azNum(r[AZ.COST]);
+      c.conv += azNum(r[AZ.CONV]);
       c.rows.push(r);
     }));
   });
@@ -6871,10 +6879,13 @@ function renderTrend(rows) {
     const key = azPeriodKey(d, unit);
     if (!grouped[key]) grouped[key] = {imp:0,clk:0,cost:0,conv:0};
     const c = grouped[key];
-    c.imp  += Number(r[AZ.IMP])   || 0;
-    c.clk  += Number(r[AZ.CLICK]) || 0;
-    c.cost += Number(r[AZ.COST])  || 0;
-    c.conv += Number(r[AZ.CONV])  || 0;
+    // azNum()으로 통일(2026-07-28) — 매체 RAW 시트에 "1,234"처럼 천단위 콤마가 섞인 숫자가
+    // 있으면 plain Number()는 NaN→0이 되어, 이 행만 추이 차트에서 조용히 빠졌다(KPI 카드는
+    // azSum이 azNum을 써서 정상 집계되니 "다른 데선 맞는데 추이만 이상하다"로 보였다).
+    c.imp  += azNum(r[AZ.IMP]);
+    c.clk  += azNum(r[AZ.CLICK]);
+    c.cost += azNum(r[AZ.COST]);
+    c.conv += azNum(r[AZ.CONV]);
   });
 
   const entries = Object.entries(grouped).sort((a,b) => a[0].localeCompare(b[0]));
@@ -6930,22 +6941,39 @@ function azPeriodLabel(key, unit) {
 }
 
 // ── 11. 소재 생애주기 분석 ────────────────────────────────
+// (매체,캠페인,그룹,소재이름) 조합 키 — 소재이름만으로 묶으면 같은 이름이 서로 다른
+// 캠페인/그룹에서 재사용될 때(Code.gs saveCreative 주석: "같은 소재가 여러 캠페인/그룹에
+// 운영되는 경우") 전혀 다른 소재의 생애주기가 하나로 합쳐진다 — 새로 시작한 소재가 옛날
+// 이름을 재사용하면 첫 노출일이 옛날 소재 기준으로 잡혀 곧바로 "후기(교체 검토)"로
+// 잘못 분류되는 버그가 있었다(2026-07-28 확인).
+function azCreativeContextKey(r) {
+  return [String(r[AZ.MEDIA]||''), String(r[AZ.CAMPAIGN]||''), String(r[AZ.GROUP]||''), String(r[AZ.CREATIVE]||'').trim()].join('\x00');
+}
+
 function renderLifecycle(rows) {
-  // 소재이름 → RAW 데이터 내 첫 노출일 (마스터 시트 불필요)
+  // (매체,캠페인,그룹,소재이름) 조합별 첫 노출일
   const firstSeen = {};
   rows.forEach(r => {
     const name = String(r[AZ.CREATIVE]||'').trim();
     const d    = azDateStr(r[AZ.DATE]);
     if (!name || !d) return;
-    if (!firstSeen[name] || d < firstSeen[name]) firstSeen[name] = d;
+    const ctxKey = azCreativeContextKey(r);
+    if (!firstSeen[ctxKey] || d < firstSeen[ctxKey]) firstSeen[ctxKey] = d;
   });
 
   const today = new Date();
   today.setHours(0,0,0,0);
 
+  const grouped = {};
+  rows.forEach(r => {
+    const ctxKey = azCreativeContextKey(r);
+    (grouped[ctxKey] = grouped[ctxKey] || []).push(r);
+  });
+
   const phases = { 초기:[], 중기:[], 후기:[] };
-  Object.entries(azGroup(rows, AZ.CREATIVE)).forEach(([name, rs]) => {
-    const dStr = firstSeen[name];
+  Object.entries(grouped).forEach(([ctxKey, rs]) => {
+    const name = String(rs[0][AZ.CREATIVE]||'').trim();
+    const dStr = firstSeen[ctxKey];
     if (!dStr) return;
     const elapsed = Math.floor((today - new Date(dStr + 'T00:00:00')) / 86400000);
     const phase = elapsed <= 14 ? '초기' : elapsed <= 28 ? '중기' : '후기';
@@ -7045,9 +7073,47 @@ async function runAIInsight() {
     }).sort((a,b) => b.CTR - a.CTR);
   }
 
+  // 일자별 추이(2026-07-28) — 기존엔 선택 기간 전체를 합친 총합/평균만 넘겨서, AI가
+  // "최근 며칠 사이 CTR이 떨어지고 있다" 같은 추세를 전혀 반영할 수 없었다. 기간이 길면
+  // (45일 초과) 주 단위로 묶어 프롬프트 길이를 과도하게 늘리지 않는다.
+  function dailyTrend(rows) {
+    const byDate = {};
+    rows.forEach(r => {
+      const d = azDateStr(r[AZ.DATE]);
+      if (!d) return;
+      (byDate[d] = byDate[d] || []).push(r);
+    });
+    const dates = Object.keys(byDate).sort();
+    if (!dates.length) return [];
+
+    const spanDays = (new Date(dates[dates.length - 1]) - new Date(dates[0])) / 86400000;
+    const useWeekly = spanDays > 45;
+
+    function bucketKey(d) {
+      if (!useWeekly) return d;
+      const dt = new Date(d + 'T00:00:00');
+      const day = dt.getDay();
+      const diff = day === 0 ? -6 : 1 - day; // 그 주의 월요일
+      dt.setDate(dt.getDate() + diff);
+      return dt.toISOString().slice(0, 10) + '(주)';
+    }
+
+    const buckets = {};
+    dates.forEach(d => {
+      const key = bucketKey(d);
+      buckets[key] = (buckets[key] || []).concat(byDate[d]);
+    });
+
+    return Object.keys(buckets).sort().map(key => {
+      const k = azKPI(azSum(buckets[key]));
+      return { 날짜: key, 노출: Math.round(k.imp), 클릭: Math.round(k.clk), CTR: +k.ctr.toFixed(3), 비용: Math.round(k.cost), 전환: Math.round(k.conv), CVR: +k.cvr.toFixed(3), CPA: Math.round(k.cpa) };
+    });
+  }
+
   const agg = {
     기간:      { 시작: document.getElementById('az-f-start').value, 종료: document.getElementById('az-f-end').value },
     전체KPI:   (() => { const k=azKPI(azSum(rows)); return { 노출:Math.round(k.imp), 클릭:Math.round(k.clk), CTR:+k.ctr.toFixed(3), 비용:Math.round(k.cost), 전환:Math.round(k.conv), CVR:+k.cvr.toFixed(3), CPA:Math.round(k.cpa) }; })(),
+    일자별추이: dailyTrend(rows),
     소재유형별: dimSum(AZ.CRTYPE,    '소재유형'),
     소구포인트별: dimSum(AZ.APPEAL,  '소구포인트'),
     후킹방식별: dimSum(AZ.HOOK,      '후킹방식'),
