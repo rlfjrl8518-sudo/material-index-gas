@@ -57,8 +57,18 @@ const SAVED_REPORT_HEADERS = ['보고서ID', '보고서명', '설정JSON', '등�
 // --------------------------------------------------
 function doGet(e) {
   const unitCode = e && e.parameter && e.parameter.unit;
+  // 대시보드에서 번들 썸네일/아이콘을 클릭할 때, 소재_통합RAW에 박혀있는 unitCode가
+  // 이미 재구성으로 stale해졌을 수 있어 _media/_campaign/_group/_name도 같이 실어보낸다
+  // (getBundleData 주석 참고). 이게 없으면 bundleData가 null이 되어 번들 뷰 대신
+  // 기본 화면(소재등록)으로 떨어지는 버그가 있었다(2026-07-30).
+  const ctx = (e && e.parameter) ? {
+    매체:     e.parameter._media    || '',
+    캠페인:   e.parameter._campaign || '',
+    그룹:     e.parameter._group    || '',
+    소재이름: e.parameter._name     || ''
+  } : null;
   const template = HtmlService.createTemplateFromFile('Index');
-  template.bundleData = unitCode ? getBundleData(unitCode) : null;
+  template.bundleData = unitCode ? getBundleData(unitCode, ctx) : null;
   template.unitCode   = unitCode || '';
   return template.evaluate()
     .setTitle(unitCode ? '광고단위 소재' : '운영 소재 분석')
@@ -111,7 +121,7 @@ function testExternalFetch() {
 // 못 찾는 경우가 있었다(2026-07-30, "구글DA 소재 호버 시 데이터 없음" 버그). 이때 같은
 // (매체,캠페인,그룹,소재이름) 조합을 대신 찾는다 — azCreativeContextKey와 동일한 식별 기준.
 // --------------------------------------------------
-function getBundleData(unitCode, ctx) {
+function getBundleData(unitCode, ctx, opts) {
   const ss = getSpreadsheet();
   const dgpmSheet = ss.getSheetByName(DGPM_SHEET_NAME);
   if (!dgpmSheet || dgpmSheet.getLastRow() < 2) return null;
@@ -151,7 +161,12 @@ function getBundleData(unitCode, ctx) {
   // 분량) 여기서 직접 blob을 읽어 base64 data URI로 내려준다 — Drive에 별도 요청이
   // 전혀 필요 없어져 훨씬 안정적이다. 동영상(/preview URL)은 원래도 iframe 임베드라 대상
   // 아니고, blob 조회가 실패하면(권한 등) 기존 URL로 조용히 폴백한다.
-  images.forEach(img => {
+  //
+  // opts.skipDataUri: 소재명 호버 미리보기(azPreviewShow)는 이 dataUri를 전혀 쓰지 않고
+  // driveThumb() 핫링크로만 그리는데도, 예전엔 여기서 매번 이미지 전체를 Drive에서 읽어
+  // base64로 인코딩해놓고 그 결과를 그냥 버리고 있었다 — 호버가 느렸던 주 원인이었다
+  // (2026-07-30). 번들 전체보기(doGet)만 dataUri를 실제로 쓰므로 그때는 계속 계산한다.
+  if (!(opts && opts.skipDataUri)) images.forEach(img => {
     if (!img.url || img.url.indexOf('/preview') !== -1) return;
     try {
       const m = img.url.match(/[?&]id=([^&]+)/) || img.url.match(/\/d\/([^/?]+)/);
