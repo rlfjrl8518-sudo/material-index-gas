@@ -5924,7 +5924,12 @@ function renderRanking(rows) {
     const s = azSum(rs);
     const kk = azKPI(s);
     const url = (rs.find(r => r[AZ.IMGURL]) || {})[AZ.IMGURL] || '';
-    return { k, url, ...s, ...kk };
+    const ctx = rs[0] || [];
+    return {
+      k, url, ...s, ...kk,
+      media: String(ctx[AZ.MEDIA] || ''), campaign: String(ctx[AZ.CAMPAIGN] || ''),
+      group: String(ctx[AZ.GROUP] || ''), name: String(ctx[AZ.CREATIVE] || '').trim()
+    };
   }).filter(e => e.imp >= minImp && e.clk >= minClk);
 
   switch (azRankTab) {
@@ -5947,6 +5952,7 @@ function renderRanking(rows) {
       <td style="text-align:left">${azThumbCell(e.url, e.k)}</td>
       <td style="text-align:left;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:default"
           title="${esc(e.k)}" data-url="${esc(e.url)}"
+          data-media="${esc(e.media)}" data-campaign="${esc(e.campaign)}" data-group="${esc(e.group)}" data-name="${esc(e.name)}"
           onmouseenter="azPreviewShow(this,event)" onmousemove="azPreviewMove(event)" onmouseleave="azPreviewHide()"
         >${esc(e.k)}</td>
       <td>${azFmt(e.imp)}</td>
@@ -6085,7 +6091,12 @@ function renderThresholdAlerts(rows) {
   const entries = Object.entries(grouped).map(([k, rs]) => {
     const s = azSum(rs);
     const url = (rs.find(r => r[AZ.IMGURL]) || {})[AZ.IMGURL] || '';
-    return { k, url, ...azKPI(s) };
+    const ctx = rs[0] || [];
+    return {
+      k, url, ...azKPI(s),
+      media: String(ctx[AZ.MEDIA] || ''), campaign: String(ctx[AZ.CAMPAIGN] || ''),
+      group: String(ctx[AZ.GROUP] || ''), name: String(ctx[AZ.CREATIVE] || '').trim()
+    };
   }).filter(e => e.imp >= minImp);
 
   const failing = entries.filter(e => {
@@ -6106,6 +6117,7 @@ function renderThresholdAlerts(rows) {
     return `<div class="az-flag-row">
       <span class="az-flag-badge">미달</span>
       <span class="az-flag-name" title="${esc(e.k)}" data-url="${esc(e.url)}"
+            data-media="${esc(e.media)}" data-campaign="${esc(e.campaign)}" data-group="${esc(e.group)}" data-name="${esc(e.name)}"
             onmouseenter="azPreviewShow(this,event)" onmousemove="azPreviewMove(event)" onmouseleave="azPreviewHide()">${esc(e.k)}</span>
       <span class="az-flag-diff">${escHtml(reasons.join(' · '))}</span>
     </div>`;
@@ -6528,6 +6540,15 @@ function azPreviewShow(el, e) {
       popup.style.display = 'block';
       azPreviewMove(e);
 
+      // "광고단위 재구성" 이후 예전 unitCode가 더 이상 안 통할 수 있어(2026-07-30),
+      // 서버가 (매체,캠페인,그룹,소재이름)으로도 다시 찾을 수 있게 같이 보낸다.
+      const ctx = {
+        매체:     el.dataset.media    || '',
+        캠페인:   el.dataset.campaign || '',
+        그룹:     el.dataset.group    || '',
+        소재이름: el.dataset.name     || ''
+      };
+
       google.script.run
         .withSuccessHandler(data => {
           _azBundleCache[unitCode] = data;
@@ -6537,7 +6558,7 @@ function azPreviewShow(el, e) {
         .withFailureHandler(() => {
           content.innerHTML = '<div class="az-prev-loading" style="color:#f87171">로드 실패</div>';
         })
-        .getBundleData(unitCode);
+        .getBundleData(unitCode, ctx);
       return;
     }
   } else {
@@ -7042,7 +7063,10 @@ function renderLifecycle(rows) {
     const phase = elapsed <= 14 ? '초기' : elapsed <= 28 ? '중기' : '후기';
     const k = azKPI(azSum(rs));
     const url = (rs.find(r => r[AZ.IMGURL]) || {})[AZ.IMGURL] || '';
-    phases[phase].push({ name, elapsed, url, ...k });
+    const media = String(rs[0][AZ.MEDIA] || '');
+    const campaign = String(rs[0][AZ.CAMPAIGN] || '');
+    const group = String(rs[0][AZ.GROUP] || '');
+    phases[phase].push({ name, elapsed, url, media, campaign, group, ...k });
   });
 
   // 전체 평균 CPA 계산
@@ -7107,6 +7131,7 @@ function renderLifecycle(rows) {
         return `<div class="az-flag-row">
           <span class="az-flag-badge">후기 ${e.elapsed}일</span>
           <span class="az-flag-name" data-url="${esc(e.url)}"
+            data-media="${esc(e.media)}" data-campaign="${esc(e.campaign)}" data-group="${esc(e.group)}" data-name="${esc(e.name)}"
             onmouseenter="azPreviewShow(this,event)" onmousemove="azPreviewMove(event)" onmouseleave="azPreviewHide()"
             title="${esc(e.name)}">${esc(e.name)}</span>
           <span class="az-flag-cpa">${azWon(e.cpa)}</span>
