@@ -5949,7 +5949,7 @@ function renderRanking(rows) {
   tbody.innerHTML = top.map((e, i) => {
     return `<tr>
       <td style="color:var(--az-t4);text-align:left">${i+1}</td>
-      <td style="text-align:left">${azThumbCell(e.url, e.k)}</td>
+      <td style="text-align:left">${azThumbCell(e.url, e.name, e.media, e.campaign, e.group)}</td>
       <td style="text-align:left;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:default"
           title="${esc(e.k)}" data-url="${esc(e.url)}"
           data-media="${esc(e.media)}" data-campaign="${esc(e.campaign)}" data-group="${esc(e.group)}" data-name="${esc(e.name)}"
@@ -6558,7 +6558,9 @@ function azPreviewShow(el, e) {
         .withFailureHandler(() => {
           content.innerHTML = '<div class="az-prev-loading" style="color:#f87171">로드 실패</div>';
         })
-        .getBundleData(unitCode, ctx);
+        // 호버 미리보기는 dataUri를 쓰지 않으니(아래 _azBundlePreviewHtml 참고)
+        // 서버에서 이미지 base64 변환을 건너뛰게 해서 응답을 훨씬 빠르게 받는다.
+        .getBundleData(unitCode, ctx, { skipDataUri: true });
       return;
     }
   } else {
@@ -6677,7 +6679,22 @@ function azResolveBundleThumb(url, name) {
   return '';
 }
 
-function azThumbCell(url, name) {
+// 번들 URL(?unit=코드)에 폴백용 컨텍스트를 붙인다. 소재_통합RAW에 박혀있는 unitCode가
+// "광고단위 재구성"으로 stale해진 경우, doGet이 이 값으로 (매체,캠페인,그룹,소재이름)
+// 매칭을 시도할 수 있게 한다 — 안 그러면 번들 뷰 대신 기본 화면(소재등록)으로 떨어졌다
+// (2026-07-30, getBundleData/doGet 주석 참고).
+function azBundleOpenUrl(url, media, campaign, group, name) {
+  if (!/[?&]unit=/.test(url)) return url;
+  const qs = ['_media', '_campaign', '_group', '_name']
+    .map((k, i) => [k, [media, campaign, group, name][i]])
+    .filter(([, v]) => v)
+    .map(([k, v]) => k + '=' + encodeURIComponent(v))
+    .join('&');
+  if (!qs) return url;
+  return url + (url.indexOf('?') === -1 ? '?' : '&') + qs;
+}
+
+function azThumbCell(url, name, media, campaign, group) {
   const base = 'width:40px;height:40px;border-radius:4px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;flex-shrink:0;';
   if (!url) {
     return `<div style="${base}background:var(--az-surf2);color:var(--az-t4)">🖼</div>`;
@@ -6685,11 +6702,12 @@ function azThumbCell(url, name) {
   // 번들 URL (디멘드젠/피맥스): ?unit= 패턴 — 대표 이미지를 찾을 수 있으면
   // 그 썸네일을 보여주고(클릭하면 번들 전체 보기), 못 찾으면 기존처럼 📦 아이콘만 표시
   if (/[?&]unit=/.test(url)) {
+    const openUrl = azBundleOpenUrl(url, media, campaign, group, name);
     const repUrl = azResolveBundleThumb(url, name);
     if (repUrl) {
       const thumbSrc = driveThumb(repUrl);
       return `<div style="position:relative;width:40px;height:40px;flex-shrink:0">
-        <img src="${thumbSrc}" data-url="${esc(url)}"
+        <img src="${thumbSrc}" data-url="${esc(openUrl)}"
           style="width:40px;height:40px;object-fit:cover;border-radius:4px;cursor:pointer;border:1px solid var(--az-bd2)"
           onclick="window.open(this.dataset.url,'_blank')" title="대표 이미지 · 클릭하면 번들 전체 보기"
           onerror="azImgFail(this)">
@@ -6697,7 +6715,7 @@ function azThumbCell(url, name) {
           border-radius:50%;width:14px;height:14px;display:flex;align-items:center;justify-content:center;">📦</span>
       </div>`;
     }
-    return `<div onclick="window.open('${esc(url)}','_blank')" title="번들 보기 (클릭)" style="${base}background:#4f6ef722;color:#4f6ef7;border:1px solid #4f6ef744;font-size:14px">📦</div>`;
+    return `<div onclick="window.open('${esc(openUrl)}','_blank')" title="번들 보기 (클릭)" style="${base}background:#4f6ef722;color:#4f6ef7;border:1px solid #4f6ef744;font-size:14px">📦</div>`;
   }
   const thumbSrc = driveThumb(url);
   return `<img src="${thumbSrc}" data-url="${esc(url)}"
@@ -6863,7 +6881,10 @@ function azRenderDrillModal(title, matchedRows) {
     grouped[name].rs.push(r);
   });
   const entries = Object.values(grouped)
-    .map(g => ({ name: g.name, url: g.url, ...azKPI(azSum(g.rs)) }))
+    .map(g => ({
+      name: g.name, url: g.url, ...azKPI(azSum(g.rs)),
+      media: String(g.rs[0][AZ.MEDIA] || ''), campaign: String(g.rs[0][AZ.CAMPAIGN] || ''), group: String(g.rs[0][AZ.GROUP] || '')
+    }))
     .sort((a, b) => b.imp - a.imp);
 
   ensureAzDrillModal();
@@ -6874,7 +6895,7 @@ function azRenderDrillModal(title, matchedRows) {
          <th style="text-align:left;width:50px">이미지</th><th style="text-align:left">소재이름</th>
          <th>노출</th><th>클릭</th><th>CTR</th><th>비용</th><th>전환</th><th>CVR</th><th>CPA</th>
        </tr></thead><tbody>${entries.map(e => `<tr>
-         <td style="text-align:left">${azThumbCell(e.url, e.name)}</td>
+         <td style="text-align:left">${azThumbCell(e.url, e.name, e.media, e.campaign, e.group)}</td>
          <td style="text-align:left">${escHtml(e.name)}</td>
          <td>${azFmt(e.imp)}</td><td>${azFmt(e.clk)}</td><td>${azPct(e.ctr)}</td>
          <td>${azWon(e.cost)}</td><td>${azFmt(e.conv)}</td><td>${azPct(e.cvr)}</td><td>${azWon(e.cpa)}</td>
