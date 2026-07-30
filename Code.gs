@@ -104,14 +104,28 @@ function testExternalFetch() {
 
 // --------------------------------------------------
 // 번들 뷰용 광고단위 데이터 조회
+//
+// ctx(선택): {매체, 캠페인, 그룹, 소재이름} — unitCode로 못 찾을 때의 폴백 매칭용.
+// "광고단위 재구성"을 실행하면 예전엔 코드가 전부 새로 발급됐는데, 소재_통합RAW의
+// 이미지URL(?unit=코드)은 append-only라 예전 코드가 그대로 남아있어 더 이상 코드만으로는
+// 못 찾는 경우가 있었다(2026-07-30, "구글DA 소재 호버 시 데이터 없음" 버그). 이때 같은
+// (매체,캠페인,그룹,소재이름) 조합을 대신 찾는다 — azCreativeContextKey와 동일한 식별 기준.
 // --------------------------------------------------
-function getBundleData(unitCode) {
+function getBundleData(unitCode, ctx) {
   const ss = getSpreadsheet();
   const dgpmSheet = ss.getSheetByName(DGPM_SHEET_NAME);
   if (!dgpmSheet || dgpmSheet.getLastRow() < 2) return null;
 
   const rows = dgpmSheet.getRange(2, 1, dgpmSheet.getLastRow() - 1, DGPM_HEADERS.length).getValues();
-  const unitRow = rows.find(r => String(r[DGPM_COL['광고단위코드']]) === unitCode);
+  let unitRow = rows.find(r => String(r[DGPM_COL['광고단위코드']]) === unitCode);
+  if (!unitRow && ctx && ctx.매체 && ctx.캠페인 && ctx.그룹 && ctx.소재이름) {
+    unitRow = rows.find(r =>
+      String(r[DGPM_COL['매체']])     === ctx.매체     &&
+      String(r[DGPM_COL['캠페인']])   === ctx.캠페인   &&
+      String(r[DGPM_COL['그룹']])     === ctx.그룹     &&
+      String(r[DGPM_COL['소재이름']]) === ctx.소재이름
+    );
+  }
   if (!unitRow) return null;
 
   const imageCodes = _splitList(unitRow[DGPM_COL['이미지코드목록']]);
@@ -821,6 +835,20 @@ function rebuildDGPMUnits() {
 
     // DG_PM_광고단위 시트 초기화 후 재작성
     let dgpmSheet = ss.getSheetByName(DGPM_SHEET_NAME);
+
+    // 지우기 전에 기존 (매체,캠페인,그룹,소재이름) → 광고단위코드 매핑을 저장해둔다.
+    // 소재_통합RAW의 이미지URL(?unit=코드)은 append-only라 예전 코드가 그대로 남아있는데,
+    // 재구성 때마다 코드를 새로 발급하면 그 링크가 전부 끊긴다(2026-07-30 실제 발생 —
+    // "구글DA 소재 호버 시 데이터 없음"). 이미 있던 그룹은 코드를 그대로 유지한다.
+    const existingCodeMap = {};
+    if (dgpmSheet && dgpmSheet.getLastRow() >= 2) {
+      dgpmSheet.getRange(2, 1, dgpmSheet.getLastRow() - 1, DGPM_HEADERS.length).getValues().forEach(r => {
+        const key  = [r[DGPM_COL['매체']], r[DGPM_COL['캠페인']], r[DGPM_COL['그룹']], r[DGPM_COL['소재이름']]].join('\x00');
+        const code = String(r[DGPM_COL['광고단위코드']] || '');
+        if (code && !existingCodeMap[key]) existingCodeMap[key] = code;
+      });
+    }
+
     if (!dgpmSheet) {
       dgpmSheet = ss.insertSheet(DGPM_SHEET_NAME);
     } else {
@@ -834,7 +862,7 @@ function rebuildDGPMUnits() {
     const now = new Date();
     orderMap.forEach(key => {
       const g = groupMap[key];
-      const unitCode = _generateDGPMCode(g.매체, dgpmSheet);
+      const unitCode = existingCodeMap[key] || _generateDGPMCode(g.매체, dgpmSheet);
       const newRow = new Array(DGPM_HEADERS.length).fill('');
       newRow[DGPM_COL['광고단위코드']]   = unitCode;
       newRow[DGPM_COL['등록일시']]       = g.firstDate || now;
