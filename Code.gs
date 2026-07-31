@@ -1297,6 +1297,54 @@ function getOpenAIChatReply(messages) {
   }
 }
 
+// RAW_ 소스 시트마다 내보내는 방식이 달라(구글 광고 UI 직접 붙여넣기 vs 다른 도구 export
+// 등) 같은 날짜·숫자도 표현이 다를 수 있다 — 일(B)이 Date 객체/"2026-07-30"/"2026.7.30"/
+// 시리얼 넘버로 제각각 들어오거나, 비용 등 숫자 컬럼이 "1,234" 텍스트로 들어오는 식.
+// 이 차이를 그대로 두면 중복 체크 키(_rowKey)가 문자열 비교라 실제로는 같은 날짜인데
+// 다른 값으로 찍혀 중복 행이 쌓이고, 그 행의 비용·전환이 겹쳐 합산돼 CPA가 실제보다
+// 크게(또는 작게) 집계되는 원인이 된다. 적재 시점에 정규화해서 통일된 형식으로 저장한다
+// (2026-07-31, "구글DA 랭킹 CPA가 비정상적으로 높게 나온다" 문의 확인 중 발견).
+function _normDate(val) {
+  if (val instanceof Date) return val;
+  if (typeof val === 'number') return new Date(Math.round((val - 25569) * 86400000));
+  const s = String(val || '').trim();
+  const m = s.match(/^(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const m2 = s.match(/^(\d{4})(\d{2})(\d{2})/);
+  if (m2) return new Date(Number(m2[1]), Number(m2[2]) - 1, Number(m2[3]));
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? s : d;
+}
+
+function _normNum(val) {
+  if (typeof val === 'number') return val;
+  const n = Number(String(val || '').replace(/[,\s]/g, ''));
+  return isNaN(n) ? val : n;
+}
+
+// 일(B)·숫자 컬럼(노출수/클릭수/비용/전환, O/P/R/S)·주요 텍스트 필드의 형식을 통일한다.
+// row는 RAW_ 시트에서 읽은 21열(A~U) 원본 행.
+function _normalizeRawRow(row) {
+  const out = row.slice();
+  [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].forEach(i => {
+    if (typeof out[i] === 'string') out[i] = out[i].trim();
+  });
+  out[1] = _normDate(out[1]);
+  [14, 15, 17, 18].forEach(i => { out[i] = _normNum(out[i]); });
+  return out;
+}
+
+// 중복 체크 키: 일(정규화된 날짜 문자열) + 매체 + 캠페인 + 광고그룹 + 소재이름
+// → 같은 소재가 여러 캠페인/그룹에 운영되는 경우에도 행별로 구분
+function _rowKey(row) {
+  const d = _normDate(row[1]);
+  const dateStr = (d instanceof Date && !isNaN(d.getTime()))
+    ? Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd')
+    : String(row[1] || '').trim();
+  return [dateStr, String(row[0] || '').trim(), String(row[2] || '').trim(),
+          String(row[3] || '').trim(), String(row[4] || '').trim()].join('\x00');
+}
+
 // --------------------------------------------------
 // 통합 적재
 // RAW_ 로 시작하는 모든 시트의 A~U열 데이터를 소재_통합RAW에 병합
@@ -1316,14 +1364,11 @@ function consolidateRawData() {
       targetSheet.setFrozenRows(1);
     }
 
-    // 기존 데이터로 중복 체크 Set 구성
-    // 키: 일(1) + 매체(0) + 캠페인(2) + 광고그룹(3) + 소재이름(4)
+    // 기존 데이터로 중복 체크 Set 구성 (날짜 등 표현 차이를 흡수하도록 _rowKey로 정규화)
     const existingSet = new Set();
     if (targetSheet.getLastRow() >= 2) {
       targetSheet.getRange(2, 1, targetSheet.getLastRow() - 1, 5).getValues()
-        .forEach(r => existingSet.add(
-          [String(r[1]), String(r[0]), String(r[2]), String(r[3]), String(r[4])].join('\x00')
-        ));
+        .forEach(r => existingSet.add(_rowKey(r)));
     }
 
     // RAW_ 로 시작하는 모든 소스 시트 수집
@@ -1337,10 +1382,11 @@ function consolidateRawData() {
       data.forEach(row => {
         // 매체(A) 또는 소재이름(E) 중 하나라도 없으면 불완전한 행으로 스킵
         if (!row[0] || !row[4]) return;
-        const key = [String(row[1]), String(row[0]), String(row[2]), String(row[3]), String(row[4])].join('\x00');
+        const normalized = _normalizeRawRow(row);
+        const key = _rowKey(normalized);
         if (existingSet.has(key)) return;
         existingSet.add(key);
-        rowsToAppend.push(row);
+        rowsToAppend.push(normalized);
       });
     });
 
