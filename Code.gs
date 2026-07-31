@@ -98,9 +98,51 @@ function onOpen() {
     .addItem('📊 대시보드 열기', 'openDashboard')
     .addSeparator()
     .addItem('통합 적재', 'consolidateRawData')
+    .addItem('중복 행 정리', 'dedupeConsolidatedRaw')
     .addSeparator()
     .addItem('시트 초기화', 'initializeSheets')
     .addToUi();
+}
+
+// consolidateRawData의 서식 정규화 수정(2026-07-31)은 "앞으로의" 중복 적재만 막을 뿐,
+// 그 전에 이미 소재_통합RAW에 들어간 중복 행(같은 매체·일·캠페인·광고그룹·소재이름 조합이
+// 여러 번 적재된 경우 — RAW_디멘드젠 등에서 같은 날짜가 서로 다른 두 번의 적재 작업에
+// 걸쳐 중복 적재된 사례를 확인함)은 그대로 남아있어 비용·전환이 겹쳐 합산되고 CPA가
+// 실제보다 훨씬 높게 나오는 원인이 된다. 중복 그룹에서는 노출수가 더 큰(=더 완전한
+// 스냅샷일 가능성이 높은) 행만 남기고 나머지는 지운다.
+function dedupeConsolidatedRaw() {
+  try {
+    const ss = getSpreadsheet();
+    const sheet = ss.getSheetByName(CONSOLIDATED_RAW_SHEET_NAME);
+    if (!sheet || sheet.getLastRow() < 2) {
+      SpreadsheetApp.getUi().alert('정리할 데이터가 없습니다.');
+      return { success: true, removed: 0 };
+    }
+
+    const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 21).getValues();
+
+    const bestByKey = {}; // key -> { row, imp }
+    rows.forEach(row => {
+      const key = _rowKey(row);
+      const imp = Number(row[14]) || 0; // 노출수
+      const cur = bestByKey[key];
+      if (!cur || imp > cur.imp) bestByKey[key] = { row, imp };
+    });
+
+    const deduped = Object.values(bestByKey).map(v => v.row);
+    const removed = rows.length - deduped.length;
+
+    if (removed > 0) {
+      sheet.getRange(2, 1, rows.length, 21).clearContent();
+      sheet.getRange(2, 1, deduped.length, 21).setValues(deduped);
+    }
+
+    SpreadsheetApp.getUi().alert(`중복 ${removed}건 제거 완료 (${rows.length}건 → ${deduped.length}건)`);
+    return { success: true, removed, before: rows.length, after: deduped.length };
+  } catch (e) {
+    SpreadsheetApp.getUi().alert('오류: ' + e.message);
+    return { error: true, message: e.message };
+  }
 }
 
 // --------------------------------------------------
