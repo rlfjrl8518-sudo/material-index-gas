@@ -4095,7 +4095,10 @@ function driveThumbnail(url) {
 
   if (!url) return '';
 
-  const m = url.match(/[?&]id=([^&]+)/);
+  // 영상 파일은 보통 공유 링크가 "/d/파일ID/" 형식이라 "?id=" 패턴만 보던
+  // 예전 정규식으로는 매칭이 안 돼 썸네일이 비어 있었다(2026-07-31 확인,
+  // driveThumb()는 이미 두 패턴을 다 처리하고 있어 여기도 맞춤).
+  const m = url.match(/[?&]id=([^&]+)/) || url.match(/\/d\/([^/?]+)/);
 
   return m ? 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w200' : url;
 
