@@ -1109,6 +1109,13 @@ function getAllDataSince(sinceLastRow) {
   const sheet = ss.getSheetByName(CONSOLIDATED_RAW_SHEET_NAME);
   if (!sheet) return { rows: [], lastRow: 0 };
   const lastRow = sheet.getLastRow();
+  // 시트 행 수가 클라이언트가 마지막으로 알고 있던 값보다 줄었다는 건 중간에 행이
+  // 삭제됐다는 뜻이다 — "이후 늘어난 만큼만" 델타 로직은 append-only를 전제하므로
+  // 이 경우 새로 쌓인 데이터가 있어도 조용히 빈 델타를 반환해 대시보드가 오래된
+  // 캐시에 영구히 멈춰버린다(2026-07-31, 디멘드젠 데이터 삭제 후 새로 적재한 피맥스
+  // 데이터가 대시보드에 하나도 안 보이는 문제로 확인). 이 경우를 명시적으로 알려서
+  // 클라이언트가 캐시를 버리고 전체를 다시 받도록 한다.
+  if (lastRow < sinceLastRow) return { rows: [], lastRow, invalidated: true };
   if (lastRow < 2 || lastRow <= sinceLastRow) return { rows: [], lastRow: Math.max(lastRow, 0) };
 
   const startRow = Math.max(sinceLastRow + 1, 2); // 1행은 헤더라 항상 건너뜀
