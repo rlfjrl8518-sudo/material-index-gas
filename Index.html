@@ -631,6 +631,28 @@
   .ab-status-running { background: #dbeafe; color: #1e40af; }
   .ab-status-done    { background: #f3f4f6; color: #6b7280; }
 
+  /* AB 테스트 소탭 (소재 / 타겟팅) */
+  .ab-sub-tabs {
+    display: flex; gap: 4px; margin-bottom: 18px;
+    background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 9px; padding: 4px;
+  }
+  .ab-sub-tab {
+    flex: 1; padding: 8px 10px; font-size: 13px; font-weight: 700;
+    color: #6b7280; border: none; background: none; border-radius: 6px;
+    cursor: pointer; transition: all .15s;
+  }
+  .ab-sub-tab.active { background: #fff; color: #1a1a2e; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+  .ab-sub-tab:hover:not(.active) { color: #1a1a2e; }
+  .ab-sub-panel { display: none; }
+  .ab-sub-panel.active { display: block; }
+
+  /* 타겟팅 AB 테스트 슬롯 (매체/캠페인/그룹 + 메모) */
+  .tab-slot-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 6px 0 16px; }
+  .tab-slot { border: 2px solid #e5e7eb; border-radius: 10px; padding: 10px; background: #fff; position: relative; }
+  .tab-slot select { margin-top: 6px; }
+  .tab-slot select:first-of-type { margin-top: 22px; }
+  .tab-slot textarea { margin-top: 6px; resize: vertical; }
+
   .ab-form-card, .ab-detail {
     border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px 22px; margin-bottom: 24px;
     background: #fafbff;
@@ -639,7 +661,10 @@
   .ab-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
   .ab-form-grid .form-group.full { grid-column: 1 / -1; }
 
-  .ab-slot-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 6px 0 16px; }
+  /* 슬롯 개수가 적을 때(2개) 1fr 트랙이 패널 폭 전체로 늘어나면서 썸네일이
+     원본(w400) 해상도보다 훨씬 크게 확대 표시돼 화질이 깨지던 문제가 있었다
+     — 트랙 최대폭을 200px로 고정해 슬롯이 몇 개든 카드 크기가 일정하게 유지된다. */
+  .ab-slot-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 200px)); gap: 12px; margin: 6px 0 16px; }
   .ab-slot {
     border: 2px dashed #d1d5db; border-radius: 10px; overflow: hidden;
     cursor: pointer; background: #fff; min-height: 150px;
@@ -798,7 +823,10 @@
 
   .img-picker-grid {
 
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px;
+    /* 검색 결과가 몇 개 안 남으면 1fr 트랙이 모달 폭 전체로 늘어나 썸네일이
+       원본 해상도(w200)보다 훨씬 크게 확대돼 화질이 깨져 보이던 문제 — 트랙
+       최대폭을 160px로 고정해 결과 개수와 무관하게 카드 크기를 일정하게 유지한다. */
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 160px)); gap: 12px;
 
   }
 
@@ -2364,6 +2392,18 @@
 
   <div class="ab-header">
     <h2>🧪 AB 테스트</h2>
+  </div>
+
+  <div class="ab-sub-tabs">
+    <button class="ab-sub-tab active" onclick="switchABSubTab('creative', this)">🎨 소재</button>
+    <button class="ab-sub-tab" onclick="switchABSubTab('targeting', this)">🎯 타겟팅</button>
+  </div>
+
+  <!-- ============ 소재 AB 테스트 ============ -->
+  <div class="ab-sub-panel active" id="ab-sub-creative">
+
+  <div class="ab-header">
+    <div></div>
     <button class="btn btn-primary" onclick="openABForm()">+ 새 테스트</button>
   </div>
 
@@ -2471,6 +2511,87 @@
     <textarea class="form-control" id="ab-f-conclusion" rows="3" placeholder="테스트 결과와 다음 액션을 기록하세요"></textarea>
     <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="saveABConclusion()">메모 저장</button>
   </div>
+
+  </div><!-- /#ab-sub-creative -->
+
+  <!-- ============ 타겟팅 AB 테스트 ============ -->
+  <div class="ab-sub-panel" id="ab-sub-targeting">
+
+  <div class="ab-header">
+    <div></div>
+    <button class="btn btn-primary" onclick="openTargetingABForm()">+ 새 테스트</button>
+  </div>
+
+  <div id="tab-list" class="ab-list">
+    <div class="ab-empty">불러오는 중...</div>
+  </div>
+
+  <!-- 생성/수정 폼 -->
+  <div id="tab-form-card" class="ab-form-card" style="display:none">
+    <div class="ab-form-title" id="tab-form-title">새 타겟팅 테스트</div>
+
+    <div class="ab-form-grid">
+      <div class="form-group full">
+        <label>테스트명 <span class="req">*</span></label>
+        <input class="form-control" type="text" id="tab-f-name" placeholder="예: 캠페인 타겟 비교">
+      </div>
+      <div class="form-group full">
+        <label>가설</label>
+        <input class="form-control" type="text" id="tab-f-hypothesis" placeholder="예: B그룹의 3040 타겟이 CPA가 더 낮을 것이다">
+      </div>
+      <div class="form-group">
+        <label>시작일 <span class="req">*</span></label>
+        <input class="form-control" type="date" id="tab-f-start">
+      </div>
+      <div class="form-group">
+        <label>종료일 <span class="req">*</span></label>
+        <input class="form-control" type="date" id="tab-f-end">
+      </div>
+    </div>
+
+    <label style="font-size:12px;font-weight:500;color:#374151;">비교할 타겟팅 (2~4개 — 매체·캠페인·그룹으로 지정, 그 안의 소재 실적 전체를 합산해 비교합니다)</label>
+    <div class="tab-slot-grid" id="tab-slot-grid"></div>
+    <button class="btn btn-ghost btn-sm" id="tab-add-slot-btn" onclick="targetingAddSlot()">+ 타겟팅 추가</button>
+
+    <hr class="divider">
+
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="btn btn-primary" id="tab-save-btn" onclick="saveTargetingABTestForm()">
+        <div class="spinner" id="tab-form-spinner"></div>
+        <span>저장</span>
+      </button>
+      <button class="btn btn-ghost" onclick="closeTargetingABForm()">취소</button>
+      <span id="tab-form-msg" style="font-size:12px;color:#ef4444;"></span>
+    </div>
+  </div>
+
+  <!-- 상세 비교 뷰 -->
+  <div id="tab-detail" class="ab-detail" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:12px;">
+      <div style="min-width:0">
+        <div class="ab-form-title" id="tab-detail-title" style="margin-bottom:2px;"></div>
+        <div style="font-size:12px;color:#9ca3af" id="tab-detail-meta"></div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0;">
+        <button class="btn btn-ghost btn-sm" onclick="openTargetingABForm(tabCurrentDetailId)">수정</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteTargetingABTestConfirm(tabCurrentDetailId)">삭제</button>
+        <button class="btn btn-ghost btn-sm" onclick="closeTargetingABDetail()">닫기</button>
+      </div>
+    </div>
+    <div id="tab-detail-hypothesis" style="font-size:13px;color:#374151;margin-bottom:14px;"></div>
+
+    <div class="ab-compare-table-wrap">
+      <table class="ab-compare-table" id="tab-compare-table"></table>
+    </div>
+
+    <hr class="divider">
+
+    <label style="font-size:12px;font-weight:500;color:#374151;">결론 / 회고 메모</label>
+    <textarea class="form-control" id="tab-f-conclusion" rows="3" placeholder="테스트 결과와 다음 액션을 기록하세요"></textarea>
+    <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="saveTargetingABConclusion()">메모 저장</button>
+  </div>
+
+  </div><!-- /#ab-sub-targeting -->
 
 </div><!-- /#panel-abtest -->
 
@@ -4093,7 +4214,7 @@ function filterImagePicker() {
 
 
 
-function driveThumbnail(url) {
+function driveThumbnail(url, size) {
 
   if (!url) return '';
 
@@ -4102,7 +4223,7 @@ function driveThumbnail(url) {
   // driveThumb()는 이미 두 패턴을 다 처리하고 있어 여기도 맞춤).
   const m = url.match(/[?&]id=([^&]+)/) || url.match(/\/d\/([^/?]+)/);
 
-  return m ? 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w200' : url;
+  return m ? 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w' + (size || 200) : url;
 
 }
 
@@ -8268,7 +8389,17 @@ function abResetScopeCascade(ids) {
 function onABTabActivate() {
   closeABForm();
   closeABDetail();
+  closeTargetingABForm();
+  closeTargetingABDetail();
   loadABList();
+  loadTargetingABList();
+}
+
+function switchABSubTab(tabId, btn) {
+  document.querySelectorAll('.ab-sub-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.ab-sub-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('ab-sub-' + tabId).classList.add('active');
+  btn.classList.add('active');
 }
 
 async function loadABList() {
@@ -8374,7 +8505,7 @@ function renderABSlots() {
       const isVid = s.code.startsWith('VID');
       const thumb = isVid
         ? '<div class="ab-slot-thumb-fallback" style="display:flex">▶</div>'
-        : `<img class="ab-slot-thumb" src="${esc(driveThumbnail(s.url))}"
+        : `<img class="ab-slot-thumb" src="${esc(driveThumbnail(s.url, 400))}"
              onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
            <div class="ab-slot-thumb-fallback">🖼️</div>`;
       return `<div class="ab-slot filled">
@@ -8796,6 +8927,315 @@ async function deleteABTestConfirm(testId) {
     if (res.error) { alert(res.message); return; }
     closeABDetail();
     await loadABList();
+  } catch (err) {
+    alert('삭제 실패: ' + (err.message || String(err)));
+  }
+}
+
+// ============================================================
+// 타겟팅 AB 테스트 — 소재가 아니라 (매체·캠페인·그룹) 단위로 비교한다.
+// 소재 AB테스트와 같은 카드 목록/폼/상세 패턴을 그대로 따르되, 소재 피커
+// 대신 슬롯마다 매체→캠페인→그룹 캐스케이드 셀렉트 + 메모 입력란을 둔다.
+// ============================================================
+let targetingTestsCache = [];
+let targetingSlots      = [{매체:'',캠페인:'',그룹:'',메모:''}, {매체:'',캠페인:'',그룹:'',메모:''}];
+let tabEditingId         = null;
+let tabCurrentDetailId   = null;
+
+async function loadTargetingABList() {
+  const listEl = document.getElementById('tab-list');
+  listEl.innerHTML = '<div class="ab-empty">불러오는 중...</div>';
+  try {
+    targetingTestsCache = await gasRun('getTargetingABTests');
+    renderTargetingABList();
+  } catch (err) {
+    listEl.innerHTML = `<div class="ab-empty" style="color:#ef4444">로드 실패: ${esc(String(err.message||err))}</div>`;
+  }
+}
+
+function renderTargetingABList() {
+  const listEl = document.getElementById('tab-list');
+  if (!targetingTestsCache.length) {
+    listEl.innerHTML = '<div class="ab-empty">아직 등록된 타겟팅 테스트가 없습니다. "+ 새 테스트"로 시작해 보세요.</div>';
+    return;
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  listEl.innerHTML = targetingTestsCache.map(t => {
+    const running = t.종료일 && t.종료일 >= today;
+    const badge = running
+      ? '<span class="ab-status-badge ab-status-running">진행중</span>'
+      : '<span class="ab-status-badge ab-status-done">종료</span>';
+    const period = [t.시작일, t.종료일].filter(Boolean).join(' ~ ') || '기간 미지정';
+    const metaParts = [period, `타겟팅 ${t.슬롯.length}개`].filter(Boolean);
+    return `<div class="ab-card" onclick="viewTargetingABDetail('${t.테스트ID}')">
+      <div class="ab-card-main">
+        <div class="ab-card-title">${escHtml(t.테스트명)} ${badge}</div>
+        <div class="ab-card-meta">${escHtml(metaParts.join(' · '))}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function openTargetingABForm(testId) {
+  document.getElementById('tab-detail').style.display = 'none';
+  const card = document.getElementById('tab-form-card');
+  card.style.display = 'block';
+  document.getElementById('tab-form-msg').textContent = '';
+
+  const existing = testId ? targetingTestsCache.find(t => t.테스트ID === testId) : null;
+  tabEditingId = existing ? existing.테스트ID : null;
+  document.getElementById('tab-form-title').textContent = existing ? '테스트 수정' : '새 타겟팅 테스트';
+
+  document.getElementById('tab-f-name').value       = existing ? existing.테스트명 : '';
+  document.getElementById('tab-f-hypothesis').value = existing ? existing.가설     : '';
+  document.getElementById('tab-f-start').value      = existing ? existing.시작일   : '';
+  document.getElementById('tab-f-end').value        = existing ? existing.종료일   : '';
+
+  await loadABScopeCombos(); // 소재 AB테스트의 매체/캠페인/그룹 조합 캐시를 그대로 재사용
+
+  targetingSlots = (existing && existing.슬롯.length)
+    ? existing.슬롯.map(s => ({ 매체: s.매체 || '', 캠페인: s.캠페인 || '', 그룹: s.그룹 || '', 메모: s.메모 || '' }))
+    : [{매체:'',캠페인:'',그룹:'',메모:''}, {매체:'',캠페인:'',그룹:'',메모:''}];
+  renderTargetingSlots();
+
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function closeTargetingABForm() {
+  const card = document.getElementById('tab-form-card');
+  if (card) card.style.display = 'none';
+  tabEditingId = null;
+}
+
+// 슬롯 카드 하나 = 매체→캠페인→그룹 캐스케이드 셀렉트 + 메모. abScopeCombos(소재
+// AB테스트와 공유하는 실적 기반 조합 캐시)에서 실제로 데이터가 있는 조합만 고를 수 있다.
+function renderTargetingSlots() {
+  const grid = document.getElementById('tab-slot-grid');
+  grid.innerHTML = targetingSlots.map((s, i) => {
+    const label = String.fromCharCode(65 + i);
+    const mediaOptions    = unique(abScopeCombos.map(c => c.매체)).sort();
+    const campaignOptions = s.매체
+      ? unique(abScopeCombos.filter(c => c.매체 === s.매체).map(c => c.캠페인)).sort()
+      : [];
+    const groupOptions = (s.매체 && s.캠페인)
+      ? unique(abScopeCombos.filter(c => c.매체 === s.매체 && c.캠페인 === s.캠페인).map(c => c.그룹)).sort()
+      : [];
+    const opt = (values, val, placeholder) =>
+      `<option value="">${placeholder}</option>` +
+      values.map(v => `<option value="${escHtml(v)}" ${v === val ? 'selected' : ''}>${escHtml(v)}</option>`).join('');
+
+    return `<div class="tab-slot">
+      <span class="ab-slot-label">${label}</span>
+      ${targetingSlots.length > 2 ? `<button class="ab-slot-remove" onclick="targetingRemoveSlot(${i})">&times;</button>` : ''}
+      <select class="form-control" onchange="targetingSlotMediaChange(${i}, this.value)">
+        ${opt(mediaOptions, s.매체, '매체 선택')}
+      </select>
+      <select class="form-control" onchange="targetingSlotCampaignChange(${i}, this.value)" ${!s.매체 ? 'disabled' : ''}>
+        ${opt(campaignOptions, s.캠페인, s.매체 ? '캠페인 선택' : '매체 선택 후')}
+      </select>
+      <select class="form-control" onchange="targetingSlotGroupChange(${i}, this.value)" ${!s.캠페인 ? 'disabled' : ''}>
+        ${opt(groupOptions, s.그룹, s.캠페인 ? '그룹 선택' : '캠페인 선택 후')}
+      </select>
+      <textarea class="form-control" rows="2" placeholder="이 타겟팅 메모 (예: 30-40대 여성, 관심사 타겟)"
+        oninput="targetingSlotMemoChange(${i}, this.value)">${escHtml(s.메모)}</textarea>
+    </div>`;
+  }).join('');
+
+  document.getElementById('tab-add-slot-btn').style.display = targetingSlots.length >= 4 ? 'none' : 'inline-flex';
+}
+
+function targetingSlotMediaChange(i, val) {
+  targetingSlots[i] = { 매체: val, 캠페인: '', 그룹: '', 메모: targetingSlots[i].메모 };
+  renderTargetingSlots();
+}
+function targetingSlotCampaignChange(i, val) {
+  targetingSlots[i] = { ...targetingSlots[i], 캠페인: val, 그룹: '' };
+  renderTargetingSlots();
+}
+function targetingSlotGroupChange(i, val) {
+  targetingSlots[i] = { ...targetingSlots[i], 그룹: val };
+  renderTargetingSlots();
+}
+// 메모는 입력 중 다시 그리면(렌더) 포커스가 끊기므로 상태만 갱신하고 DOM은 건드리지 않는다.
+function targetingSlotMemoChange(i, val) {
+  targetingSlots[i] = { ...targetingSlots[i], 메모: val };
+}
+
+function targetingAddSlot() {
+  if (targetingSlots.length >= 4) return;
+  targetingSlots.push({매체:'',캠페인:'',그룹:'',메모:''});
+  renderTargetingSlots();
+}
+function targetingRemoveSlot(i) {
+  if (targetingSlots.length > 2) targetingSlots.splice(i, 1);
+  else targetingSlots[i] = {매체:'',캠페인:'',그룹:'',메모:''};
+  renderTargetingSlots();
+}
+
+async function saveTargetingABTestForm() {
+  const msgEl = document.getElementById('tab-form-msg');
+  msgEl.style.color = '#ef4444';
+  msgEl.textContent = '';
+
+  const name  = document.getElementById('tab-f-name').value.trim();
+  const start = document.getElementById('tab-f-start').value;
+  const end   = document.getElementById('tab-f-end').value;
+  const slots = targetingSlots.filter(s => s.매체 && s.캠페인 && s.그룹);
+
+  if (!name)            { msgEl.textContent = '테스트명을 입력하세요.'; return; }
+  if (!start || !end)   { msgEl.textContent = '시작일/종료일을 입력하세요.'; return; }
+  if (start > end)      { msgEl.textContent = '시작일은 종료일보다 빠르거나 같아야 합니다.'; return; }
+  if (slots.length < 2) { msgEl.textContent = '비교할 타겟팅(매체·캠페인·그룹)을 최소 2개 선택하세요.'; return; }
+  const keys = slots.map(s => [s.매체, s.캠페인, s.그룹].join('|'));
+  if (new Set(keys).size !== keys.length) { msgEl.textContent = '같은 타겟팅(매체·캠페인·그룹)을 중복 선택할 수 없습니다.'; return; }
+
+  const data = {
+    테스트명: name,
+    가설: document.getElementById('tab-f-hypothesis').value.trim(),
+    시작일: start,
+    종료일: end,
+    슬롯: slots
+  };
+  if (tabEditingId) data.테스트ID = tabEditingId;
+
+  const btn = document.getElementById('tab-save-btn');
+  const spinner = document.getElementById('tab-form-spinner');
+  btn.disabled = true;
+  spinner.classList.add('show');
+  try {
+    const res = await gasRun('saveTargetingABTest', data);
+    if (res.error) { msgEl.textContent = res.message; return; }
+    closeTargetingABForm();
+    await loadTargetingABList();
+    viewTargetingABDetail(res.테스트ID);
+  } catch (err) {
+    msgEl.textContent = '저장 실패: ' + (err.message || String(err));
+  } finally {
+    btn.disabled = false;
+    spinner.classList.remove('show');
+  }
+}
+
+async function viewTargetingABDetail(testId) {
+  closeTargetingABForm();
+  const test = targetingTestsCache.find(t => t.테스트ID === testId);
+  if (!test) return;
+  tabCurrentDetailId = testId;
+
+  const detailEl = document.getElementById('tab-detail');
+  detailEl.style.display = 'block';
+  document.getElementById('tab-detail-title').textContent = test.테스트명;
+  const period = [test.시작일, test.종료일].filter(Boolean).join(' ~ ');
+  document.getElementById('tab-detail-meta').textContent = [period, `타겟팅 ${test.슬롯.length}개`].filter(Boolean).join(' · ');
+  document.getElementById('tab-detail-hypothesis').textContent = test.가설 ? '💡 가설: ' + test.가설 : '';
+  document.getElementById('tab-f-conclusion').value = test.결론메모 || '';
+
+  targetingCompareMessage('실적 불러오는 중...');
+  detailEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  try {
+    const perf = await gasRun('getTargetingABTestPerformance', test.슬롯, test.시작일, test.종료일);
+    renderTargetingABCompare(perf);
+  } catch (err) {
+    targetingCompareMessage('실적 로드 실패: ' + String(err.message || err), true);
+  }
+}
+
+function closeTargetingABDetail() {
+  const detailEl = document.getElementById('tab-detail');
+  if (detailEl) detailEl.style.display = 'none';
+  tabCurrentDetailId = null;
+}
+
+function targetingCompareMessage(text, isError) {
+  const table = document.getElementById('tab-compare-table');
+  table.innerHTML = `<tbody><tr><td style="text-align:center;padding:28px;color:${isError ? '#ef4444' : '#9ca3af'}">${escHtml(text)}</td></tr></tbody>`;
+}
+
+// 행=타겟팅(A/B/C/D), 열=매체/캠페인/그룹/메모/지표. 소재 AB테스트와 동일하게
+// 지표별 최우수 값을 초록색(.best)으로 강조한다.
+function renderTargetingABCompare(perf) {
+  if (!perf.length) { targetingCompareMessage('데이터가 없습니다.'); return; }
+
+  const withData = perf.filter(p => !p.notFound && p.imp > 0);
+  const bestCtr  = withData.length ? Math.max(...withData.map(p => p.ctr)) : null;
+  const cvrCand  = withData.filter(p => p.clk > 0);
+  const bestCvr  = cvrCand.length ? Math.max(...cvrCand.map(p => p.cvr)) : null;
+  const cpaCand  = withData.filter(p => p.conv > 0);
+  const bestCpa  = cpaCand.length ? Math.min(...cpaCand.map(p => p.cpa)) : null;
+  const bestImp  = withData.length ? Math.max(...withData.map(p => p.imp))  : null;
+  const bestClk  = withData.length ? Math.max(...withData.map(p => p.clk))  : null;
+  const bestConv = withData.length ? Math.max(...withData.map(p => p.conv)) : null;
+
+  const table = document.getElementById('tab-compare-table');
+  const headerCells = `<th></th><th>매체</th><th>캠페인</th><th>그룹</th><th>메모</th><th>소재수</th><th>노출</th><th>클릭</th><th>CTR</th><th>비용</th><th>전환</th><th>CVR</th><th>CPA</th>`;
+
+  const bodyRows = perf.map((p, i) => {
+    const label = String.fromCharCode(65 + i);
+    if (p.notFound) {
+      return `<tr>
+        <td class="ab-name-cell">${label}</td>
+        <td class="ab-notfound-cell" colspan="12">이 기간에 이 타겟팅(${escHtml(p.매체)}·${escHtml(p.캠페인)}·${escHtml(p.그룹)})의 실적이 없습니다</td>
+      </tr>`;
+    }
+    const isWinner = bestCpa !== null && p.conv > 0 && p.cpa === bestCpa;
+    const impCls  = bestImp  !== null && p.imp  === bestImp  && p.imp  > 0 ? 'best' : '';
+    const clkCls  = bestClk  !== null && p.clk  === bestClk  && p.clk  > 0 ? 'best' : '';
+    const ctrCls  = bestCtr  !== null && p.imp  > 0 && p.ctr === bestCtr   ? 'best' : '';
+    const convCls = bestConv !== null && p.conv === bestConv && p.conv > 0 ? 'best' : '';
+    const cvrCls  = bestCvr  !== null && p.clk  > 0 && p.cvr === bestCvr   ? 'best' : '';
+    const cpaCls  = bestCpa  !== null && p.conv > 0 && p.cpa === bestCpa   ? 'best' : '';
+
+    return `<tr>
+      <td class="ab-name-cell">${label}${isWinner ? ' 🏆' : ''}</td>
+      <td class="ab-name-cell">${escHtml(p.매체)}</td>
+      <td class="ab-name-cell">${escHtml(p.캠페인)}</td>
+      <td class="ab-name-cell">${escHtml(p.그룹)}</td>
+      <td class="ab-code-cell" style="text-align:left;white-space:normal;max-width:200px">${escHtml(p.메모) || '-'}</td>
+      <td>${azFmt(p.소재수)}</td>
+      <td class="${impCls}">${azFmt(p.imp)}</td>
+      <td class="${clkCls}">${azFmt(p.clk)}</td>
+      <td class="${ctrCls}">${azPct(p.ctr)}</td>
+      <td>${azWon(p.cost)}</td>
+      <td class="${convCls}">${azFmt(p.conv)}</td>
+      <td class="${cvrCls}">${azPct(p.cvr)}</td>
+      <td class="${cpaCls}">${azWon(p.cpa)}</td>
+    </tr>`;
+  }).join('');
+
+  table.innerHTML = `<thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody>`;
+}
+
+async function saveTargetingABConclusion() {
+  if (!tabCurrentDetailId) return;
+  const test = targetingTestsCache.find(t => t.테스트ID === tabCurrentDetailId);
+  if (!test) return;
+  const data = {
+    테스트ID: test.테스트ID,
+    테스트명: test.테스트명,
+    가설: test.가설,
+    시작일: test.시작일,
+    종료일: test.종료일,
+    슬롯: test.슬롯,
+    결론메모: document.getElementById('tab-f-conclusion').value.trim()
+  };
+  try {
+    const res = await gasRun('saveTargetingABTest', data);
+    if (res.error) { alert(res.message); return; }
+    await loadTargetingABList();
+  } catch (err) {
+    alert('저장 실패: ' + (err.message || String(err)));
+  }
+}
+
+async function deleteTargetingABTestConfirm(testId) {
+  if (!testId) return;
+  if (!confirm('이 타겟팅 테스트를 삭제하시겠습니까?')) return;
+  try {
+    const res = await gasRun('deleteTargetingABTest', testId);
+    if (res.error) { alert(res.message); return; }
+    closeTargetingABDetail();
+    await loadTargetingABList();
   } catch (err) {
     alert('삭제 실패: ' + (err.message || String(err)));
   }
