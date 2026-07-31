@@ -5433,12 +5433,22 @@ async function loadAnalysisData() {
     const usableCache = cached && Array.isArray(cached.rows) && cached.rows.length && cached.lastRow;
 
     const rawDataPromise = usableCache
-      ? gasRun('getAllDataSince', cached.lastRow).then(delta => ({
-          rows: cached.rows.concat(Array.isArray(delta.rows) ? delta.rows : []),
-          lastRow: delta.lastRow,
-          isDelta: true,
-          deltaCount: (delta.rows || []).length
-        }))
+      ? gasRun('getAllDataSince', cached.lastRow).then(async delta => {
+          // 시트 행이 캐시 기준보다 줄어들어(예: 데이터 정리로 행 삭제) 델타 로직이
+          // 더 이상 못 믿을 때 서버가 invalidated를 내려준다 — 이땐 캐시를 버리고
+          // 전체를 다시 받아야 새로 쌓인 데이터가 누락 없이 보인다(2026-07-31).
+          if (delta.invalidated) {
+            await azClearRawCache();
+            const full = await gasRun('getAllData');
+            return { rows: full, lastRow: Array.isArray(full) ? full.length : 0, isDelta: false, wasInvalidated: true };
+          }
+          return {
+            rows: cached.rows.concat(Array.isArray(delta.rows) ? delta.rows : []),
+            lastRow: delta.lastRow,
+            isDelta: true,
+            deltaCount: (delta.rows || []).length
+          };
+        })
       : gasRun('getAllData').then(rows => ({ rows, lastRow: Array.isArray(rows) ? rows.length : 0, isDelta: false }));
 
     const [rawResult, master, dgpmThumbs] = await Promise.all([
