@@ -11,6 +11,7 @@ const DETECT_SHEET_NAME           = '신규소재감지';
 const DGPM_SHEET_NAME             = '구글DA 인덱스';
 const CONSOLIDATED_RAW_SHEET_NAME = '소재_통합RAW';
 const AB_TEST_SHEET_NAME          = 'AB테스트';
+const TARGETING_AB_SHEET_NAME     = '타겟팅AB테스트';
 const SAVED_REPORT_SHEET_NAME     = '저장된보고서';
 
 // 광고 단위에 여러 이미지가 포함되는 매체 (1:N 구조)
@@ -51,6 +52,14 @@ const AB_TEST_HEADERS = [
 // 통째로 JSON 문자열 하나에 담아 저장한다 (구조가 자주 확장될 수 있어 컬럼을
 // 미리 다 나누기보다 유연하게 가져가는 편이 유지보수하기 쉽다)
 const SAVED_REPORT_HEADERS = ['보고서ID', '보고서명', '설정JSON', '등록일시', '최근수정일시'];
+
+// 타겟팅AB테스트 시트 헤더 — 소재 AB테스트와 달리 비교 단위가 소재가 아니라
+// (매체,캠페인,그룹) 조합이라 슬롯 2~4개를 통째로 JSON 배열([{매체,캠페인,그룹,메모}])
+// 하나에 담아 저장한다(저장된보고서와 동일한 패턴).
+const TARGETING_AB_HEADERS = [
+  '테스트ID', '테스트명', '가설', '시작일', '종료일', '슬롯JSON', '결론메모',
+  '등록일시', '최근수정일시'
+];
 
 // --------------------------------------------------
 // 웹앱 진입점
@@ -270,6 +279,14 @@ function initializeSheets() {
     srSheet.getRange(1, 1, 1, SAVED_REPORT_HEADERS.length)
       .setValues([SAVED_REPORT_HEADERS]).setFontWeight('bold');
     srSheet.setFrozenRows(1);
+  }
+
+  // 타겟팅AB테스트 시트
+  if (!ss.getSheetByName(TARGETING_AB_SHEET_NAME)) {
+    const tabSheet = ss.insertSheet(TARGETING_AB_SHEET_NAME);
+    tabSheet.getRange(1, 1, 1, TARGETING_AB_HEADERS.length)
+      .setValues([TARGETING_AB_HEADERS]).setFontWeight('bold');
+    tabSheet.setFrozenRows(1);
   }
 
   return { success: true, message: '시트 초기화 완료' };
@@ -1520,6 +1537,144 @@ function deleteABTest(testId) {
   } catch (e) {
     return { error: true, message: e.message };
   }
+}
+
+// ====================================================
+// 타겟팅 AB 테스트 — 소재 단위가 아니라 (매체,캠페인,그룹) 단위로 비교한다.
+// 저장/조회/삭제는 소재 AB테스트와 같은 시트 CRUD 패턴, 슬롯(2~4개)만
+// JSON 배열 문자열 하나에 담아 저장한다.
+// ====================================================
+function _getOrCreateTargetingABSheet() {
+  const ss = getSpreadsheet();
+  let sheet = ss.getSheetByName(TARGETING_AB_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(TARGETING_AB_SHEET_NAME);
+    sheet.getRange(1, 1, 1, TARGETING_AB_HEADERS.length)
+      .setValues([TARGETING_AB_HEADERS]).setFontWeight('bold');
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+// 저장된 타겟팅 AB테스트 목록 (최신 등록순)
+function getTargetingABTests() {
+  const sheet = _getOrCreateTargetingABSheet();
+  if (sheet.getLastRow() < 2) return [];
+  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, TARGETING_AB_HEADERS.length).getValues();
+  const tz = Session.getScriptTimeZone();
+  return rows.map(r => {
+    let slots = [];
+    try { slots = JSON.parse(r[5] || '[]'); } catch (e) { slots = []; }
+    return {
+      테스트ID:     String(r[0] || ''),
+      테스트명:     String(r[1] || ''),
+      가설:         String(r[2] || ''),
+      시작일:       _abDateStr(r[3]),
+      종료일:       _abDateStr(r[4]),
+      슬롯:         slots,
+      결론메모:     String(r[6] || ''),
+      등록일시:     r[7] ? Utilities.formatDate(new Date(r[7]), tz, 'yyyy-MM-dd HH:mm') : '',
+      최근수정일시: r[8] ? Utilities.formatDate(new Date(r[8]), tz, 'yyyy-MM-dd HH:mm') : ''
+    };
+  }).reverse();
+}
+
+// 타겟팅 AB테스트 저장 (신규 생성 또는 기존 수정 — data.테스트ID 유무로 판단)
+function saveTargetingABTest(data) {
+  try {
+    const slots = (data.슬롯 || []).map(s => ({
+      매체:   String(s.매체   || '').trim(),
+      캠페인: String(s.캠페인 || '').trim(),
+      그룹:   String(s.그룹   || '').trim(),
+      메모:   String(s.메모   || '').trim()
+    })).filter(s => s.매체 && s.캠페인 && s.그룹);
+
+    if (slots.length < 2) return { error: true, message: '타겟팅은 최소 2개 이상 선택해야 합니다.' };
+    if (slots.length > 4) return { error: true, message: '타겟팅은 최대 4개까지 비교할 수 있습니다.' };
+    if (!data.테스트명)    return { error: true, message: '테스트명을 입력하세요.' };
+
+    const sheet = _getOrCreateTargetingABSheet();
+    const now = new Date();
+    const rowValues = [
+      data.테스트명, data.가설 || '', data.시작일 || '', data.종료일 || '',
+      JSON.stringify(slots), data.결론메모 || ''
+    ];
+
+    if (data.테스트ID) {
+      const ids = sheet.getLastRow() >= 2
+        ? sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat().map(String)
+        : [];
+      const idx = ids.indexOf(String(data.테스트ID));
+      if (idx === -1) return { error: true, message: '테스트를 찾을 수 없습니다.' };
+      const rowNum = idx + 2;
+      sheet.getRange(rowNum, 2, 1, rowValues.length).setValues([rowValues]);
+      sheet.getRange(rowNum, 9).setValue(now);
+      return { success: true, 테스트ID: data.테스트ID };
+    }
+
+    const testId = 'TAB' + Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyMMddHHmmss');
+    sheet.appendRow([testId, ...rowValues, now, now]);
+    return { success: true, 테스트ID: testId };
+  } catch (e) {
+    return { error: true, message: e.message };
+  }
+}
+
+function deleteTargetingABTest(testId) {
+  try {
+    const sheet = _getOrCreateTargetingABSheet();
+    if (sheet.getLastRow() < 2) return { success: true };
+    const ids = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat().map(String);
+    const idx = ids.indexOf(String(testId));
+    if (idx === -1) return { error: true, message: '테스트를 찾을 수 없습니다.' };
+    sheet.deleteRow(idx + 2);
+    return { success: true };
+  } catch (e) {
+    return { error: true, message: e.message };
+  }
+}
+
+// 슬롯([{매체,캠페인,그룹,메모}, ...])별로 테스트 기간 내 실적을 집계해 비교 반환.
+// 소재 AB테스트(getABTestPerformance)와 달리 소재이름으로 좁히지 않고 그 매체·
+// 캠페인·그룹 전체(그 안의 모든 소재 합산) 실적을 비교한다 — "타겟팅" 자체의
+// 효율을 보는 것이라 소재 단위로 볼 필요가 없다.
+function getTargetingABTestPerformance(slots, startDate, endDate) {
+  const ss = getSpreadsheet();
+  const rawSheet = ss.getSheetByName(CONSOLIDATED_RAW_SHEET_NAME);
+  const rawRows = (rawSheet && rawSheet.getLastRow() >= 2)
+    ? rawSheet.getRange(2, 1, rawSheet.getLastRow() - 1, CONSOLIDATED_RAW_HEADERS.length).getValues()
+    : [];
+
+  return slots.map(slot => {
+    const matched = rawRows.filter(r => {
+      if (String(r[0] || '') !== slot.매체)   return false;
+      if (String(r[2] || '') !== slot.캠페인) return false;
+      if (String(r[3] || '') !== slot.그룹)   return false;
+      const d = _abDateStr(r[1]);
+      if (startDate && d < startDate) return false;
+      if (endDate   && d > endDate)   return false;
+      return true;
+    });
+
+    const sum = matched.reduce((a, r) => ({
+      imp:  a.imp  + (Number(r[14]) || 0),
+      clk:  a.clk  + (Number(r[15]) || 0),
+      cost: a.cost + (Number(r[17]) || 0),
+      conv: a.conv + (Number(r[18]) || 0)
+    }), { imp: 0, clk: 0, cost: 0, conv: 0 });
+
+    const creativeCount = new Set(matched.map(r => String(r[4] || '')).filter(Boolean)).size;
+
+    return {
+      매체: slot.매체, 캠페인: slot.캠페인, 그룹: slot.그룹, 메모: slot.메모 || '',
+      소재수: creativeCount,
+      imp: sum.imp, clk: sum.clk, cost: sum.cost, conv: sum.conv,
+      ctr: sum.imp  > 0 ? sum.clk  / sum.imp  * 100 : 0,
+      cvr: sum.clk  > 0 ? sum.conv / sum.clk  * 100 : 0,
+      cpa: sum.conv > 0 ? sum.cost / sum.conv        : 0,
+      notFound: matched.length === 0
+    };
+  });
 }
 
 // --------------------------------------------------
