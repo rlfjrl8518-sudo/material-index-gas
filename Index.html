@@ -6223,7 +6223,7 @@ function ensureCreativeTrendModal() {
   document.getElementById('ctPickerGrid').addEventListener('click', e => {
     const item = e.target.closest('.img-pick-item');
     if (!item) return;
-    azCreativeTrendSelectedKey  = item.dataset.key;
+    azCreativeTrendSelectedKey  = decodeURIComponent(item.dataset.key);
     azCreativeTrendSelectedName = item.dataset.name;
     azCreativeTrendSelectedUrl  = item.dataset.url;
     updateCreativeTrendSelectedUI();
@@ -6286,6 +6286,10 @@ function filterCreativeTrendPicker() {
   renderCreativeTrendPickerGrid(filtered);
 }
 
+// o.key는 azCreativeContextKey()가 만든, 필드 사이에 \x00을 끼워 넣은 조합 키다.
+// HTML 파서는 속성값 안의 NUL 문자를 U+FFFD로 치환하므로 encodeURIComponent 없이
+// data-key에 그대로 넣으면 클릭 시 item.dataset.key로 되읽은 값이 원본과 영영
+// 일치하지 않아 소재를 선택해도 차트가 계속 "데이터 없음"으로 나온다(2026-07-31 확인).
 function renderCreativeTrendPickerGrid(options) {
   const grid = document.getElementById('ctPickerGrid');
   if (!options.length) { grid.innerHTML = '<div class="modal-empty">검색 결과가 없습니다.</div>'; return; }
@@ -6296,7 +6300,7 @@ function renderCreativeTrendPickerGrid(options) {
            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
          <div class="img-pick-placeholder" style="display:none;pointer-events:none">🖼️</div>`
       : '<div class="img-pick-placeholder" style="pointer-events:none">🖼️</div>';
-    return `<div class="img-pick-item" data-key="${esc(o.key)}" data-name="${esc(o.name)}" data-url="${esc(o.url)}">
+    return `<div class="img-pick-item" data-key="${esc(encodeURIComponent(o.key))}" data-name="${esc(o.name)}" data-url="${esc(o.url)}">
       ${media}
       <div class="img-pick-info"><div class="img-pick-name">${escHtml(o.label)}</div></div>
     </div>`;
