@@ -98,86 +98,9 @@ function onOpen() {
     .addItem('📊 대시보드 열기', 'openDashboard')
     .addSeparator()
     .addItem('통합 적재', 'consolidateRawData')
-    .addItem('중복 행 정리', 'dedupeConsolidatedRaw')
-    .addItem('⚠️ 디멘드젠 데이터 전체 삭제', 'purgeDGData')
     .addSeparator()
     .addItem('시트 초기화', 'initializeSheets')
     .addToUi();
-}
-
-// 2026-07-31 확인: RAW_디멘드젠에 매일 붙여넣는 원본이 "그날 하루" 실적이 아니라 훨씬 넓은
-// 기간(사실상 전체 기간에 가까운) 누적 실적을 그날 날짜로 잘못 붙여넣어 온 것으로 확인됨 —
-// 구글 광고관리자에서 확인한 소재별 2개월 전체 노출수보다 소재_통합RAW의 "하루치" 노출수가
-// 더 큰 행이 실제로 존재했다(예: 노출수 541,194인 "하루" vs 구글 광고관리자 2개월 전체
-// 483,022). 붙여넣기가 반복될 때마다 거의 전체 기간 치 데이터가 매번 새 날짜로 쌓여
-// 대시보드에서 합산하면 CPA가 수십 배로 부풀려진다. 어느 행이 진짜 하루치인지 구분할
-// 방법이 없어 부분 수정이 불가능하므로, 디멘드젠 데이터를 전체 삭제하고 이후 구글
-// 광고관리자에서 "일별"로 내보낸 데이터로 다시 적재하기로 함. (재발 방지를 위해 향후
-// RAW_디멘드젠에는 반드시 일별로 쪼갠 데이터만 붙여넣어야 한다.)
-function purgeMediaRows(mediaName) {
-  const ss = getSpreadsheet();
-  const sheet = ss.getSheetByName(CONSOLIDATED_RAW_SHEET_NAME);
-  if (!sheet || sheet.getLastRow() < 2) {
-    SpreadsheetApp.getUi().alert('삭제할 데이터가 없습니다.');
-    return { removed: 0 };
-  }
-
-  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 21).getValues();
-  const kept = rows.filter(r => String(r[0] || '').trim() !== mediaName);
-  const removed = rows.length - kept.length;
-
-  sheet.getRange(2, 1, rows.length, 21).clearContent();
-  if (kept.length > 0) {
-    sheet.getRange(2, 1, kept.length, 21).setValues(kept);
-  }
-
-  SpreadsheetApp.getUi().alert(`${mediaName} ${removed}건 삭제 완료 (${rows.length}건 → ${kept.length}건)`);
-  return { removed, before: rows.length, after: kept.length };
-}
-
-function purgeDGData() {
-  return purgeMediaRows('디멘드젠');
-}
-
-// consolidateRawData의 서식 정규화 수정(2026-07-31)은 "앞으로의" 중복 적재만 막을 뿐,
-// 그 전에 이미 소재_통합RAW에 들어간 중복 행(같은 매체·일·캠페인·광고그룹·소재이름 조합이
-// 여러 번 적재된 경우 — RAW_디멘드젠 등에서 같은 날짜가 서로 다른 두 번의 적재 작업에
-// 걸쳐 중복 적재된 사례를 확인함)은 그대로 남아있어 비용·전환이 겹쳐 합산되고 CPA가
-// 실제보다 훨씬 높게 나오는 원인이 된다. 중복 그룹에서는 노출수가 더 큰(=더 완전한
-// 스냅샷일 가능성이 높은) 행만 남기고 나머지는 지운다.
-function dedupeConsolidatedRaw() {
-  try {
-    const ss = getSpreadsheet();
-    const sheet = ss.getSheetByName(CONSOLIDATED_RAW_SHEET_NAME);
-    if (!sheet || sheet.getLastRow() < 2) {
-      SpreadsheetApp.getUi().alert('정리할 데이터가 없습니다.');
-      return { success: true, removed: 0 };
-    }
-
-    const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 21).getValues();
-
-    const bestByKey = {}; // key -> { row, imp }
-    rows.forEach(row => {
-      const key = _rowKey(row);
-      const imp = Number(row[14]) || 0; // 노출수
-      const cur = bestByKey[key];
-      if (!cur || imp > cur.imp) bestByKey[key] = { row, imp };
-    });
-
-    const deduped = Object.values(bestByKey).map(v => v.row);
-    const removed = rows.length - deduped.length;
-
-    if (removed > 0) {
-      sheet.getRange(2, 1, rows.length, 21).clearContent();
-      sheet.getRange(2, 1, deduped.length, 21).setValues(deduped);
-    }
-
-    SpreadsheetApp.getUi().alert(`중복 ${removed}건 제거 완료 (${rows.length}건 → ${deduped.length}건)`);
-    return { success: true, removed, before: rows.length, after: deduped.length };
-  } catch (e) {
-    SpreadsheetApp.getUi().alert('오류: ' + e.message);
-    return { error: true, message: e.message };
-  }
 }
 
 // --------------------------------------------------
