@@ -1997,7 +1997,9 @@
                     <th style="text-align:left;width:32px">#</th>
                     <th style="text-align:left;width:50px">이미지</th>
                     <th style="text-align:left">소재이름</th>
-                    <th>노출</th><th>CTR</th><th>CVR</th><th>CPA</th>
+                    <th style="text-align:left">캠페인</th>
+                    <th style="text-align:left">그룹</th>
+                    <th>CTR</th><th>CVR</th><th>CPA</th>
                   </tr>
                 </thead>
                 <tbody id="az-rank-tbody"></tbody>
@@ -5946,7 +5948,7 @@ function renderRanking(rows) {
   const top = entries.slice(0, 10);
   const tbody = document.getElementById('az-rank-tbody');
   if (!top.length) {
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#334155;padding:20px">모수 기준(노출 ${minImp.toLocaleString()}+, 클릭 ${minClk.toLocaleString()}+) 충족 소재 없음</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:#334155;padding:20px">모수 기준(노출 ${minImp.toLocaleString()}+, 클릭 ${minClk.toLocaleString()}+) 충족 소재 없음</td></tr>`;
     return;
   }
   tbody.innerHTML = top.map((e, i) => {
@@ -5954,11 +5956,12 @@ function renderRanking(rows) {
       <td style="color:var(--az-t4);text-align:left">${i+1}</td>
       <td style="text-align:left">${azThumbCell(e.url, e.name, e.media, e.campaign, e.group)}</td>
       <td style="text-align:left;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:default"
-          title="${esc(e.k)}" data-url="${esc(e.url)}"
+          title="${esc(e.name)}" data-url="${esc(e.url)}"
           data-media="${esc(e.media)}" data-campaign="${esc(e.campaign)}" data-group="${esc(e.group)}" data-name="${esc(e.name)}"
           onmouseenter="azPreviewShow(this,event)" onmousemove="azPreviewMove(event)" onmouseleave="azPreviewHide()"
-        >${esc(e.k)}</td>
-      <td>${azFmt(e.imp)}</td>
+        >${esc(e.name)}</td>
+      <td style="text-align:left;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.campaign)}">${esc(e.campaign)}</td>
+      <td style="text-align:left;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.group)}">${esc(e.group)}</td>
       <td>${azPct(e.ctr)}</td>
       <td>${azPct(e.cvr)}</td>
       <td>${azWon(e.cpa)}</td>
