@@ -1100,11 +1100,26 @@ function getAllData() {
   return raw;
 }
 
+// getAllDataSince의 경계 행(캐시가 마지막으로 갖고 있는 행)이 지금도 그때와 같은
+// 내용인지 대조하기 위한 경량 지문. Date는 두 호출(getAllData/getAllDataSince) 모두
+// 이미 'yyyy-MM-dd' 문자열로 바꿔서 클라이언트에 내려주므로, 여기서도 같은 방식으로
+// 맞춰서 비교해야 한다.
+function _rowFingerprint_(rowValues) {
+  const tz = Session.getScriptTimeZone();
+  return rowValues
+    .map(v => (v instanceof Date) ? Utilities.formatDate(v, tz, 'yyyy-MM-dd') : String(v))
+    .join('');
+}
+
 // 이전에 불러온 시트 행 번호(sinceLastRow, 헤더 포함) 이후로 새로 추가된 행만 반환.
 // 소재_통합RAW은 기존 행을 수정하지 않고 뒤에만 추가(append-only)하는 구조라서
 // 클라이언트가 이미 가진 데이터에 이어붙이기만 하면 되고, 그러면 데이터가 아무리
 // 쌓여도 로드 시간은 "지난번 이후 늘어난 양"에만 비례하게 된다.
-function getAllDataSince(sinceLastRow) {
+//
+// sinceFingerprint: 클라이언트가 캐시에 저장해둔 sinceLastRow번째 행의 지문
+// (azFingerprint, Index.html). append-only 전제가 실제로 지켜졌다면 지금 시트의
+// sinceLastRow번째 행도 그 지문과 같아야 한다.
+function getAllDataSince(sinceLastRow, sinceFingerprint) {
   const ss = getSpreadsheet();
   const sheet = ss.getSheetByName(CONSOLIDATED_RAW_SHEET_NAME);
   if (!sheet) return { rows: [], lastRow: 0 };
@@ -1116,6 +1131,19 @@ function getAllDataSince(sinceLastRow) {
   // 데이터가 대시보드에 하나도 안 보이는 문제로 확인). 이 경우를 명시적으로 알려서
   // 클라이언트가 캐시를 버리고 전체를 다시 받도록 한다.
   if (lastRow < sinceLastRow) return { rows: [], lastRow, invalidated: true };
+
+  // 위 행 수 비교만으로는 "중간에서 몇 행이 지워지고 그 이상(혹은 같은 수)이 다시
+  // 쌓여 lastRow가 우연히 줄지 않은" 경우를 놓친다 — 이때도 append-only 전제가
+  // 깨졌으므로 캐시의 나머지 부분(2행~sinceLastRow행)이 실제 시트와 더 이상 대응하지
+  // 않는데, 행 수만 보면 정상적인 증가로 보여 조용히 잘못된 데이터가 이어붙여진다.
+  // sinceLastRow 위치의 실제 내용을 캐시가 기억하는 지문과 대조해 이 케이스를 잡는다.
+  if (sinceLastRow >= 2 && sinceFingerprint) {
+    const boundaryRow = sheet.getRange(sinceLastRow, 1, 1, CONSOLIDATED_RAW_HEADERS.length).getValues()[0];
+    if (_rowFingerprint_(boundaryRow) !== sinceFingerprint) {
+      return { rows: [], lastRow, invalidated: true };
+    }
+  }
+
   if (lastRow < 2 || lastRow <= sinceLastRow) return { rows: [], lastRow: Math.max(lastRow, 0) };
 
   const startRow = Math.max(sinceLastRow + 1, 2); // 1행은 헤더라 항상 건너뜀

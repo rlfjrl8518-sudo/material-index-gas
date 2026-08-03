@@ -5380,6 +5380,13 @@ async function azClearRawCache() {
   }
 }
 
+// Code.gs의 _rowFingerprint_와 동일한 방식으로 경계 행(캐시가 마지막으로 가진 행)을
+// 지문화한다. getAllDataSince가 이 지문을 시트의 실제 해당 위치와 대조해서,
+// "지워지고 다시 쌓여 행 수만 우연히 맞아떨어진" 경우까지 감지한다.
+function azFingerprint(row) {
+  return (row || []).map(v => String(v)).join('');
+}
+
 // 캐시를 지우고 처음부터 전체를 다시 불러온다 (시트를 수동으로 고쳤거나
 // 캐시가 꼬였다고 의심될 때 쓰는 안전판)
 async function fullResyncAnalysisData() {
@@ -5433,7 +5440,7 @@ async function loadAnalysisData() {
     const usableCache = cached && Array.isArray(cached.rows) && cached.rows.length && cached.lastRow;
 
     const rawDataPromise = usableCache
-      ? gasRun('getAllDataSince', cached.lastRow).then(async delta => {
+      ? gasRun('getAllDataSince', cached.lastRow, azFingerprint(cached.rows[cached.rows.length - 1])).then(async delta => {
           // 시트 행이 캐시 기준보다 줄어들어(예: 데이터 정리로 행 삭제) 델타 로직이
           // 더 이상 못 믿을 때 서버가 invalidated를 내려준다 — 이땐 캐시를 버리고
           // 전체를 다시 받아야 새로 쌓인 데이터가 누락 없이 보인다(2026-07-31).
