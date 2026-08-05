@@ -110,6 +110,16 @@ function onOpen() {
     .addSeparator()
     .addItem('시트 초기화', 'initializeSheets')
     .addToUi();
+
+  SpreadsheetApp.getUi()
+    .createMenu('이미지 검수')
+    .addItem('🔍 검수 대시보드 열기 (소재 검수 탭)', 'openDashboard')
+    .addSeparator()
+    .addItem('검수 기준 시트 열기', 'openInspectionCriteriaSheet')
+    .addItem('API 키 설정', 'promptSetOpenAIKey')
+    .addSeparator()
+    .addItem('검수 시트 초기화', 'initInspectionSheets')
+    .addToUi();
 }
 
 // --------------------------------------------------
@@ -288,6 +298,8 @@ function initializeSheets() {
       .setValues([TARGETING_AB_HEADERS]).setFontWeight('bold');
     tabSheet.setFrozenRows(1);
   }
+
+  initInspectionSheets();
 
   return { success: true, message: '시트 초기화 완료' };
 }
@@ -1176,7 +1188,7 @@ function getMasterData() {
 // API 키 관리 (스크립트 속성)
 // --------------------------------------------------
 const MANAGED_API_KEYS = [
-  { id: 'OPENAI_API_KEY', label: 'OpenAI API Key', description: 'AI 인사이트 분석 (소재 분석 탭)' }
+  { id: 'OPENAI_API_KEY', label: 'OpenAI API Key', description: 'AI 인사이트 분석 (소재 분석 탭) · 소재 검수 이미지 분석 (소재 검수 탭)' }
 ];
 
 function getApiKeys() {
