@@ -1310,6 +1310,18 @@
   .insp-on-badge  { font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 10px; background: #dcfce7; color: #15803d; }
   .insp-off-badge { font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 10px; background: #f3f4f6; color: #9ca3af; }
 
+  .insp-criteria-form { display: flex; flex-direction: column; gap: 8px; }
+  .insp-criteria-row { display: grid; grid-template-columns: 220px 1fr; gap: 10px; align-items: center; }
+  .insp-criteria-check { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: #374151; cursor: pointer; }
+  .insp-criteria-check input { width: 15px; height: 15px; cursor: pointer; }
+  .insp-criteria-opts {
+    display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center;
+    margin-top: 10px; padding-top: 12px; border-top: 1px solid #f3f4f6;
+  }
+  .insp-opt-check { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #374151; cursor: pointer; }
+  .insp-opt-check input { width: 14px; height: 14px; cursor: pointer; }
+  .insp-opt-num { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #374151; }
+
   .insp-upload-zone {
     border: 2px dashed #d1d5db; border-radius: 10px; padding: 28px; text-align: center;
     position: relative; cursor: pointer; transition: border-color .15s, background .15s; margin-top: 6px;
@@ -1877,22 +1889,30 @@
     <div class="msg msg-success" id="inspMsgSuccess"><span>✅</span><span id="inspMsgSuccessText"></span></div>
     <div class="msg msg-error"   id="inspMsgError">  <span>❌</span><span id="inspMsgErrorText"></span></div>
 
-    <!-- 검수 기준 표시 -->
+    <!-- 검수 기준 설정 -->
     <div class="card" style="margin-bottom:16px">
       <div class="card-header">
-        <span>현재 검수 기준</span>
+        <span>검수 기준 설정</span>
         <button class="btn btn-secondary btn-sm" onclick="loadInspectionCriteria()">↺ 새로고침</button>
       </div>
       <div class="card-body" style="padding:16px">
         <p style="font-size:12px;color:#6b7280;margin-bottom:10px">
-          기준값은 구글 스프레드시트의 <b>검수기준</b> 시트에서 입력합니다 (상단 메뉴 [이미지 검수 &gt; 검수 기준 시트 열기]).
+          아래에서 직접 입력/수정하고 저장하면 구글 스프레드시트의 <b>검수기준</b> 시트에 바로 반영됩니다.
+          (시트에서 직접 열어 수정해도 동일하게 적용됩니다 — 상단 메뉴 [이미지 검수 &gt; 검수 기준 시트 열기])<br>
           API 키는 <b>설정 관리 &gt; API 키</b> 탭에서 OpenAI API Key로 등록하세요.
         </p>
-        <div id="inspCriteriaBox" class="insp-criteria-grid">
+        <div id="inspCriteriaForm" class="insp-criteria-form">
           <div class="insp-criteria-item off">로딩 중...</div>
         </div>
         <div id="inspApiKeyWarn" style="display:none;margin-top:10px;font-size:12px;color:#b91c1c">
           ⚠ OpenAI API 키가 설정되어 있지 않습니다. 검수를 실행하려면 먼저 API 키를 등록하세요.
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:14px">
+          <button class="btn btn-primary btn-sm" id="inspSaveCriteriaBtn" onclick="saveInspectionCriteriaForm()">
+            <div class="spinner" id="inspSaveCriteriaSpinner"></div>
+            <span>기준 저장</span>
+          </button>
+          <span id="inspCriteriaSaveMsg" style="font-size:12px"></span>
         </div>
       </div>
     </div>
@@ -2959,6 +2979,51 @@ function deleteApiKey(keyId) {
 // ═══════════════════════════════════════════════════
 // 소재 검수 탭
 // ═══════════════════════════════════════════════════
+
+// gasRun(methodName, ...)의 동적 디스패치([methodName])가 이 환경에서 실패하는 경우가 있어
+// (google.script.run.withSuccessHandler(...).withFailureHandler(...)[methodName] is not a function),
+// 소재 검수 탭의 서버 호출은 함수명을 리터럴로 직접 써서 호출한다(다른 탭들과 동일한 방식).
+function rpcGetInspectionCriteria() {
+  return new Promise((resolve, reject) => {
+    google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getInspectionCriteria();
+  });
+}
+function rpcSaveInspectionCriteria(data) {
+  return new Promise((resolve, reject) => {
+    google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).saveInspectionCriteria(data);
+  });
+}
+function rpcGetInspectionUploadContext() {
+  return new Promise((resolve, reject) => {
+    google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getInspectionUploadContext();
+  });
+}
+function rpcStartInspection(inspectionId, fileRefs) {
+  return new Promise((resolve, reject) => {
+    google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).startInspection(inspectionId, fileRefs);
+  });
+}
+function rpcGetInspectionProgress(inspectionId) {
+  return new Promise((resolve, reject) => {
+    google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getInspectionProgress(inspectionId);
+  });
+}
+function rpcGetInspectionResults(inspectionId) {
+  return new Promise((resolve, reject) => {
+    google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getInspectionResults(inspectionId);
+  });
+}
+function rpcGetRecentInspections(limit) {
+  return new Promise((resolve, reject) => {
+    google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getRecentInspections(limit);
+  });
+}
+function rpcRetryFailedImages(inspectionId) {
+  return new Promise((resolve, reject) => {
+    google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).retryFailedImages(inspectionId);
+  });
+}
+
 window._inspFiles = [];
 window._inspCurrentId = null;
 window._inspLastRows = [];
@@ -2986,36 +3051,96 @@ function hideInspMsg() {
   document.getElementById('inspMsgError').classList.remove('show');
 }
 
-// -- 검수 기준 표시 --
+// -- 검수 기준 입력/수정 --
+const INSP_CRITERIA_FIELDS = [
+  { key: 'productName',  label: '상품명·보종명',            placeholder: '예: 무배당 OOO보험' },
+  { key: 'reviewNumber', label: '심의필',                    placeholder: '예: 확인필-제2026-123456호' },
+  { key: 'extra1',       label: '기타 필수 문구 1',           placeholder: '' },
+  { key: 'extra2',       label: '기타 필수 문구 2',           placeholder: '' },
+  { key: 'logo',         label: '로고 (기준 이미지 Drive 링크/파일ID)', placeholder: 'https://drive.google.com/file/d/...' },
+  { key: 'font',         label: '폰트 (기준 폰트명, 참고용)',  placeholder: '예: 나눔고딕' }
+];
+
 function loadInspectionCriteria() {
-  const box = document.getElementById('inspCriteriaBox');
+  const box = document.getElementById('inspCriteriaForm');
   box.innerHTML = '<div class="insp-criteria-item off">로딩 중...</div>';
-  gasRun('getInspectionCriteria')
-    .then(renderInspectionCriteria)
+  rpcGetInspectionCriteria()
+    .then(renderInspectionCriteriaForm)
     .catch(err => { box.innerHTML = '<div class="insp-criteria-item off">로드 실패: ' + escHtml(err.message) + '</div>'; });
 }
 
-function renderInspectionCriteria(c) {
-  const box = document.getElementById('inspCriteriaBox');
+function renderInspectionCriteriaForm(c) {
+  const box = document.getElementById('inspCriteriaForm');
   if (c.error) { box.innerHTML = '<div class="insp-criteria-item off">' + escHtml(c.message) + '</div>'; return; }
 
   window._inspCriteria = c;
-  const items = [
-    ['상품명·보종명', c.productName],
-    ['심의필', c.reviewNumber],
-    ['기타 필수 문구 1', c.extra1],
-    ['기타 필수 문구 2', c.extra2],
-    ['로고', c.logo],
-    ['폰트(참고)', c.font]
-  ];
-  box.innerHTML = items.map(([label, f]) => `
-    <div class="insp-criteria-item ${f.use ? '' : 'off'}">
-      <div class="insp-criteria-label">${escHtml(label)}<span class="${f.use ? 'insp-on-badge' : 'insp-off-badge'}">${f.use ? '사용' : '미사용'}</span></div>
-      <div class="insp-criteria-value">${f.use ? escHtml(f.value || '(값 없음)') : '-'}</div>
-    </div>
-  `).join('');
 
+  const rowsHtml = INSP_CRITERIA_FIELDS.map(f => {
+    const field = c[f.key] || { use: false, value: '' };
+    return `
+      <div class="insp-criteria-row">
+        <label class="insp-criteria-check">
+          <input type="checkbox" id="insp-c-use-${f.key}" ${field.use ? 'checked' : ''}>
+          <span>${escHtml(f.label)}</span>
+        </label>
+        <input class="form-control" type="text" id="insp-c-val-${f.key}"
+               placeholder="${escHtml(f.placeholder)}" value="${escHtml(field.value || '')}">
+      </div>
+    `;
+  }).join('');
+
+  const opts = c.options || {};
+  const optsHtml = `
+    <div class="insp-criteria-opts">
+      <label class="insp-opt-check"><input type="checkbox" id="insp-opt-spacingStrict" ${opts.spacingStrict ? 'checked' : ''}> 띄어쓰기 정확히 비교</label>
+      <label class="insp-opt-check"><input type="checkbox" id="insp-opt-ignoreLineBreak" ${opts.ignoreLineBreak ? 'checked' : ''}> 줄바꿈 무시</label>
+      <label class="insp-opt-check"><input type="checkbox" id="insp-opt-caseSensitive" ${opts.caseSensitive ? 'checked' : ''}> 영문 대소문자 구분</label>
+      <label class="insp-opt-check"><input type="checkbox" id="insp-opt-specialCharStrict" ${opts.specialCharStrict ? 'checked' : ''}> 특수문자 정확히 비교 (심의필 숫자·하이픈은 항상 정확 비교)</label>
+      <label class="insp-opt-num">OCR 신뢰도 기준
+        <input class="form-control" type="number" min="0" max="1" step="0.05" id="insp-opt-ocrConfidence"
+               value="${opts.ocrConfidence != null ? opts.ocrConfidence : 0.7}" style="width:70px">
+      </label>
+    </div>
+  `;
+
+  box.innerHTML = rowsHtml + optsHtml;
   document.getElementById('inspApiKeyWarn').style.display = c.apiKeyConfigured ? 'none' : 'block';
+}
+
+async function saveInspectionCriteriaForm() {
+  const btn = document.getElementById('inspSaveCriteriaBtn');
+  const spinner = document.getElementById('inspSaveCriteriaSpinner');
+  const msg = document.getElementById('inspCriteriaSaveMsg');
+
+  const data = {};
+  INSP_CRITERIA_FIELDS.forEach(f => {
+    data[f.key] = {
+      use: document.getElementById('insp-c-use-' + f.key).checked,
+      value: document.getElementById('insp-c-val-' + f.key).value.trim()
+    };
+  });
+  data.options = {
+    spacingStrict: document.getElementById('insp-opt-spacingStrict').checked,
+    ignoreLineBreak: document.getElementById('insp-opt-ignoreLineBreak').checked,
+    caseSensitive: document.getElementById('insp-opt-caseSensitive').checked,
+    specialCharStrict: document.getElementById('insp-opt-specialCharStrict').checked,
+    ocrConfidence: parseFloat(document.getElementById('insp-opt-ocrConfidence').value)
+  };
+  if (isNaN(data.options.ocrConfidence)) data.options.ocrConfidence = 0.7;
+
+  btn.disabled = true; spinner.classList.add('show');
+  msg.style.color = '#9ca3af'; msg.textContent = '저장 중...';
+  try {
+    const res = await rpcSaveInspectionCriteria(data);
+    if (res.error) { msg.style.color = '#ef4444'; msg.textContent = '❌ ' + res.message; return; }
+    msg.style.color = '#059669'; msg.textContent = '✓ 저장되었습니다.';
+    loadInspectionCriteria();
+  } catch (e) {
+    msg.style.color = '#ef4444'; msg.textContent = '❌ ' + e.message;
+  } finally {
+    btn.disabled = false; spinner.classList.remove('show');
+    setTimeout(() => { msg.textContent = ''; }, 4000);
+  }
 }
 
 // -- 업로드 --
@@ -3055,7 +3180,7 @@ async function startInspectionRun() {
 
   setInspStarting(true);
   try {
-    const ctx = await gasRun('getInspectionUploadContext');
+    const ctx = await rpcGetInspectionUploadContext();
     const fileRefs = [];
     for (const f of window._inspFiles) {
       const fileId = await uploadToDriveDirect(f, ctx.token, ctx.folderId);
@@ -3066,7 +3191,7 @@ async function startInspectionRun() {
     window._inspCurrentId = ctx.inspectionId;
     document.getElementById('inspResultRunLabel').textContent = ' — ' + ctx.inspectionId;
 
-    const progress = await gasRun('startInspection', ctx.inspectionId, fileRefs);
+    const progress = await rpcStartInspection(ctx.inspectionId, fileRefs);
     if (progress.error) { showInspError(progress.message); return; }
 
     inspClearFiles();
@@ -3089,7 +3214,7 @@ function setInspStarting(on) {
 function inspPollProgress(id) {
   if (window._inspPollTimer) clearInterval(window._inspPollTimer);
   window._inspPollTimer = setInterval(() => {
-    gasRun('getInspectionProgress', id)
+    rpcGetInspectionProgress(id)
       .then(p => {
         if (p.error) { clearInterval(window._inspPollTimer); return; }
         showInspProgress(p);
@@ -3118,7 +3243,7 @@ function showInspProgress(p) {
 function loadInspectionResults(id) {
   if (!id) return;
   document.getElementById('inspRefreshResultsBtn').style.display = 'inline-flex';
-  gasRun('getInspectionResults', id)
+  rpcGetInspectionResults(id)
     .then(renderInspectionResults)
     .catch(err => showInspError('결과 조회 실패: ' + err.message));
 }
@@ -3169,7 +3294,7 @@ function inspCopyRevision(i) {
 function loadInspectionHistory() {
   const el = document.getElementById('inspHistoryList');
   el.innerHTML = '로딩 중...';
-  gasRun('getRecentInspections', 15)
+  rpcGetRecentInspections(15)
     .then(list => {
       if (!list || list.length === 0) { el.innerHTML = '<span style="color:#9ca3af">검수 이력이 없습니다.</span>'; return; }
       el.innerHTML = list.map(h => `
@@ -3193,7 +3318,7 @@ function inspOpenHistoryRun(id) {
   window._inspCurrentId = id;
   document.getElementById('inspResultRunLabel').textContent = ' — ' + id;
   loadInspectionResults(id);
-  gasRun('getInspectionProgress', id).then(p => { if (!p.error) showInspProgress(p); }).catch(() => {});
+  rpcGetInspectionProgress(id).then(p => { if (!p.error) showInspProgress(p); }).catch(() => {});
 }
 
 // -- 재처리 --
@@ -3202,12 +3327,12 @@ async function retryInspectionFailed() {
   const btn = document.getElementById('inspRetryBtn');
   btn.disabled = true; const originalText = btn.textContent; btn.textContent = '재처리 중...';
   try {
-    const res = await gasRun('retryFailedImages', window._inspCurrentId);
+    const res = await rpcRetryFailedImages(window._inspCurrentId);
     if (res.error) { showInspError(res.message); return; }
     showInspSuccess((res.retried || 0) + '건 재처리 완료');
     loadInspectionResults(window._inspCurrentId);
     loadInspectionHistory();
-    const p = await gasRun('getInspectionProgress', window._inspCurrentId);
+    const p = await rpcGetInspectionProgress(window._inspCurrentId);
     if (!p.error) showInspProgress(p);
   } catch (e) {
     showInspError('재처리 실패: ' + e.message);

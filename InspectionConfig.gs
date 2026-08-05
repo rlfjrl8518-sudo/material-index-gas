@@ -127,6 +127,39 @@ function getInspectionCriteria() {
 }
 
 // --------------------------------------------------
+// 검수 기준 저장 — 대시보드(소재 검수 탭)에서 직접 입력한 값을 검수기준 시트에 반영한다
+// data: getInspectionCriteria()와 동일한 모양 { productName:{use,value}, ..., options:{...} }
+// --------------------------------------------------
+function saveInspectionCriteria(data) {
+  const ss = getSpreadsheet();
+  const sheet = ss.getSheetByName(INSPECTION_CRITERIA_SHEET);
+  if (!sheet) return { error: true, message: '검수기준 시트가 없습니다. 먼저 [검수 시트 초기화]를 실행하세요.' };
+
+  const setField = function (row, field) {
+    field = field || {};
+    sheet.getRange(row, 2).setValue(!!field.use);
+    sheet.getRange(row, 3).setValue(field.value == null ? '' : String(field.value));
+  };
+
+  setField(CRITERIA_ROW.PRODUCT_NAME, data.productName);
+  setField(CRITERIA_ROW.REVIEW_NUMBER, data.reviewNumber);
+  setField(CRITERIA_ROW.EXTRA_1, data.extra1);
+  setField(CRITERIA_ROW.EXTRA_2, data.extra2);
+  setField(CRITERIA_ROW.LOGO, data.logo);
+  setField(CRITERIA_ROW.FONT, data.font);
+
+  const opts = data.options || {};
+  sheet.getRange(CRITERIA_ROW.SPACING_STRICT, 2).setValue(!!opts.spacingStrict);
+  sheet.getRange(CRITERIA_ROW.IGNORE_LINEBREAK, 2).setValue(!!opts.ignoreLineBreak);
+  sheet.getRange(CRITERIA_ROW.CASE_SENSITIVE, 2).setValue(!!opts.caseSensitive);
+  sheet.getRange(CRITERIA_ROW.SPECIAL_CHAR_STRICT, 2).setValue(!!opts.specialCharStrict);
+  const conf = Number(opts.ocrConfidence);
+  sheet.getRange(CRITERIA_ROW.OCR_CONFIDENCE, 2).setValue(isNaN(conf) ? 0.7 : conf);
+
+  return { success: true };
+}
+
+// --------------------------------------------------
 // OpenAI API 키 — Script Properties에만 저장 (시트에 저장 금지)
 // --------------------------------------------------
 function getOpenAIApiKey() {
