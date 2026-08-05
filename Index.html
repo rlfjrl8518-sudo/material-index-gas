@@ -5251,7 +5251,11 @@ async function uploadToDriveDirect(file, token, folderId) {
 
   );
 
-  if (!res.ok) throw new Error('Drive 업로드 실패 (HTTP ' + res.status + ')');
+  if (!res.ok) {
+    let detail = '';
+    try { detail = (await res.text()).slice(0, 300); } catch (e) {}
+    throw new Error('Drive 업로드 실패 (HTTP ' + res.status + ')' + (detail ? ' — ' + detail : ''));
+  }
 
   const json = await res.json();
 
