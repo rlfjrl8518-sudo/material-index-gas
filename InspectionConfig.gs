@@ -22,6 +22,9 @@ const INSPECTION_HISTORY_HEADERS = [
 ];
 
 // 검수기준 시트 셀 좌표 (A=항목, B=사용여부, C=입력값)
+// 폰트는 "어떤 문구의 폰트를 볼 것인지(FONT_TARGET)"와 "기준 폰트명(FONT)"이 따로 필요하다.
+// (예: "한화"라는 글자에 한화체가 적용됐는지 보려면 대상 문구 "한화" + 기준 폰트명 "한화체"가 둘 다 있어야
+// AI에게 "이미지 전체 폰트가 그럴듯한지"가 아니라 "그 글자의 폰트가 그런지"를 명확히 지시할 수 있다.)
 const CRITERIA_ROW = {
   PRODUCT_NAME: 2,
   REVIEW_NUMBER: 3,
@@ -29,11 +32,13 @@ const CRITERIA_ROW = {
   EXTRA_2: 5,
   LOGO: 6,
   FONT: 7,
-  SPACING_STRICT: 10,
-  IGNORE_LINEBREAK: 11,
-  CASE_SENSITIVE: 12,
-  SPECIAL_CHAR_STRICT: 13,
-  OCR_CONFIDENCE: 14
+  FONT_TARGET: 8,
+  CUSTOM_PROMPT: 9,
+  SPACING_STRICT: 12,
+  IGNORE_LINEBREAK: 13,
+  CASE_SENSITIVE: 14,
+  SPECIAL_CHAR_STRICT: 15,
+  OCR_CONFIDENCE: 16
 };
 
 // --------------------------------------------------
@@ -52,12 +57,14 @@ function initInspectionSheets() {
       ['기타 필수 문구 1',      false, ''],
       ['기타 필수 문구 2',      false, ''],
       ['로고 (기준 이미지 Drive 링크 또는 파일ID)', false, ''],
-      ['폰트 (기준 폰트명)',    false, '']
+      ['폰트 (기준 폰트명, 예: 한화체)', false, ''],
+      ['↳ 폰트 확인 대상 문구 (예: 한화 — 이미지에서 이 글자를 찾아 그 글자의 폰트만 판단합니다. 비워두면 이미지 전체 문구 기준으로 판단)', false, ''],
+      ['AI 분석 커스텀 지시사항 (선택 — 여기 적은 문장이 AI에게 그대로 추가 전달됩니다)', false, '']
     ];
     sheet.getRange(2, 1, rows.length, 3).setValues(rows);
     sheet.getRange(2, 2, rows.length, 1).insertCheckboxes();
 
-    sheet.getRange(9, 1, 1, 3).setValues([['추가 설정', '값', '설명']]).setFontWeight('bold');
+    sheet.getRange(11, 1, 1, 3).setValues([['추가 설정', '값', '설명']]).setFontWeight('bold');
     const opts = [
       ['띄어쓰기 정확히 비교',   false, '켜면 공백 차이도 불일치로 판정 (기본: 공백 무시)'],
       ['줄바꿈 무시',            true,  '켜면 줄바꿈을 공백으로 바꿔서 비교'],
@@ -65,10 +72,10 @@ function initInspectionSheets() {
       ['특수문자 정확히 비교',    false, '심의필의 숫자·하이픈은 이 설정과 무관하게 항상 정확히 비교됩니다'],
       ['OCR 신뢰도 기준 (0~1)',  0.7,   '인식 신뢰도가 이 값보다 낮으면 확인 필요로 처리']
     ];
-    sheet.getRange(10, 1, opts.length, 3).setValues(opts);
-    sheet.getRange(10, 2, 4, 1).insertCheckboxes();
+    sheet.getRange(12, 1, opts.length, 3).setValues(opts);
+    sheet.getRange(12, 2, 4, 1).insertCheckboxes();
 
-    sheet.getRange(15, 1, 1, 3)
+    sheet.getRange(17, 1, 1, 3)
       .setValues([['OpenAI API 키 입력 위치', '', '대시보드(소재 검수 탭 상단 링크) > 설정 관리 > API 키에서 OpenAI API Key를 등록하세요. 시트에 직접 입력하지 마세요. (같은 키를 소재 분석 탭의 AI 인사이트 기능과 함께 사용합니다)']]);
 
     sheet.setColumnWidths(1, 1, 260);
@@ -108,13 +115,17 @@ function getInspectionCriteria() {
   const ocrRow = get(CRITERIA_ROW.OCR_CONFIDENCE);
   const ocrConfidence = Number(ocrRow[1]);
 
+  const font = field(CRITERIA_ROW.FONT);
+  font.targetText = String(get(CRITERIA_ROW.FONT_TARGET)[2] || '').trim();
+
   return {
     productName:  field(CRITERIA_ROW.PRODUCT_NAME),
     reviewNumber: field(CRITERIA_ROW.REVIEW_NUMBER),
     extra1:       field(CRITERIA_ROW.EXTRA_1),
     extra2:       field(CRITERIA_ROW.EXTRA_2),
     logo:         field(CRITERIA_ROW.LOGO),
-    font:         field(CRITERIA_ROW.FONT),
+    font:         font,
+    customPrompt: String(get(CRITERIA_ROW.CUSTOM_PROMPT)[2] || '').trim(),
     options: {
       spacingStrict:     get(CRITERIA_ROW.SPACING_STRICT)[1] === true,
       ignoreLineBreak:   get(CRITERIA_ROW.IGNORE_LINEBREAK)[1] === true,
@@ -147,6 +158,8 @@ function saveInspectionCriteria(data) {
   setField(CRITERIA_ROW.EXTRA_2, data.extra2);
   setField(CRITERIA_ROW.LOGO, data.logo);
   setField(CRITERIA_ROW.FONT, data.font);
+  sheet.getRange(CRITERIA_ROW.FONT_TARGET, 3).setValue((data.font && data.font.targetText) ? String(data.font.targetText) : '');
+  sheet.getRange(CRITERIA_ROW.CUSTOM_PROMPT, 3).setValue(data.customPrompt ? String(data.customPrompt) : '');
 
   const opts = data.options || {};
   sheet.getRange(CRITERIA_ROW.SPACING_STRICT, 2).setValue(!!opts.spacingStrict);

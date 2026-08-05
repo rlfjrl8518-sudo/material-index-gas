@@ -86,13 +86,28 @@ function _buildVisionPromptText(criteria) {
   lines.push('- allTexts: 이미지에서 인식되는 전체 문구 목록(배열)');
   lines.push('- logo: { detected: boolean, description: string, confidence } — 이미지 내 로고 유무와 설명');
   if (criteria.font && criteria.font.use && criteria.font.value) {
-    lines.push('- font: { matched: boolean|null, description: string, confidence } — 문구의 폰트가 "' + criteria.font.value + '"와 유사해 보이는지 판단');
+    const targetText = (criteria.font.targetText || '').trim();
+    if (targetText) {
+      lines.push(
+        '- font: { matched: boolean|null, description: string, confidence } — ' +
+        '이미지에서 "' + targetText + '" 라는 문구를 찾아라. 그 문구가 이미지에 있으면, ' +
+        '그 문구에만 적용된 폰트가 "' + criteria.font.value + '"와 유사해 보이는지 판단하라(이미지의 다른 문구는 무시). ' +
+        '"' + targetText + '" 문구를 이미지에서 찾지 못하면 matched는 null, description에 "대상 문구를 찾을 수 없음"이라고 답하라.'
+      );
+    } else {
+      lines.push('- font: { matched: boolean|null, description: string, confidence } — 이미지 전반의 문구 폰트가 "' + criteria.font.value + '"와 유사해 보이는지 판단 (대상 문구가 따로 지정되지 않음)');
+    }
   } else {
     lines.push('- font: { matched: null, description: "", confidence: 0 }');
   }
   lines.push('응답 예시 형식:');
   lines.push('{"productText":{"text":"","confidence":0.9},"reviewText":{"text":"","confidence":0.9},"allTexts":[""],"logo":{"detected":false,"description":"","confidence":0.5},"font":{"matched":null,"description":"","confidence":0.5}}');
   lines.push('텍스트가 전혀 보이지 않는 항목은 text를 빈 문자열로, confidence를 0으로 반환하라.');
+
+  if (criteria.customPrompt) {
+    lines.push('추가 지시사항(검수 담당자가 직접 입력함, 반드시 반영하라): ' + criteria.customPrompt);
+  }
+
   return lines.join('\n');
 }
 

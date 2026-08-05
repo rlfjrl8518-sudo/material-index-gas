@@ -3058,7 +3058,7 @@ const INSP_CRITERIA_FIELDS = [
   { key: 'extra1',       label: '기타 필수 문구 1',           placeholder: '' },
   { key: 'extra2',       label: '기타 필수 문구 2',           placeholder: '' },
   { key: 'logo',         label: '로고 (기준 이미지 Drive 링크/파일ID)', placeholder: 'https://drive.google.com/file/d/...' },
-  { key: 'font',         label: '폰트 (기준 폰트명, 참고용)',  placeholder: '예: 나눔고딕' }
+  { key: 'font',         label: '폰트 (기준 폰트명, 참고용)',  placeholder: '예: 한화체' }
 ];
 
 function loadInspectionCriteria() {
@@ -3077,6 +3077,14 @@ function renderInspectionCriteriaForm(c) {
 
   const rowsHtml = INSP_CRITERIA_FIELDS.map(f => {
     const field = c[f.key] || { use: false, value: '' };
+    const isFont = f.key === 'font';
+    const targetRow = isFont ? `
+      <div class="insp-criteria-row">
+        <label class="insp-criteria-check" style="opacity:.7"><span>↳ 폰트 확인 대상 문구</span></label>
+        <input class="form-control" type="text" id="insp-c-font-target"
+               placeholder="예: 한화 — 비워두면 이미지 전체 문구 기준으로 판단" value="${escHtml(field.targetText || '')}">
+      </div>
+    ` : '';
     return `
       <div class="insp-criteria-row">
         <label class="insp-criteria-check">
@@ -3086,8 +3094,17 @@ function renderInspectionCriteriaForm(c) {
         <input class="form-control" type="text" id="insp-c-val-${f.key}"
                placeholder="${escHtml(f.placeholder)}" value="${escHtml(field.value || '')}">
       </div>
+      ${targetRow}
     `;
   }).join('');
+
+  const customPromptHtml = `
+    <div class="insp-criteria-row">
+      <label class="insp-criteria-check"><span>AI 분석 커스텀 지시사항 (선택)</span></label>
+      <textarea class="form-control" id="insp-c-custom-prompt" rows="2"
+        placeholder="예: 이미지에서 '한화'라는 글자를 찾아 그 글자의 폰트가 한화체인지 확인해줘. 이 문장이 AI에게 그대로 추가 전달됩니다.">${escHtml(c.customPrompt || '')}</textarea>
+    </div>
+  `;
 
   const opts = c.options || {};
   const optsHtml = `
@@ -3103,7 +3120,7 @@ function renderInspectionCriteriaForm(c) {
     </div>
   `;
 
-  box.innerHTML = rowsHtml + optsHtml;
+  box.innerHTML = rowsHtml + customPromptHtml + optsHtml;
   document.getElementById('inspApiKeyWarn').style.display = c.apiKeyConfigured ? 'none' : 'block';
 }
 
@@ -3119,6 +3136,8 @@ async function saveInspectionCriteriaForm() {
       value: document.getElementById('insp-c-val-' + f.key).value.trim()
     };
   });
+  data.font.targetText = document.getElementById('insp-c-font-target').value.trim();
+  data.customPrompt = document.getElementById('insp-c-custom-prompt').value.trim();
   data.options = {
     spacingStrict: document.getElementById('insp-opt-spacingStrict').checked,
     ignoreLineBreak: document.getElementById('insp-opt-ignoreLineBreak').checked,
