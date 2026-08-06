@@ -30,13 +30,13 @@ function analyzeImageWithOpenAI(fileId, criteria) {
   }
 
   const content = [{ type: 'text', text: _buildVisionPromptText(criteria) }];
-  content.push({ type: 'image_url', image_url: { url: _blobToDataUri(imageBlob) } });
+  content.push({ type: 'image_url', image_url: { url: _blobToDataUri(imageBlob), detail: 'high' } });
 
   if (criteria.logo && criteria.logo.use && criteria.logo.value) {
     const refBlob = _resolveDriveRefToBlob(criteria.logo.value);
     if (refBlob) {
       content.push({ type: 'text', text: '위 이미지는 검수 대상, 아래 이미지는 기준 로고입니다. 검수 대상 이미지에 기준 로고와 동일하거나 매우 유사한 로고가 있는지 확인하세요.' });
-      content.push({ type: 'image_url', image_url: { url: _blobToDataUri(refBlob) } });
+      content.push({ type: 'image_url', image_url: { url: _blobToDataUri(refBlob), detail: 'high' } });
     }
   }
 
@@ -74,6 +74,7 @@ function _visionSystemPrompt() {
     '이미지에 실제로 보이는 문구만 반환하고, 보이지 않는 문구를 추측하지 마라.',
     '상품명으로 보이는 문구와 심의필로 보이는 문구를 각각 추출하고, 화면 하단의 작은 문구도 최대한 확인하라.',
     '문구가 흐리거나 잘려서 불확실하면 낮은 confidence 값을 반환하라.',
+    '문구를 정확히 읽지 못했다면 절대로 그럴듯한 상품명이나 문구를 지어내지 마라. 읽을 수 없으면 text를 빈 문자열로, confidence를 0으로 반환하고, 확실히 읽은 글자만 text에 담아라.',
     '반드시 JSON 형식으로만 답하고 다른 설명은 출력하지 마라.'
   ].join(' ');
 }
@@ -118,8 +119,8 @@ function _callOpenAIChat(apiKey, messages) {
     // gpt-5 계열: max_tokens 대신 max_completion_tokens, temperature는 기본값 외 거부됨(둘 다
     // Code.gs의 getOpenAIInsight/getOpenAIChatReply에서 2026-07-28 실측으로 확인된 제약).
     // 이미지 분석 + JSON 조립이라 순수 텍스트 답변보다 reasoning 여유가 더 필요해 'low'로 지정.
-    max_completion_tokens: 1500,
-    reasoning_effort: 'low'
+    max_completion_tokens: 3000,
+    reasoning_effort: 'medium'
   };
   const options = {
     method: 'post',
