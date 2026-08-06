@@ -65,6 +65,7 @@ const TARGETING_AB_HEADERS = [
 // 웹앱 진입점
 // --------------------------------------------------
 function doGet(e) {
+  if (e && e.parameter && e.parameter.imgId) return DriveApp.getFileById(e.parameter.imgId).getBlob();
   const unitCode = e && e.parameter && e.parameter.unit;
   // 대시보드에서 번들 썸네일/아이콘을 클릭할 때, 소재_통합RAW에 박혀있는 unitCode가
   // 이미 재구성으로 stale해졌을 수 있어 _media/_campaign/_group/_name도 같이 실어보낸다
@@ -1947,3 +1948,5 @@ function getABTestPerformance(codes, startDate, endDate, scope) {
     };
   });
 }
+
+function getWebAppUrl() { return ScriptApp.getService().getUrl(); }
