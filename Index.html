@@ -3277,10 +3277,10 @@ function inspBadge(result) {
   return '<span class="insp-result-badge ' + inspBadgeClass(result) + '">' + escHtml(result || '-') + '</span>';
 }
 
-function _inspThumbSrc(url) {
+function _inspFileId(url) {
   if (!url) return '';
   const m = String(url).match(/[?&]id=([a-zA-Z0-9_-]{15,})/) || String(url).match(/\/d\/([a-zA-Z0-9_-]{15,})/);
-  return m ? ('https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w400') : url;
+  return m ? m[1] : '';
 }
 
 function renderInspectionResults(rows) {
@@ -3292,7 +3292,7 @@ function renderInspectionResults(rows) {
 
   document.getElementById('inspResultTbody').innerHTML = rows.map((r, i) => `
     <tr>
-      <td>${r['이미지 링크'] ? `<img class="insp-thumb" src="${escHtml(_inspThumbSrc(r['이미지 링크']))}" loading="lazy">` : ''}</td>
+      <td>${r['이미지 링크'] ? `<img class="insp-thumb" data-file-id="${escHtml(_inspFileId(r['이미지 링크']))}" src="" loading="lazy">` : ''}</td>
       <td>${escHtml(r['파일명'])}</td>
       <td>${inspBadge(r['상품명 결과'])}${r['상품명 차이'] ? `<div class="insp-diff-text">${escHtml(r['상품명 차이'])}</div>` : ''}</td>
       <td>${inspBadge(r['심의필 결과'])}${r['심의필 차이'] ? `<div class="insp-diff-text">${escHtml(r['심의필 차이'])}</div>` : ''}</td>
@@ -3305,6 +3305,7 @@ function renderInspectionResults(rows) {
         : '-'}</td>
     </tr>
   `).join('');
+  document.querySelectorAll('#inspResultTbody img.insp-thumb[data-file-id]').forEach(img => { const fid = img.getAttribute('data-file-id'); if (!fid) return; google.script.run.withSuccessHandler(uri => { if (uri) img.src = uri; }).getImageDataUri(fid); });
 }
 
 function inspCopyRevision(i) {
