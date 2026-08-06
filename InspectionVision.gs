@@ -29,7 +29,8 @@ function analyzeImageWithOpenAI(fileId, criteria) {
     return { error: true, message: '이미지 파일을 읽을 수 없습니다: ' + e.message };
   }
 
-  const content = [{ type: 'text', text: _buildVisionPromptText(criteria) }];
+  const ocrText = _ocrImageText(fileId);
+  const content = [{ type: 'text', text: _buildVisionPromptText(criteria, ocrText) }];
   content.push({ type: 'image_url', image_url: { url: _blobToDataUri(imageBlob), detail: 'high' } });
 
   if (criteria.logo && criteria.logo.use && criteria.logo.value) {
@@ -56,6 +57,26 @@ function analyzeImageWithOpenAI(fileId, criteria) {
   return { error: true, message: lastError || '알 수 없는 오류' };
 }
 
+// Google Drive 내장 OCR로 이미지에서 문자를 정확히 추출한다(은행권 신분증 검증 수준의 글자 단위 정확도 확보용).
+// 실패해도 검수 전체가 멈추면 안 되므로 null을 반환하고 호출부(비전 프롬프트)에서 폴백한다.
+function _ocrImageText(fileId) {
+  if (!fileId) return null;
+  let tempFileId = null;
+  let text = null;
+  try {
+    const blob = DriveApp.getFileById(fileId).getBlob();
+    const created = Drive.Files.insert({ title: 'OCR_TEMP_' + fileId, mimeType: MimeType.GOOGLE_DOCS }, blob, { ocr: true, ocrLanguage: 'ko' });
+    tempFileId = created.id;
+    text = DocumentApp.openById(tempFileId).getBody().getText();
+  } catch (e) {
+    text = null;
+  }
+  if (tempFileId) {
+    try { Drive.Files.remove(tempFileId); } catch (e2) {}
+  }
+  return text;
+}
+
 // gpt-5 계열은 response_format 강제 없이도 JSON만 답하도록 프롬프트로 지시하지만,
 // 코드블록(```json ... ```)으로 감싸 보내는 경우가 있어 관대하게 파싱한다.
 function _extractJsonObject(text) {
@@ -79,8 +100,16 @@ function _visionSystemPrompt() {
   ].join(' ');
 }
 
-function _buildVisionPromptText(criteria) {
+function _buildVisionPromptText(criteria, ocrText) {
   const lines = [];
+  if (ocrText) {
+    lines.push('아래는 Google Drive OCR 엔진이 이 이미지에서 실제로 추출한 문자 그대로의 텍스트입니다(글자 단위로 정확함). OCR 텍스트에 있는 문구만 정답 후보로 삼고, OCR 텍스트에 전혀 없는 글자는 이미지에서도 지어내지 마라. OCR이 헛짚거나 왜곡되었을 수 있으면 그 부분만 이미지를 참고해 자연스럽게 정정해도 된다.');
+    lines.push('--- OCR 텍스트 시작 ---');
+    lines.push(ocrText);
+    lines.push('--- OCR 텍스트 끝 ---');
+  } else {
+    lines.push('OCR 텍스트를 가져오지 못했다. 이미지에서 직접 읽되, 확신이 없는 글자는 낮은 confidence로 표시하라.');
+  }
   lines.push('이 이미지에서 다음을 분석해서 JSON으로 반환하라.');
   lines.push('- productText: 상품명 또는 보종명으로 보이는 문구와 confidence(0~1)');
   lines.push('- reviewText: 심의필 문구(예: 확인필-제OOOO-NNNNNN호 형태)로 보이는 문구와 confidence(0~1)');
