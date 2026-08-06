@@ -65,7 +65,6 @@ const TARGETING_AB_HEADERS = [
 // 웹앱 진입점
 // --------------------------------------------------
 function doGet(e) {
-  if (e && e.parameter && e.parameter.imgId) return DriveApp.getFileById(e.parameter.imgId).getBlob();
   const unitCode = e && e.parameter && e.parameter.unit;
   // 대시보드에서 번들 썸네일/아이콘을 클릭할 때, 소재_통합RAW에 박혀있는 unitCode가
   // 이미 재구성으로 stale해졌을 수 있어 _media/_campaign/_group/_name도 같이 실어보낸다
@@ -84,6 +83,19 @@ function doGet(e) {
     .setTitle(unitCode ? '광고단위 소재' : '운영 소재 분석')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .setSandboxMode(HtmlService.SandboxMode.IFRAME);
+}
+
+// doGet에서 Blob을 직접 반환하는 방식은 이 프로젝트에서 "지원되는 반환 형식이 아닙니다" 오류로
+// 동작하지 않아(2026-08-06 실측), 검수 결과 썸네일은 base64 data URI를 문자열로 반환해 클라이언트에서
+// <img src="data:..."> 로 바로 그리는 방식을 쓴다.
+function getImageDataUri(fileId) {
+  if (!fileId) return null;
+  try {
+    const blob = DriveApp.getFileById(fileId).getBlob();
+    return 'data:' + (blob.getContentType() || 'image/jpeg') + ';base64,' + Utilities.base64Encode(blob.getBytes());
+  } catch (e) {
+    return null;
+  }
 }
 
 // --------------------------------------------------
