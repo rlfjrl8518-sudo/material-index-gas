@@ -10,6 +10,7 @@
 // --------------------------------------------------
 function normalizeText(text, options, isReviewNumber) {
   let s = String(text || '');
+  s = s.normalize('NFKC');
 
   if (options.ignoreLineBreak) s = s.replace(/[\r\n]+/g, ' ');
 
