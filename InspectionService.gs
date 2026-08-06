@@ -287,7 +287,7 @@ function getInspectionResults(inspectionId) {
   values.forEach(function (r, idx) {
     if (String(r[0]) === inspectionId) {
       const obj = {};
-      INSPECTION_RESULT_HEADERS.forEach(function (h, i) { obj[h] = r[i]; });
+      INSPECTION_RESULT_HEADERS.forEach(function (h, i) { let v = r[i]; if (v instanceof Date) v = v.toISOString(); obj[h] = v; });
       obj._row = idx + 2;
       rows.push(obj);
     }
@@ -336,7 +336,7 @@ function getRecentInspections(limit) {
   const n = Math.min(limit || 20, lastRow - 1);
   const values = sheet.getRange(lastRow - n + 1, 1, n, INSPECTION_HISTORY_HEADERS.length).getValues();
   return values.reverse().map(function (r) {
-    return { id: r[0], date: r[1], uploaded: r[2], ok: r[3], mismatch: r[4], needCheck: r[5], user: r[6], status: r[7] };
+    return { id: r[0], date: (r[1] instanceof Date) ? r[1].toISOString() : r[1], uploaded: r[2], ok: r[3], mismatch: r[4], needCheck: r[5], user: r[6], status: r[7] };
   });
 }
 
