@@ -147,7 +147,7 @@ function _processInspectionBatch(inspectionId) {
       props.setProperty(stateKey, JSON.stringify(state));
       props.setProperty('INSPECTION_ACTIVE_ID', inspectionId);
       _deleteTriggersFor('continueInspectionBatch');
-      ScriptApp.newTrigger('continueInspectionBatch').timeBased().after(5000).create();
+      _createContinueTrigger();
     }
 
     return { total: state.total, processed: processedCount, ok: state.ok, mismatch: state.mismatch, needCheck: state.needCheck, done: done };
@@ -163,10 +163,28 @@ function continueInspectionBatch() {
   _processInspectionBatch(id);
 }
 
+// ScriptApp.getProjectTriggers/newTrigger는 script.scriptapp 권한이 필요한데,
+// appsscript.json에 스코프를 추가해도 배포 계정이 다시 승인(재인증)하기 전까지는
+// "호출할 수 있는 권한이 없습니다" 예외가 난다. 이 권한 하나 때문에 이미 끝난
+// 이미지 분석 결과(검수결과 시트에 이미 기록됨)까지 통째로 "검수 시작 실패"로
+// 덮이는 게 문제라, 트리거 정리/등록 실패는 삼키고 로그만 남긴다 — 재인증 전까지는
+// 20장 단위 배치 자동 이어처리만 안 되고(수동으로 다시 시작하면 됨), 검수 자체는 진행된다.
 function _deleteTriggersFor(handlerName) {
-  ScriptApp.getProjectTriggers().forEach(function (t) {
-    if (t.getHandlerFunction() === handlerName) ScriptApp.deleteTrigger(t);
-  });
+  try {
+    ScriptApp.getProjectTriggers().forEach(function (t) {
+      if (t.getHandlerFunction() === handlerName) ScriptApp.deleteTrigger(t);
+    });
+  } catch (e) {
+    Logger.log('트리거 정리 실패(권한 재인증 필요 가능성): ' + e.message);
+  }
+}
+
+function _createContinueTrigger() {
+  try {
+    ScriptApp.newTrigger('continueInspectionBatch').timeBased().after(5000).create();
+  } catch (e) {
+    Logger.log('다음 배치 트리거 등록 실패(권한 재인증 필요 가능성): ' + e.message);
+  }
 }
 
 function _listPendingImages(folder, processedNamesMap, limit) {
