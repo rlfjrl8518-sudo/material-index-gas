@@ -1980,13 +1980,16 @@
       </div>
     </div>
 
-    <!-- 최근 검수 이력 -->
+    <!-- 최근 검수 이력 (기본 접힘 — 검수 결과 영역에 공간을 더 주기 위함) -->
     <div class="card">
       <div class="card-header">
         <span>최근 검수 이력</span>
-        <button class="btn btn-secondary btn-sm" onclick="loadInspectionHistory()">↺ 새로고침</button>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-secondary btn-sm" onclick="loadInspectionHistory()">↺ 새로고침</button>
+          <button class="btn btn-secondary btn-sm" id="inspHistoryToggleBtn" onclick="toggleInspHistory()">🔽 펼치기</button>
+        </div>
       </div>
-      <div class="card-body" style="padding:16px">
+      <div class="card-body" id="inspHistoryBody" style="padding:16px;display:none">
         <div id="inspHistoryList" style="color:#9ca3af;font-size:12px">로딩 중...</div>
       </div>
     </div>
@@ -3318,6 +3321,14 @@ function inspCopyRevision(i) {
 }
 
 // -- 이력 --
+function toggleInspHistory() {
+  const body = document.getElementById('inspHistoryBody');
+  const btn = document.getElementById('inspHistoryToggleBtn');
+  const show = body.style.display === 'none';
+  body.style.display = show ? '' : 'none';
+  btn.textContent = show ? '🔼 접기' : '🔽 펼치기';
+}
+
 function loadInspectionHistory() {
   const el = document.getElementById('inspHistoryList');
   el.innerHTML = '로딩 중...';

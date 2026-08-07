@@ -313,10 +313,15 @@ function getInspectionResults(inspectionId) {
   return rows;
 }
 
+// 이 웹앱은 executeAs: USER_DEPLOYING으로 배포돼 있어 실제로는 항상 배포 계정 권한으로
+// 실행된다. getActiveUser()는 이 실행 모드에서 뷰어를 안정적으로 식별 못 해 빈 문자열을
+// 반환할 때가 많아(개인 Gmail 계정 배포 시 특히 그렇다) '(알 수 없음)'으로 자주 빠졌다.
+// getEffectiveUser()는 "실제로 이 실행을 수행하는 계정"(=배포 계정)을 항상 반환하므로
+// 여기서는 이쪽이 더 안정적이다. (README의 "실행 사용자 = 뷰어가 아니라 배포 계정" 설명과도 일치)
 function _appendHistoryRow(inspectionId, uploaded, ok, mismatch, needCheck, status) {
   const sheet = getSpreadsheet().getSheetByName(INSPECTION_HISTORY_SHEET);
   let user = '(알 수 없음)';
-  try { user = Session.getActiveUser().getEmail() || user; } catch (e) {}
+  try { user = Session.getEffectiveUser().getEmail() || user; } catch (e) {}
   sheet.appendRow([inspectionId, new Date(), uploaded, ok, mismatch, needCheck, user, status]);
 }
 
