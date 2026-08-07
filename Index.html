@@ -7405,6 +7405,18 @@ function azResolveBundleThumb(url, name) {
   return '';
 }
 
+// 보고서(이미지 URL 행 기준)·엑셀 export용 — 셀에 =IMAGE()를 걸었을 때 실제로 뜨도록
+// drive.google.com/uc?export=view 형식을 thumbnail 형식으로 바꾼다(driveThumb와 동일 변환,
+// uc?export=view는 IMAGE() 서버측 fetch에서 막히는 경우가 많음). 번들(?unit=코드) 링크는
+// 먼저 대표 이미지로 치환한 뒤 같은 변환을 적용하고, 대표 이미지를 못 찾으면 번들 링크를
+// 그대로 반환한다(적어도 클릭해서 모아보기는 되도록).
+function azReportImageUrl(url, name) {
+  if (!url) return url;
+  let u = url;
+  if (/[?&]unit=/.test(u)) u = azResolveBundleThumb(u, name) || u;
+  return driveThumb(u);
+}
+
 // 번들 URL(?unit=코드)에 폴백용 컨텍스트를 붙인다. 소재_통합RAW에 박혀있는 unitCode가
 // "광고단위 재구성"으로 stale해진 경우, doGet이 이 값으로 (매체,캠페인,그룹,소재이름)
 // 매칭을 시도할 수 있게 한다 — 안 그러면 번들 뷰 대신 기본 화면(소재등록)으로 떨어졌다
@@ -8461,6 +8473,10 @@ function reportDimValues(row, dim) {
   if (dim.special === 'lifecycle') {
     const phase = reportLifecycleCache && reportLifecycleCache[azCreativeContextKey(row)];
     return phase ? [phase] : [];
+  }
+  if (dim.key === 'imgurl') {
+    const name = String(row[AZ.CREATIVE] || '').trim();
+    return azColValues(row, dim.col).map(u => azReportImageUrl(u, name));
   }
   return azColValues(row, dim.col);
 }
