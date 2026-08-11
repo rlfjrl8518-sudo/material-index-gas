@@ -14,6 +14,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+
 <style>
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -2514,7 +2516,7 @@
       <input type="text" id="report-name-input" class="form-control" placeholder="보고서 이름을 입력하세요" style="max-width:260px;font-size:13px;padding:6px 10px">
       <button class="btn btn-primary btn-sm" onclick="saveCurrentReport()">💾 저장</button>
       <span id="report-save-msg" style="font-size:11px"></span>
-      <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="downloadReportExcel()">⬇ 엑셀 다운로드</button>
+      <button id="report-download-btn" class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="downloadReportExcel()">⬇ 엑셀 다운로드</button>
     </div>
     <div class="report-layout">
 
@@ -8230,6 +8232,7 @@ const REPORT_METRICS = [
 
 let reportFilterSeq  = 0;
 let reportExportAOA  = null; // 마지막으로 생성된 보고서의 원시 배열 (엑셀 export용)
+let reportExportImgCol = -1; // reportExportAOA에서 "이미지 URL" 행 기준 열의 인덱스(0-based), 없으면 -1
 
 function onReportTabActivate() {
   if (azLoaded) {
@@ -8925,6 +8928,7 @@ function renderReportFlatTable(data) {
   entries.forEach(e => aoa.push([...e.tuple, ...metricKeys.map(k => reportRawExportVal(k, e[k]))]));
   aoa.push([...dimLabels.map((_, i) => i === 0 ? '합계' : ''), ...metricKeys.map(k => reportRawExportVal(k, reportMetricFromAgg(totalAgg, k)))]);
   reportExportAOA = aoa;
+  reportExportImgCol = rowDims.findIndex(d => d.key === 'imgurl');
 }
 
 // 지표를 여러 개 고르면 열 값 하나마다 지표별로 그룹핑된 서브컬럼을 만든다
@@ -9002,18 +9006,94 @@ function renderReportPivotTable(data) {
     ...exportMetricCells(grandAgg)
   ]);
   reportExportAOA = aoa;
+  reportExportImgCol = rowDims.findIndex(d => d.key === 'imgurl');
 }
 
 // ── 엑셀 다운로드 ─────────────────────────────────────────
-function downloadReportExcel() {
+function reportExcelTimestamp() {
+  const d = new Date();
+  return d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0') +
+    '_' + String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0');
+}
+
+function base64ToArrayBuffer(b64) {
+  const bin = atob(b64);
+  const buf = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  return buf;
+}
+
+async function downloadReportExcel() {
   if (!reportExportAOA || !reportExportAOA.length) { alert('먼저 보고서를 생성하세요.'); return; }
+  if (reportExportImgCol >= 0) {
+    await downloadReportExcelWithImages();
+    return;
+  }
   const ws = XLSX.utils.aoa_to_sheet(reportExportAOA);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '보고서');
-  const d = new Date();
-  const ts = d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0') +
-    '_' + String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0');
-  XLSX.writeFile(wb, `보고서_${ts}.xlsx`);
+  XLSX.writeFile(wb, `보고서_${reportExcelTimestamp()}.xlsx`);
+}
+
+// "이미지 URL"이 행 기준에 포함된 보고서는 셀에 링크 텍스트 대신 실제 이미지를 박아넣는다.
+// 브라우저가 Drive 썸네일 URL을 직접 fetch하면 CORS에 막혀 바이트를 못 읽을 수 있어서,
+// 서버(fetchReportImages)가 대신 받아 base64로 돌려준 걸 클라이언트에서 ExcelJS로 삽입한다.
+async function downloadReportExcelWithImages() {
+  const btn = document.getElementById('report-download-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '이미지 불러오는 중...'; }
+  try {
+    const aoa = reportExportAOA;
+    const colIdx = reportExportImgCol;
+    const urls = [...new Set(aoa.slice(1).map(row => row[colIdx]).filter(u => typeof u === 'string' && u.startsWith('http')))];
+
+    let imgMap = {};
+    try {
+      imgMap = await gasRun('fetchReportImages', urls);
+    } catch (e) {
+      console.warn('[보고서] 이미지 로드 실패, 텍스트만 포함해 다운로드:', e);
+    }
+
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('보고서');
+    const ROW_H = 58;
+
+    ws.addRow(aoa[0]);
+    ws.getRow(1).font = { bold: true };
+    aoa[0].forEach((_, i) => { ws.getColumn(i + 1).width = (i === colIdx) ? 14 : 16; });
+
+    for (let r = 1; r < aoa.length; r++) {
+      const rowVals = aoa[r].slice();
+      const url = rowVals[colIdx];
+      const info = url && imgMap[url];
+      if (info) rowVals[colIdx] = ''; // 이미지가 셀을 덮으므로 URL 텍스트는 비움(대신 하이퍼링크로 남김)
+      const row = ws.addRow(rowVals);
+      if (info) {
+        row.height = ROW_H;
+        const ext = (info.contentType || '').includes('png') ? 'png' : 'jpeg';
+        const imageId = wb.addImage({ buffer: base64ToArrayBuffer(info.base64), extension: ext });
+        const r0 = row.number - 1;
+        ws.addImage(imageId, {
+          tl: { col: colIdx + 0.06, row: r0 + 0.06 },
+          br: { col: colIdx + 0.94, row: r0 + 0.94 },
+          editAs: 'twoCell'
+        });
+        row.getCell(colIdx + 1).value = { text: '(이미지)', hyperlink: url, tooltip: url };
+        row.getCell(colIdx + 1).font = { size: 1, color: { argb: 'FFFFFFFF' } };
+      }
+    }
+
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `보고서_${reportExcelTimestamp()}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(a.href);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '⬇ 엑셀 다운로드'; }
+  }
 }
 
 // ============================================================

@@ -98,6 +98,29 @@ function getImageDataUri(fileId) {
   }
 }
 
+// 보고서 탭 엑셀 다운로드에서 "이미지 URL" 열을 실제 그림으로 박아넣을 때 쓴다.
+// 브라우저가 Drive 썸네일 URL을 직접 fetch하면 CORS에 막혀 바이트를 못 읽는 경우가 있어,
+// 서버가 대신 UrlFetchApp으로 받아 base64로 돌려준다(getImageDataUri와 같은 패턴, 다만
+// 이쪽은 fileId가 아니라 URL 자체를 받고, 여러 개를 한 번에 처리한다).
+// 반환값: { [url]: { base64, contentType } } — 실패한 URL은 결과에서 그냥 빠진다.
+function fetchReportImages(urls) {
+  const out = {};
+  (urls || []).forEach(url => {
+    try {
+      const res = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+      if (res.getResponseCode() !== 200) return;
+      const blob = res.getBlob();
+      out[url] = {
+        base64: Utilities.base64Encode(blob.getBytes()),
+        contentType: blob.getContentType() || 'image/jpeg'
+      };
+    } catch (e) {
+      // 개별 이미지 실패는 건너뛰고 나머지는 계속 처리
+    }
+  });
+  return out;
+}
+
 // --------------------------------------------------
 // 커스텀 메뉴 (스프레드시트 열릴 때 자동 등록)
 // [통합 적재] 버튼 대체 수단으로도 활용
