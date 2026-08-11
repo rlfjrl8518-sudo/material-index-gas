@@ -8808,7 +8808,11 @@ function buildReportData() {
     } else {
       entries.sort((a, b) => b.imp - a.imp);
     }
-    return { type: 'flat', rowDims, metricKeys, entries };
+    // 합계는 항목별 소계를 다시 더한 값이 아니라 필터링된 원본 행에서 직접 계산한다.
+    // 모델유형(개별)처럼 한 행이 여러 항목(예: 2030남자+2030여자)에 동시에 속하는
+    // 다중값 차원을 기준으로 쓰면, 그 행이 각 항목 소계에 중복으로 더해지기 때문에
+    // 소계를 단순 합산하면 실제보다 부풀려진(중복 반영된) 합계가 나온다.
+    return { type: 'flat', rowDims, metricKeys, entries, totalAgg: azKPI(azSum(rows)) };
   }
 
   // 교차표: 열 차원이 여러 개면 값을 하나의 조합 라벨("A / B")로 합친다.
@@ -8849,9 +8853,10 @@ function buildReportData() {
     rowKeysArr.sort((a, b) => sortDir * (reportMetricFromAgg(rowTotal(a), metric) - reportMetricFromAgg(rowTotal(b), metric)));
   }
 
+  // grandAgg도 flat 테이블과 같은 이유로 셀 소계 합산이 아니라 원본 행에서 직접 계산한다.
   return {
     type: 'pivot', rowDims, colDims, metricKeys, mat, rowTupleMap,
-    rowKeys: rowKeysArr, colKeys: colKeysArr
+    rowKeys: rowKeysArr, colKeys: colKeysArr, grandAgg: azKPI(azSum(rows))
   };
 }
 
@@ -8892,14 +8897,10 @@ function reportMetricFromAgg(agg, metric) {
 }
 
 function renderReportFlatTable(data) {
-  const { rowDims, metricKeys, entries } = data;
+  const { rowDims, metricKeys, entries, totalAgg } = data;
   const metricLabels = metricKeys.map(k => REPORT_METRICS.find(m => m.key === k).label);
   const dimLabels = rowDims.map(d => d.label);
   const table = document.getElementById('report-table');
-
-  const totalAgg = entries.reduce((a, e) => ({
-    imp: a.imp + e.imp, clk: a.clk + e.clk, cost: a.cost + e.cost, conv: a.conv + e.conv
-  }), { imp: 0, clk: 0, cost: 0, conv: 0 });
 
   table.innerHTML =
     `<thead><tr>
@@ -8930,7 +8931,7 @@ function renderReportFlatTable(data) {
 // (헤더 2줄: 1줄=열 값, 2줄=그 아래 지표명) — 지표가 1개면 자연스럽게
 // 서브컬럼이 1개짜리 그룹으로 표시된다.
 function renderReportPivotTable(data) {
-  const { rowDims, colDims, metricKeys, mat, rowKeys, colKeys, rowTupleMap } = data;
+  const { rowDims, colDims, metricKeys, mat, rowKeys, colKeys, rowTupleMap, grandAgg } = data;
   const table = document.getElementById('report-table');
   const metricLabels = metricKeys.map(k => REPORT_METRICS.find(m => m.key === k).label);
   const dimLabels = rowDims.map(d => d.label);
@@ -8945,7 +8946,6 @@ function renderReportPivotTable(data) {
   }
   function rowTotalAgg(rk) { return sumAgg(colKeys.map(ck => cellAgg(rk, ck))); }
   function colTotalAgg(ck) { return sumAgg(rowKeys.map(rk => cellAgg(rk, ck))); }
-  const grandAgg = sumAgg(rowKeys.map(rk => rowTotalAgg(rk)));
 
   const metricHeaderRow = () => metricLabels.map(l => `<th>${escHtml(l)}</th>`).join('');
   const metricTotalHeaderRow = () => metricKeys.map((m, i) =>
