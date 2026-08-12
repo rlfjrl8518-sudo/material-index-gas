@@ -2516,7 +2516,15 @@
       <input type="text" id="report-name-input" class="form-control" placeholder="보고서 이름을 입력하세요" style="max-width:260px;font-size:13px;padding:6px 10px">
       <button class="btn btn-primary btn-sm" onclick="saveCurrentReport()">💾 저장</button>
       <span id="report-save-msg" style="font-size:11px"></span>
-      <button id="report-download-btn" class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="downloadReportExcel()">⬇ 엑셀 다운로드</button>
+      <label style="margin-left:auto;display:flex;align-items:center;gap:4px;font-size:11px;color:#4b5563;white-space:nowrap">
+        <input type="checkbox" id="report-topn-toggle"> 매체별
+        <select id="report-topn-count" style="font-size:11px;padding:2px 4px;border:1px solid #d1d5db;border-radius:4px">
+          <option value="5">TOP5</option>
+          <option value="10">TOP10</option>
+        </select>
+        소재 포함
+      </label>
+      <button id="report-download-btn" class="btn btn-ghost btn-sm" onclick="downloadReportExcel()">⬇ 엑셀 다운로드</button>
     </div>
     <div class="report-layout">
 
@@ -9025,8 +9033,10 @@ function base64ToArrayBuffer(b64) {
 
 async function downloadReportExcel() {
   if (!reportExportAOA || !reportExportAOA.length) { alert('먼저 보고서를 생성하세요.'); return; }
-  if (reportExportImgCol >= 0) {
-    await downloadReportExcelWithImages();
+  const topNOn = !!document.getElementById('report-topn-toggle')?.checked;
+  const topN = parseInt(document.getElementById('report-topn-count')?.value || '5', 10);
+  if (reportExportImgCol >= 0 || topNOn) {
+    await downloadReportExcelWithImages(topNOn, topN);
     return;
   }
   const ws = XLSX.utils.aoa_to_sheet(reportExportAOA);
@@ -9035,51 +9045,207 @@ async function downloadReportExcel() {
   XLSX.writeFile(wb, `보고서_${reportExcelTimestamp()}.xlsx`);
 }
 
-// "이미지 URL"이 행 기준에 포함된 보고서는 셀에 링크 텍스트 대신 실제 이미지를 박아넣는다.
-// 브라우저가 Drive 썸네일 URL을 직접 fetch하면 CORS에 막혀 바이트를 못 읽을 수 있어서,
-// 서버(fetchReportImages)가 대신 받아 base64로 돌려준 걸 클라이언트에서 ExcelJS로 삽입한다.
-async function downloadReportExcelWithImages() {
+// ── 매체별 TOP N 소재 (다운로드 옵션) ────────────────────────
+// 현재 필터링된 원본 행을 매체→보종→소재이름 단위로 집계해, 매체별 시트에
+// CTR/CVR/CPA 상위 N개 소재를 표로 정리한다("DA 소재 인사이트" 등으로 수작업
+// 정리해주던 것을 다운로드 옵션 하나로 대체). 이미지는 대표 이미지 1장을
+// 셀에 넣는다(다른 이미지 임베드 로직과 같은 서버 fetch를 재사용).
+function reportBuildTopNCreatives(rows) {
+  const map = {}; // media -> bojong -> name -> {..}
+  rows.forEach(r => {
+    const media = String(r[AZ.MEDIA] || '').trim();
+    const bojong = String(r[AZ.BOJONG] || '').trim();
+    const name = String(r[AZ.CREATIVE] || '').trim();
+    if (!media || !bojong || !name) return;
+    map[media] = map[media] || {};
+    map[media][bojong] = map[media][bojong] || {};
+    const g = map[media][bojong][name] = map[media][bojong][name] ||
+      { name, 소재유형: '', 이미지유형: '', url: '', imp: 0, clk: 0, cost: 0, conv: 0 };
+    g.imp += azNum(r[AZ.IMP]); g.clk += azNum(r[AZ.CLICK]);
+    g.cost += azNum(r[AZ.COST]); g.conv += azNum(r[AZ.CONV]);
+    if (r[AZ.CRTYPE])  g.소재유형 = String(r[AZ.CRTYPE]).trim();
+    if (r[AZ.IMGTYPE]) g.이미지유형 = String(r[AZ.IMGTYPE]).trim();
+    if (r[AZ.IMGURL])  g.url = azReportImageUrl(r[AZ.IMGURL], name);
+  });
+  const out = {}; // media -> bojong -> [{..., ctr, cvr, cpa}] (비율은 0~1 소수)
+  Object.keys(map).forEach(media => {
+    out[media] = {};
+    Object.keys(map[media]).forEach(bojong => {
+      out[media][bojong] = Object.values(map[media][bojong]).map(g => ({
+        ...g,
+        ctr: g.imp > 0 ? g.clk / g.imp : 0,
+        cvr: g.clk > 0 ? g.conv / g.clk : 0,
+        cpa: g.conv > 0 ? g.cost / g.conv : 0
+      }));
+    });
+  });
+  return out;
+}
+
+// requirePositive: 그 필드가 0보다 큰 항목만 순위에 포함(클릭 0건인데 CVR 0을 "낮은 CPA"로 오인하는 것 방지)
+function reportTopNPick(list, key, topN, ascending, requirePositive) {
+  const filtered = requirePositive ? list.filter(c => c[requirePositive] > 0) : list;
+  return [...filtered].sort((a, b) => ascending ? a[key] - b[key] : b[key] - a[key]).slice(0, topN);
+}
+
+function reportCollectTopNImageUrls(byMedia, topN) {
+  const urls = new Set();
+  Object.values(byMedia).forEach(byBojong => {
+    Object.values(byBojong).forEach(list => {
+      reportTopNPick(list, 'ctr', topN, false, 'imp').forEach(c => c.url && urls.add(c.url));
+      reportTopNPick(list, 'cvr', topN, false, 'clk').forEach(c => c.url && urls.add(c.url));
+      reportTopNPick(list, 'cpa', topN, true, 'conv').forEach(c => c.url && urls.add(c.url));
+    });
+  });
+  return [...urls];
+}
+
+const REPORT_TOPN_HEAD_FILL = { type: 'pattern', pattern: 'solid', fgColor: { theme: 0, tint: -0.15 } };
+const REPORT_TOPN_FONT      = { name: '맑은 고딕', size: 8 };
+const REPORT_TOPN_HEAD_FONT = { name: '맑은 고딕', size: 8, bold: true };
+const REPORT_TOPN_THIN      = { style: 'thin', color: { argb: 'FFD9D9D9' } };
+const REPORT_TOPN_BORDER    = { top: REPORT_TOPN_THIN, bottom: REPORT_TOPN_THIN, left: REPORT_TOPN_THIN, right: REPORT_TOPN_THIN };
+const REPORT_TOPN_NUMFMT    = '_-* #,##0_-;-* #,##0_-;_-* "-"_-;_-@_-';
+
+function reportAnchorTopNImage(ws, url, drawInfo, col0, row0) {
+  const info = url && drawInfo[url];
+  if (!info) return;
+  ws.addImage(info.imageId, { tl: { col: col0 + 0.06, row: row0 + 0.06 }, br: { col: col0 + 0.94, row: row0 + 0.94 }, editAs: 'twoCell' });
+}
+
+function reportBuildTopNSheets(wb, byMedia, drawInfo, topN) {
+  const COLS = ['순위', '소재이름', '소재유형', '이미지유형', '노출', '클릭', 'CTR(%)', '전환', 'CVR(%)', '비용(원)', 'CPA(원)', '이미지'];
+  const ROW_H = 50, COL_W = 16, IMG_COL_W = 14;
+  const usedNames = new Set(['보고서']);
+
+  Object.keys(byMedia).sort().forEach(media => {
+    let sheetName = String(media).slice(0, 31).replace(/[\\/*?:[\]]/g, '_') || '매체';
+    while (usedNames.has(sheetName)) sheetName = (sheetName + '_').slice(0, 31);
+    usedNames.add(sheetName);
+
+    const ws = wb.addWorksheet(sheetName);
+    ws.views = [{ showGridLines: false }];
+    ws.getColumn(1).width = 2.5;
+    for (let i = 2; i <= 1 + COLS.length; i++) ws.getColumn(i).width = (i === 1 + COLS.length) ? IMG_COL_W : COL_W;
+
+    const byBojong = byMedia[media];
+    const bojongList = Object.keys(byBojong).sort((a, b) =>
+      byBojong[b].reduce((s, c) => s + c.imp, 0) - byBojong[a].reduce((s, c) => s + c.imp, 0));
+
+    let R = 2;
+    ws.getCell(R, 2).value = `＊ ${media} — 매체 내 보종별 CTR / CVR / CPA TOP${topN} 소재`;
+    ws.getCell(R, 2).font = { ...REPORT_TOPN_FONT, bold: true, size: 12 };
+    R += 2;
+
+    function table(title, list, key, ascending, requirePositive) {
+      ws.getCell(R, 2).value = `＊ ${title}`;
+      ws.getCell(R, 2).font = REPORT_TOPN_FONT;
+      R += 1;
+      COLS.forEach((c, i) => {
+        const cell = ws.getCell(R, 2 + i);
+        cell.value = c; cell.font = REPORT_TOPN_HEAD_FONT; cell.fill = REPORT_TOPN_HEAD_FILL; cell.border = REPORT_TOPN_BORDER;
+      });
+      R += 1;
+      const picked = reportTopNPick(list, key, topN, ascending, requirePositive);
+      if (!picked.length) {
+        ws.getCell(R, 2).value = '(데이터 없음)';
+        ws.getCell(R, 2).font = REPORT_TOPN_FONT;
+        R += 2;
+        return;
+      }
+      picked.forEach((c, i) => {
+        const rowNow = R;
+        ws.getRow(R).height = ROW_H;
+        const vals = [i + 1, c.name, c.소재유형, c.이미지유형, Math.round(c.imp), Math.round(c.clk), c.ctr, Math.round(c.conv), c.cvr, Math.round(c.cost), Math.round(c.cpa), ''];
+        vals.forEach((v, ci) => {
+          const cell = ws.getCell(R, 2 + ci);
+          cell.value = v; cell.font = REPORT_TOPN_FONT; cell.border = REPORT_TOPN_BORDER;
+          if (ci === 6 || ci === 8) cell.numFmt = '0.00%';
+          else if (typeof v === 'number' && ci >= 4) cell.numFmt = REPORT_TOPN_NUMFMT;
+        });
+        reportAnchorTopNImage(ws, c.url, drawInfo, 2 + COLS.length - 2, rowNow - 1);
+        R += 1;
+      });
+      R += 1;
+    }
+
+    bojongList.forEach(bojong => {
+      const list = byBojong[bojong];
+      ws.getCell(R, 2).value = bojong;
+      ws.getCell(R, 2).font = { ...REPORT_TOPN_FONT, bold: true };
+      R += 1;
+      table(`${bojong} - CTR TOP${topN}`, list, 'ctr', false, 'imp');
+      table(`${bojong} - CVR TOP${topN}`, list, 'cvr', false, 'clk');
+      table(`${bojong} - CPA TOP${topN} (낮은 순)`, list, 'cpa', true, 'conv');
+      R += 1;
+    });
+  });
+}
+
+// "이미지 URL"이 행 기준에 포함된 보고서는 셀에 링크 텍스트 대신 실제 이미지를 박아넣고,
+// "매체별 TOP N" 옵션을 켰으면 매체별 시트를 추가로 만든다. 브라우저가 Drive 썸네일 URL을
+// 직접 fetch하면 CORS에 막혀 바이트를 못 읽을 수 있어서, 서버(fetchReportImages)가 대신
+// 받아 base64로 돌려준 걸 클라이언트에서 ExcelJS로 삽입한다.
+async function downloadReportExcelWithImages(topNOn, topN) {
   const btn = document.getElementById('report-download-btn');
   if (btn) { btn.disabled = true; btn.textContent = '이미지 불러오는 중...'; }
   try {
     const aoa = reportExportAOA;
     const colIdx = reportExportImgCol;
-    const urls = [...new Set(aoa.slice(1).map(row => row[colIdx]).filter(u => typeof u === 'string' && u.startsWith('http')))];
+    const mainUrls = colIdx >= 0
+      ? aoa.slice(1).map(row => row[colIdx]).filter(u => typeof u === 'string' && u.startsWith('http'))
+      : [];
 
-    let imgMap = {};
-    try {
-      imgMap = await gasRun('fetchReportImages', urls);
-    } catch (e) {
-      console.warn('[보고서] 이미지 로드 실패, 텍스트만 포함해 다운로드:', e);
+    let byMedia = null;
+    let topNUrls = [];
+    if (topNOn) {
+      byMedia = reportBuildTopNCreatives(reportFilteredRows());
+      topNUrls = reportCollectTopNImageUrls(byMedia, topN);
+    }
+
+    const allUrls = [...new Set([...mainUrls, ...topNUrls])];
+    let imgBase64Map = {};
+    if (allUrls.length) {
+      try { imgBase64Map = await gasRun('fetchReportImages', allUrls); }
+      catch (e) { console.warn('[보고서] 이미지 로드 실패, 텍스트만 포함해 다운로드:', e); }
     }
 
     const wb = new ExcelJS.Workbook();
+
+    // URL 하나당 wb.addImage를 한 번만 호출해 중복 임베드를 피한다(같은 대표 이미지를
+    // 여러 소재/여러 표에서 같이 쓰는 경우가 많아 이렇게 해야 파일 용량이 커지지 않는다)
+    const drawInfo = {};
+    Object.keys(imgBase64Map).forEach(url => {
+      const info = imgBase64Map[url];
+      const ext = (info.contentType || '').includes('png') ? 'png' : 'jpeg';
+      drawInfo[url] = { imageId: wb.addImage({ buffer: base64ToArrayBuffer(info.base64), extension: ext }) };
+    });
+
+    // ── 메인 "보고서" 시트 ──
     const ws = wb.addWorksheet('보고서');
     const ROW_H = 58;
-
     ws.addRow(aoa[0]);
     ws.getRow(1).font = { bold: true };
     aoa[0].forEach((_, i) => { ws.getColumn(i + 1).width = (i === colIdx) ? 14 : 16; });
 
     for (let r = 1; r < aoa.length; r++) {
       const rowVals = aoa[r].slice();
-      const url = rowVals[colIdx];
-      const info = url && imgMap[url];
+      const url = colIdx >= 0 ? rowVals[colIdx] : null;
+      const info = url && drawInfo[url];
       if (info) rowVals[colIdx] = ''; // 이미지가 셀을 덮으므로 URL 텍스트는 비움(대신 하이퍼링크로 남김)
       const row = ws.addRow(rowVals);
       if (info) {
         row.height = ROW_H;
-        const ext = (info.contentType || '').includes('png') ? 'png' : 'jpeg';
-        const imageId = wb.addImage({ buffer: base64ToArrayBuffer(info.base64), extension: ext });
         const r0 = row.number - 1;
-        ws.addImage(imageId, {
-          tl: { col: colIdx + 0.06, row: r0 + 0.06 },
-          br: { col: colIdx + 0.94, row: r0 + 0.94 },
-          editAs: 'twoCell'
-        });
+        ws.addImage(info.imageId, { tl: { col: colIdx + 0.06, row: r0 + 0.06 }, br: { col: colIdx + 0.94, row: r0 + 0.94 }, editAs: 'twoCell' });
         row.getCell(colIdx + 1).value = { text: '(이미지)', hyperlink: url, tooltip: url };
         row.getCell(colIdx + 1).font = { size: 1, color: { argb: 'FFFFFFFF' } };
       }
+    }
+
+    // ── 매체별 TOP N 시트 ──
+    if (topNOn && byMedia) {
+      reportBuildTopNSheets(wb, byMedia, drawInfo, topN);
     }
 
     const buf = await wb.xlsx.writeBuffer();
