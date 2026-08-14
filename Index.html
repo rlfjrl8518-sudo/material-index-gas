@@ -9107,10 +9107,20 @@ const REPORT_TOPN_THIN      = { style: 'thin', color: { argb: 'FFD9D9D9' } };
 const REPORT_TOPN_BORDER    = { top: REPORT_TOPN_THIN, bottom: REPORT_TOPN_THIN, left: REPORT_TOPN_THIN, right: REPORT_TOPN_THIN };
 const REPORT_TOPN_NUMFMT    = '_-* #,##0_-;-* #,##0_-;_-* "-"_-;_-@_-';
 
-function reportAnchorTopNImage(ws, url, drawInfo, col0, row0) {
+// tl+br(twoCell) 앵커는 이미지를 셀 박스에 꽉 채우도록 강제로 늘려서 그리는데, 열 너비(문자
+// 단위)와 행 높이(포인트 단위)가 실제 픽셀 비율로는 정사각형이 아니라서 원본이 정사각형/세로형인
+// 소재 썸네일이 옆으로 눌린("찌부") 모양으로 뜬다. tl+ext(oneCell)로 바꿔 고정 정사각형 픽셀
+// 크기를 지정하면 비율이 늘어나지 않고, 셀에 맞춰 이동은 하되 리사이즈는 안 하므로(oneCell)
+// 필터로 행이 숨겨질 때도 이미지가 자기 행을 벗어나 옆/아래 행과 겹쳐 보이는 일이 없다.
+function reportImageBoxPx(rowHeightPt) {
+  return Math.round(rowHeightPt * (96 / 72) * 0.85);
+}
+
+function reportAnchorTopNImage(ws, url, drawInfo, col0, row0, rowHeightPt) {
   const info = url && drawInfo[url];
   if (!info) return;
-  ws.addImage(info.imageId, { tl: { col: col0 + 0.06, row: row0 + 0.06 }, br: { col: col0 + 0.94, row: row0 + 0.94 }, editAs: 'twoCell' });
+  const size = reportImageBoxPx(rowHeightPt);
+  ws.addImage(info.imageId, { tl: { col: col0 + 0.06, row: row0 + 0.06 }, ext: { width: size, height: size }, editAs: 'oneCell' });
 }
 
 function reportBuildTopNSheets(wb, byMedia, drawInfo, topN) {
@@ -9163,7 +9173,7 @@ function reportBuildTopNSheets(wb, byMedia, drawInfo, topN) {
           if (ci === 6 || ci === 8) cell.numFmt = '0.00%';
           else if (typeof v === 'number' && ci >= 4) cell.numFmt = REPORT_TOPN_NUMFMT;
         });
-        reportAnchorTopNImage(ws, c.url, drawInfo, 2 + COLS.length - 2, rowNow - 1);
+        reportAnchorTopNImage(ws, c.url, drawInfo, 2 + COLS.length - 2, rowNow - 1, ROW_H);
         R += 1;
       });
       R += 1;
@@ -9237,7 +9247,8 @@ async function downloadReportExcelWithImages(topNOn, topN) {
       if (info) {
         row.height = ROW_H;
         const r0 = row.number - 1;
-        ws.addImage(info.imageId, { tl: { col: colIdx + 0.06, row: r0 + 0.06 }, br: { col: colIdx + 0.94, row: r0 + 0.94 }, editAs: 'twoCell' });
+        const size = reportImageBoxPx(ROW_H);
+        ws.addImage(info.imageId, { tl: { col: colIdx + 0.06, row: r0 + 0.06 }, ext: { width: size, height: size }, editAs: 'oneCell' });
         row.getCell(colIdx + 1).value = { text: '(이미지)', hyperlink: url, tooltip: url };
         row.getCell(colIdx + 1).font = { size: 1, color: { argb: 'FFFFFFFF' } };
       }
