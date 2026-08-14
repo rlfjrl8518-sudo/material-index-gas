@@ -12,8 +12,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 
 <style>
@@ -9038,18 +9036,14 @@ function base64ToArrayBuffer(b64) {
   return buf;
 }
 
+// 이미지·TOP N 옵션이 없어도 항상 ExcelJS 경로로 내보낸다 — 가운데 정렬/중간 맞춤/폰트
+// 크기 8 같은 기본 서식은 ExcelJS로만 걸 수 있고(구버전 SheetJS는 무료판이라 셀 서식을
+// 못 씀), 다운로드 결과가 옵션에 따라 서식이 있다/없다로 갈리지 않게 하기 위해서다.
 async function downloadReportExcel() {
   if (!reportExportAOA || !reportExportAOA.length) { alert('먼저 보고서를 생성하세요.'); return; }
   const topNOn = !!document.getElementById('report-topn-toggle')?.checked;
   const topN = parseInt(document.getElementById('report-topn-count')?.value || '5', 10);
-  if (reportExportImgCol >= 0 || topNOn) {
-    await downloadReportExcelWithImages(topNOn, topN);
-    return;
-  }
-  const ws = XLSX.utils.aoa_to_sheet(reportExportAOA);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, '보고서');
-  XLSX.writeFile(wb, `보고서_${reportExcelTimestamp()}.xlsx`);
+  await downloadReportExcelWithImages(topNOn, topN);
 }
 
 // ── 매체별 TOP N 소재 (다운로드 옵션) ────────────────────────
@@ -9110,29 +9104,64 @@ function reportCollectTopNImageUrls(byMedia, topN) {
 const REPORT_TOPN_HEAD_FILL = { type: 'pattern', pattern: 'solid', fgColor: { theme: 0, tint: -0.15 } };
 const REPORT_TOPN_FONT      = { name: '맑은 고딕', size: 8 };
 const REPORT_TOPN_HEAD_FONT = { name: '맑은 고딕', size: 8, bold: true };
+const REPORT_TOPN_ALIGN     = { horizontal: 'center', vertical: 'middle' };
 const REPORT_TOPN_THIN      = { style: 'thin', color: { argb: 'FFD9D9D9' } };
 const REPORT_TOPN_BORDER    = { top: REPORT_TOPN_THIN, bottom: REPORT_TOPN_THIN, left: REPORT_TOPN_THIN, right: REPORT_TOPN_THIN };
 const REPORT_TOPN_NUMFMT    = '_-* #,##0_-;-* #,##0_-;_-* "-"_-;_-@_-';
 
-// tl+br(twoCell) 앵커는 이미지를 셀 박스에 꽉 채우도록 강제로 늘려서 그리는데, 열 너비(문자
-// 단위)와 행 높이(포인트 단위)가 실제 픽셀 비율로는 정사각형이 아니라서 원본이 정사각형/세로형인
-// 소재 썸네일이 옆으로 눌린("찌부") 모양으로 뜬다. tl+ext(oneCell)로 바꿔 고정 정사각형 픽셀
-// 크기를 지정하면 비율이 늘어나지 않고, 셀에 맞춰 이동은 하되 리사이즈는 안 하므로(oneCell)
-// 필터로 행이 숨겨질 때도 이미지가 자기 행을 벗어나 옆/아래 행과 겹쳐 보이는 일이 없다.
+// 보고서 다운로드 시트 전체 기본 서식(요청: 가운데 정렬 + 중간 맞춤 + 폰트 크기 8)
+const REPORT_CELL_FONT  = { name: '맑은 고딕', size: 8 };
+const REPORT_CELL_ALIGN = { horizontal: 'center', vertical: 'middle' };
+
+// tl+br(twoCell) 앵커는 이미지를 셀 박스 전체에 꽉 채우도록 강제로 늘려서 그리는데, 열
+// 너비(문자 단위)와 행 높이(포인트 단위)를 실제 픽셀로 환산하면 정사각형이 아니라서 원본
+// 이미지 비율이 눌린다("찌부"). 처음엔 tl+ext(oneCell)로 바꾸면서 고정 정사각형 크기를
+// 줬었는데, 그러면 이번엔 반대로 원본이 정사각형이 아닌(직사각형) 소재 이미지가 강제로
+// 정사각형 틀에 눌려 들어가 여전히 찌부 현상이 남았다. 진짜 원인은 "박스 모양"이 아니라
+// "원본 이미지 자기 비율을 안 쓴다"는 것이었다 — 그래서 이미지를 워크북에 등록하기 전에
+// 브라우저에서 실제 픽셀 크기(naturalWidth/Height)를 읽어 비율을 구하고, 그 비율을 유지한
+// 채 박스(maxW×maxH) 안에 맞춰 넣도록(contain) 고쳤다. oneCell 앵커라 셀에 맞춰 이동은
+// 하되 리사이즈는 안 하므로, 필터로 행이 숨겨질 때 이미지가 옆/아래 행과 겹치는 것도 방지된다.
 function reportImageBoxPx(rowHeightPt) {
   return Math.round(rowHeightPt * (96 / 72) * 0.85);
 }
+function reportImageMaxW(colChars) {
+  return Math.round(colChars * 7 * 0.85);
+}
 
-function reportAnchorTopNImage(ws, url, drawInfo, col0, row0, rowHeightPt) {
-  const info = url && drawInfo[url];
+// base64 이미지를 브라우저에 실제로 디코드시켜 원본 가로/세로 픽셀을 읽고 비율(width/height)을
+// 구한다. 디코드 실패(손상된 이미지 등)해도 다운로드 자체는 막지 않도록 1(정사각형)로 폴백.
+function reportImageRatio(base64, contentType) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => resolve(img.naturalWidth && img.naturalHeight ? img.naturalWidth / img.naturalHeight : 1);
+    img.onerror = () => resolve(1);
+    img.src = 'data:' + (contentType || 'image/jpeg') + ';base64,' + base64;
+  });
+}
+
+// drawInfo 엔트리({imageId, ratio})를 받아 원본 비율을 유지한 채 maxW×maxH 박스 안에
+// contain으로 맞춰 넣는다. ratio를 못 구한 이미지는 1(정사각형)로 대체.
+function reportPlaceImage(ws, info, col0, row0, maxW, maxH) {
   if (!info) return;
-  const size = reportImageBoxPx(rowHeightPt);
-  ws.addImage(info.imageId, { tl: { col: col0 + 0.06, row: row0 + 0.06 }, ext: { width: size, height: size }, editAs: 'oneCell' });
+  const ratio = info.ratio > 0 ? info.ratio : 1;
+  let width = maxW, height = Math.round(maxW / ratio);
+  if (height > maxH) { height = maxH; width = Math.round(maxH * ratio); }
+  ws.addImage(info.imageId, {
+    tl: { col: col0 + 0.06, row: row0 + 0.06 },
+    ext: { width: Math.max(1, width), height: Math.max(1, height) },
+    editAs: 'oneCell'
+  });
+}
+
+function reportAnchorTopNImage(ws, url, drawInfo, col0, row0, maxW, maxH) {
+  reportPlaceImage(ws, url && drawInfo[url], col0, row0, maxW, maxH);
 }
 
 function reportBuildTopNSheets(wb, byMedia, drawInfo, topN) {
   const COLS = ['순위', '소재이름', '소재유형', '이미지유형', '노출', '클릭', 'CTR(%)', '전환', 'CVR(%)', '비용(원)', 'CPA(원)', '이미지'];
   const ROW_H = 50, COL_W = 16, IMG_COL_W = 14;
+  const IMG_MAX_W = reportImageMaxW(IMG_COL_W), IMG_MAX_H = reportImageBoxPx(ROW_H);
   const usedNames = new Set(['보고서']);
 
   Object.keys(byMedia).sort().forEach(media => {
@@ -9161,6 +9190,7 @@ function reportBuildTopNSheets(wb, byMedia, drawInfo, topN) {
       COLS.forEach((c, i) => {
         const cell = ws.getCell(R, 2 + i);
         cell.value = c; cell.font = REPORT_TOPN_HEAD_FONT; cell.fill = REPORT_TOPN_HEAD_FILL; cell.border = REPORT_TOPN_BORDER;
+        cell.alignment = REPORT_TOPN_ALIGN;
       });
       R += 1;
       const picked = reportTopNPick(list, key, topN, ascending, requirePositive);
@@ -9177,10 +9207,11 @@ function reportBuildTopNSheets(wb, byMedia, drawInfo, topN) {
         vals.forEach((v, ci) => {
           const cell = ws.getCell(R, 2 + ci);
           cell.value = v; cell.font = REPORT_TOPN_FONT; cell.border = REPORT_TOPN_BORDER;
+          cell.alignment = REPORT_TOPN_ALIGN;
           if (ci === 6 || ci === 8) cell.numFmt = '0.00%';
           else if (typeof v === 'number' && ci >= 4) cell.numFmt = REPORT_TOPN_NUMFMT;
         });
-        reportAnchorTopNImage(ws, c.url, drawInfo, 2 + COLS.length - 2, rowNow - 1, ROW_H);
+        reportAnchorTopNImage(ws, c.url, drawInfo, 2 + COLS.length - 2, rowNow - 1, IMG_MAX_W, IMG_MAX_H);
         R += 1;
       });
       R += 1;
@@ -9230,19 +9261,25 @@ async function downloadReportExcelWithImages(topNOn, topN) {
     const wb = new ExcelJS.Workbook();
 
     // URL 하나당 wb.addImage를 한 번만 호출해 중복 임베드를 피한다(같은 대표 이미지를
-    // 여러 소재/여러 표에서 같이 쓰는 경우가 많아 이렇게 해야 파일 용량이 커지지 않는다)
+    // 여러 소재/여러 표에서 같이 쓰는 경우가 많아 이렇게 해야 파일 용량이 커지지 않는다).
+    // 원본 이미지의 실제 가로세로 비율(ratio)도 같이 구해둬서, 셀에 그려 넣을 때 억지로
+    // 정사각형/셀 비율에 맞춰 늘리지 않고 원본 비율 그대로 넣을 수 있게 한다(찌부 방지).
     const drawInfo = {};
-    Object.keys(imgBase64Map).forEach(url => {
+    await Promise.all(Object.keys(imgBase64Map).map(async url => {
       const info = imgBase64Map[url];
       const ext = (info.contentType || '').includes('png') ? 'png' : 'jpeg';
-      drawInfo[url] = { imageId: wb.addImage({ buffer: base64ToArrayBuffer(info.base64), extension: ext }) };
-    });
+      const imageId = wb.addImage({ buffer: base64ToArrayBuffer(info.base64), extension: ext });
+      const ratio = await reportImageRatio(info.base64, info.contentType);
+      drawInfo[url] = { imageId, ratio };
+    }));
 
     // ── 메인 "보고서" 시트 ──
     const ws = wb.addWorksheet('보고서');
     const ROW_H = 58;
+    const IMG_MAX_W = reportImageMaxW(14), IMG_MAX_H = reportImageBoxPx(ROW_H);
     ws.addRow(aoa[0]);
-    ws.getRow(1).font = { bold: true };
+    ws.getRow(1).font = { ...REPORT_CELL_FONT, bold: true };
+    ws.getRow(1).alignment = REPORT_CELL_ALIGN;
     aoa[0].forEach((_, i) => { ws.getColumn(i + 1).width = (i === colIdx) ? 14 : 16; });
 
     for (let r = 1; r < aoa.length; r++) {
@@ -9251,11 +9288,12 @@ async function downloadReportExcelWithImages(topNOn, topN) {
       const info = url && drawInfo[url];
       if (info) rowVals[colIdx] = ''; // 이미지가 셀을 덮으므로 URL 텍스트는 비움(대신 하이퍼링크로 남김)
       const row = ws.addRow(rowVals);
+      row.font = REPORT_CELL_FONT;
+      row.alignment = REPORT_CELL_ALIGN;
       if (info) {
         row.height = ROW_H;
         const r0 = row.number - 1;
-        const size = reportImageBoxPx(ROW_H);
-        ws.addImage(info.imageId, { tl: { col: colIdx + 0.06, row: r0 + 0.06 }, ext: { width: size, height: size }, editAs: 'oneCell' });
+        reportPlaceImage(ws, info, colIdx, r0, IMG_MAX_W, IMG_MAX_H);
         row.getCell(colIdx + 1).value = { text: '(이미지)', hyperlink: url, tooltip: url };
         row.getCell(colIdx + 1).font = { size: 1, color: { argb: 'FFFFFFFF' } };
       }
