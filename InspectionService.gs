@@ -112,27 +112,20 @@ function _processInspectionBatch(inspectionId) {
 
     const pending = _listPendingImages(folder, processedNames, INSPECTION_BATCH_SIZE);
     const resultSheet = getSpreadsheet().getSheetByName(INSPECTION_RESULT_SHEET);
+    const criteria = state.criteria || getInspectionCriteria();
 
-    pending.forEach(function (item) {
-      let outcome;
-      try {
-        const publicUrl = setFilePublic(item.fileId);
-        const processed = _processOneImage(inspectionId, item.fileId, item.fileName, state.criteria || getInspectionCriteria(), publicUrl);
-        resultSheet.appendRow(processed.row);
-        outcome = processed.finalResult;
-      } catch (e) {
-        resultSheet.appendRow([
-          inspectionId, new Date(), item.fileName, '',
-          '-', '', '', '-', '', '', '-', '', '-', '', '-', '',
-          '확인 필요', '처리 중 오류로 확인 필요 처리됨: ' + e.message
-        ]);
-        outcome = '확인 필요';
-      }
-      if (outcome === '정상') state.ok++;
-      else if (outcome === '불일치') state.mismatch++;
-      else state.needCheck++;
-      Utilities.sleep(300); // API 호출 간격
-    });
+    // pending 최대 20장을 한 번에 분석(OpenAI Vision 호출은 fetchAll로 동시 발사)하고,
+    // 결과 행을 한 번의 setValues로 일괄 기록한다(appendRow 20번보다 시트 쓰기도 빠르다).
+    const results = _analyzeAndBuildRows(inspectionId, pending, criteria);
+    if (results.length) {
+      const rows = results.map(function (r) { return r.row; });
+      resultSheet.getRange(resultSheet.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
+      results.forEach(function (r) {
+        if (r.finalResult === '정상') state.ok++;
+        else if (r.finalResult === '불일치') state.mismatch++;
+        else state.needCheck++;
+      });
+    }
 
     const processedCount = existingRows.length + pending.length;
     const done = pending.length === 0 || processedCount >= state.total;
@@ -202,10 +195,35 @@ function _listPendingImages(folder, processedNamesMap, limit) {
 }
 
 // --------------------------------------------------
-// 이미지 1장 분석+비교 → 검수결과 시트 1행 데이터
+// items(fileId/fileName)를 받아 공개 URL 설정 → 배치 분석(fetchAll로 동시 발사) →
+// 판정까지 한 번에 처리해서 [{row, finalResult}]를 items와 같은 순서로 돌려준다.
+// 시트에 어떻게 쓸지(새 행 추가 vs 기존 행 덮어쓰기)와 ok/mismatch/needCheck 집계는 호출부 몫.
 // --------------------------------------------------
-function _processOneImage(inspectionId, fileId, fileName, criteria, imagePublicUrl) {
-  const analysis = analyzeImageWithOpenAI(fileId, criteria);
+function _analyzeAndBuildRows(inspectionId, items, criteria) {
+  const prepared = items.map(function (item) {
+    return { fileId: item.fileId, fileName: item.fileName, imagePublicUrl: setFilePublic(item.fileId) };
+  });
+  const analyses = analyzeImagesWithOpenAIBatch(prepared, criteria);
+  return prepared.map(function (it, idx) {
+    try {
+      return _buildResultRow(inspectionId, it.fileName, it.imagePublicUrl, analyses[idx], criteria);
+    } catch (e) {
+      return {
+        row: [
+          inspectionId, new Date(), it.fileName, it.imagePublicUrl || '',
+          '-', '', '', '-', '', '', '-', '', '-', '', '-', '',
+          '확인 필요', '처리 중 오류로 확인 필요 처리됨: ' + e.message
+        ],
+        finalResult: '확인 필요'
+      };
+    }
+  });
+}
+
+// --------------------------------------------------
+// 분석 결과(analysis) 1건 → 검수결과 시트 1행 데이터로 판정·조립
+// --------------------------------------------------
+function _buildResultRow(inspectionId, fileName, imagePublicUrl, analysis, criteria) {
   const opts = criteria.options;
   const failed = !!analysis.error;
 
@@ -373,26 +391,23 @@ function retryFailedImages(inspectionId) {
 
   const sheet = getSpreadsheet().getSheetByName(INSPECTION_RESULT_SHEET);
   const results = getInspectionResults(inspectionId);
-  const targets = results.filter(function (r) { return r['최종 결과'] === '확인 필요'; });
+  const targets = results
+    .filter(function (r) { return r['최종 결과'] === '확인 필요'; })
+    .map(function (r) { return { row: r, fileId: _extractDriveFileId(r['이미지 링크']) }; })
+    .filter(function (t) { return t.fileId; });
   if (targets.length === 0) return { retried: 0, message: '재처리할 항목이 없습니다.' };
 
-  let okDelta = 0, mismatchDelta = 0, needCheckDelta = 0;
+  // targets는 모두 재처리 전엔 "확인 필요"였으므로, 일단 그만큼 needCheck에서 빼두고
+  // 재처리 후 결과에 따라 각각 다시 더한다(그대로 확인 필요면 순증감 0).
+  let okDelta = 0, mismatchDelta = 0, needCheckDelta = -targets.length;
 
-  targets.forEach(function (r) {
-    const fileId = _extractDriveFileId(r['이미지 링크']);
-    if (!fileId) { return; }
-    try {
-      const publicUrl = setFilePublic(fileId);
-      const processed = _processOneImage(inspectionId, fileId, r['파일명'], criteria, publicUrl);
-      sheet.getRange(r._row, 1, 1, INSPECTION_RESULT_HEADERS.length).setValues([processed.row]);
-      needCheckDelta--;
-      if (processed.finalResult === '정상') okDelta++;
-      else if (processed.finalResult === '불일치') mismatchDelta++;
-      else needCheckDelta++;
-    } catch (e) {
-      // 실패 시 '확인 필요' 상태 그대로 유지
-    }
-    Utilities.sleep(300);
+  const items = targets.map(function (t) { return { fileId: t.fileId, fileName: t.row['파일명'] }; });
+  const processedList = _analyzeAndBuildRows(inspectionId, items, criteria);
+  processedList.forEach(function (processed, idx) {
+    sheet.getRange(targets[idx].row._row, 1, 1, INSPECTION_RESULT_HEADERS.length).setValues([processed.row]);
+    if (processed.finalResult === '정상') okDelta++;
+    else if (processed.finalResult === '불일치') mismatchDelta++;
+    else needCheckDelta++;
   });
 
   const hist = _findHistoryRow(inspectionId);

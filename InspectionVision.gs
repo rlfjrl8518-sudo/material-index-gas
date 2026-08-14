@@ -17,6 +17,7 @@ const IMAGE_EXT_MIME = {
 
 // --------------------------------------------------
 // 이미지 1장 분석 → { productText, reviewText, allTexts, logo, font } 또는 { error:true, message }
+// (README에 문서화된 "편집기에서 직접 실행" 수동 테스트용 진입점이라 시그니처를 그대로 둔다)
 // --------------------------------------------------
 function analyzeImageWithOpenAI(fileId, criteria) {
   const apiKey = getOpenAIApiKey();
@@ -30,6 +31,79 @@ function analyzeImageWithOpenAI(fileId, criteria) {
   }
 
   const ocrText = _ocrImageText(fileId);
+  const messages = _buildVisionMessages(imageBlob, criteria, ocrText);
+
+  let lastError = null;
+  for (let attempt = 0; attempt <= VISION_MAX_RETRY; attempt++) {
+    const res = _callOpenAIChat(apiKey, messages);
+    if (res.error) { lastError = res.message; continue; }
+    const parsed = _extractJsonObject(res.text);
+    if (parsed) return parsed;
+    lastError = 'JSON 파싱 실패: 응답에서 JSON 객체를 찾지 못했습니다.';
+  }
+  return { error: true, message: lastError || '알 수 없는 오류' };
+}
+
+// 이미지 여러 장을 한 번에 분석한다. items: [{fileId, fileName}].
+// Drive OCR(_ocrImageText)은 Drive Advanced Service 호출이라 fetchAll로 동시에 못 보내서
+// 이미지당 순차로 하지만(원래도 순차였으니 이 부분은 속도가 그대로), OpenAI Vision 호출은
+// UrlFetchApp.fetchAll()로 대기 중인 항목을 한 번에 동시 발사한다 — 배치 처리 시간이
+// "이미지 수 × 호출시간"에서 "가장 느린 호출 1번" 수준으로 준다. 프롬프트·모델·OCR은
+// analyzeImageWithOpenAI와 완전히 동일한 _buildVisionMessages를 그대로 쓰므로 정확도는
+// 그대로다. JSON 파싱 실패 등으로 실패한 항목만 다음 라운드에서 다시 동시 발사해
+// 재시도한다(최대 VISION_MAX_RETRY+1라운드, analyzeImageWithOpenAI의 재시도 횟수와 동일).
+// 반환값: items와 같은 순서의 분석 결과 배열.
+function analyzeImagesWithOpenAIBatch(items, criteria) {
+  const apiKey = getOpenAIApiKey();
+  if (!apiKey) return items.map(() => ({ error: true, message: 'OpenAI API 키가 설정되지 않았습니다.' }));
+
+  const built = items.map(item => {
+    try {
+      const imageBlob = DriveApp.getFileById(item.fileId).getBlob();
+      const ocrText = _ocrImageText(item.fileId);
+      return { messages: _buildVisionMessages(imageBlob, criteria, ocrText), error: null };
+    } catch (e) {
+      return { messages: null, error: '이미지 파일을 읽을 수 없습니다: ' + e.message };
+    }
+  });
+
+  const results = new Array(items.length);
+  let pending = [];
+  built.forEach((b, i) => {
+    if (b.error) results[i] = { error: true, message: b.error };
+    else pending.push(i);
+  });
+
+  for (let round = 0; round <= VISION_MAX_RETRY && pending.length; round++) {
+    // 재시도 라운드 사이엔 살짝 텀을 둔다 — 동시 요청이 한꺼번에 실패했다면 순간
+    // rate limit(429)일 가능성이 있어, 곧바로 똑같이 동시 재발사하면 또 걸리기 쉽다.
+    if (round > 0) Utilities.sleep(1000 * round);
+
+    const requests = pending.map(i => _openAIRequestOptions(apiKey, built[i].messages));
+    let responses;
+    try {
+      responses = UrlFetchApp.fetchAll(requests);
+    } catch (e) {
+      pending.forEach(i => { results[i] = { error: true, message: 'OpenAI 동시 호출 실패: ' + e.message }; });
+      break;
+    }
+
+    const stillPending = [];
+    pending.forEach((i, k) => {
+      const res = _parseOpenAIHttpResponse(responses[k]);
+      if (res.error) { results[i] = res; stillPending.push(i); return; }
+      const parsed = _extractJsonObject(res.text);
+      if (parsed) { results[i] = parsed; return; }
+      results[i] = { error: true, message: 'JSON 파싱 실패: 응답에서 JSON 객체를 찾지 못했습니다.' };
+      stillPending.push(i);
+    });
+    pending = stillPending;
+  }
+  return results;
+}
+
+// analyzeImageWithOpenAI / analyzeImagesWithOpenAIBatch가 공유하는 Vision 메시지 구성.
+function _buildVisionMessages(imageBlob, criteria, ocrText) {
   const content = [{ type: 'text', text: _buildVisionPromptText(criteria, ocrText) }];
   content.push({ type: 'image_url', image_url: { url: _blobToDataUri(imageBlob), detail: 'high' } });
 
@@ -41,20 +115,10 @@ function analyzeImageWithOpenAI(fileId, criteria) {
     }
   }
 
-  const messages = [
+  return [
     { role: 'system', content: _visionSystemPrompt() },
     { role: 'user', content: content }
   ];
-
-  let lastError = null;
-  for (let attempt = 0; attempt <= VISION_MAX_RETRY; attempt++) {
-    const res = _callOpenAIChat(apiKey, messages);
-    if (res.error) { lastError = res.message; continue; }
-    const parsed = _extractJsonObject(res.text);
-    if (parsed) return parsed;
-    lastError = 'JSON 파싱 실패: 응답에서 JSON 객체를 찾지 못했습니다.';
-  }
-  return { error: true, message: lastError || '알 수 없는 오류' };
 }
 
 // Google Drive 내장 OCR로 이미지에서 문자를 정확히 추출한다(은행권 신분증 검증 수준의 글자 단위 정확도 확보용).
@@ -141,40 +205,57 @@ function _buildVisionPromptText(criteria, ocrText) {
   return lines.join('\n');
 }
 
-function _callOpenAIChat(apiKey, messages) {
-  const payload = {
-    model: OPENAI_MODEL,
-    messages: messages,
-    // gpt-5 계열: max_tokens 대신 max_completion_tokens, temperature는 기본값 외 거부됨(둘 다
-    // Code.gs의 getOpenAIInsight/getOpenAIChatReply에서 2026-07-28 실측으로 확인된 제약).
-    // 이미지 분석 + JSON 조립이라 순수 텍스트 답변보다 reasoning 여유가 더 필요해 'low'로 지정.
-    max_completion_tokens: 3000,
-    reasoning_effort: 'medium'
-  };
-  const options = {
+// UrlFetchApp.fetch(단건)와 fetchAll(배치)이 같은 형태의 요청 옵션을 쓸 수 있게 공유한다
+// (fetchAll은 배열의 각 원소에 url을 포함시켜야 하는데, fetch(url, options)는 options에
+// url이 섞여 있어도 무시하고 첫 인자를 쓰므로 두 경로에 그대로 재사용해도 안전하다).
+function _openAIRequestOptions(apiKey, messages) {
+  return {
+    url: OPENAI_CHAT_URL,
     method: 'post',
     contentType: 'application/json',
     headers: { Authorization: 'Bearer ' + apiKey },
-    payload: JSON.stringify(payload),
+    // gpt-5 계열: max_tokens 대신 max_completion_tokens, temperature는 기본값 외 거부됨(둘 다
+    // Code.gs의 getOpenAIInsight/getOpenAIChatReply에서 2026-07-28 실측으로 확인된 제약).
+    // 이미지 분석 + JSON 조립이라 순수 텍스트 답변보다 reasoning 여유가 더 필요해 'medium'으로 지정.
+    payload: JSON.stringify({
+      model: OPENAI_MODEL,
+      messages: messages,
+      max_completion_tokens: 3000,
+      reasoning_effort: 'medium'
+    }),
     muteHttpExceptions: true
   };
+}
+
+// UrlFetchApp.fetch/fetchAll 둘 다 같은 HTTPResponse 타입을 반환하므로 파싱 로직을 공유한다.
+// { text } 또는 { error:true, message }를 반환한다(JSON 객체 파싱은 호출부의 _extractJsonObject에서).
+function _parseOpenAIHttpResponse(res) {
+  let json;
   try {
-    const res = UrlFetchApp.fetch(OPENAI_CHAT_URL, options);
-    const code = res.getResponseCode();
-    const json = JSON.parse(res.getContentText());
-    if (code < 200 || code >= 300) {
-      const msg = (json.error && json.error.message) || res.getContentText().slice(0, 300);
-      return { error: true, message: 'OpenAI API 오류 (HTTP ' + code + '): ' + msg };
+    json = JSON.parse(res.getContentText());
+  } catch (e) {
+    return { error: true, message: 'OpenAI 응답 파싱 실패: ' + e.message };
+  }
+  const code = res.getResponseCode();
+  if (code < 200 || code >= 300) {
+    const msg = (json.error && json.error.message) || res.getContentText().slice(0, 300);
+    return { error: true, message: 'OpenAI API 오류 (HTTP ' + code + '): ' + msg };
+  }
+  const choice = json.choices && json.choices[0];
+  const text = choice && choice.message && choice.message.content;
+  if (!text) {
+    if (choice && choice.finish_reason === 'length') {
+      return { error: true, message: '응답이 비어 있습니다(토큰 한도 초과) — reasoning 토큰 소모로 content 없음' };
     }
-    const choice = json.choices && json.choices[0];
-    const text = choice && choice.message && choice.message.content;
-    if (!text) {
-      if (choice && choice.finish_reason === 'length') {
-        return { error: true, message: '응답이 비어 있습니다(토큰 한도 초과) — reasoning 토큰 소모로 content 없음' };
-      }
-      return { error: true, message: 'OpenAI 응답에 content가 없습니다.' };
-    }
-    return { text: text };
+    return { error: true, message: 'OpenAI 응답에 content가 없습니다.' };
+  }
+  return { text: text };
+}
+
+function _callOpenAIChat(apiKey, messages) {
+  try {
+    const res = UrlFetchApp.fetch(OPENAI_CHAT_URL, _openAIRequestOptions(apiKey, messages));
+    return _parseOpenAIHttpResponse(res);
   } catch (e) {
     return { error: true, message: 'OpenAI 호출 실패: ' + e.message };
   }
