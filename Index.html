@@ -8246,6 +8246,7 @@ const REPORT_METRICS = [
 let reportFilterSeq  = 0;
 let reportExportAOA  = null; // 마지막으로 생성된 보고서의 원시 배열 (엑셀 export용)
 let reportExportImgCol = -1; // reportExportAOA에서 "이미지 URL" 행 기준 열의 인덱스(0-based), 없으면 -1
+let reportExportPctCols = []; // reportExportAOA에서 CTR/CVR처럼 %로 표시해야 하는 열 인덱스(0-based) 목록
 
 function onReportTabActivate() {
   if (azLoaded) {
@@ -8941,6 +8942,10 @@ function renderReportFlatTable(data) {
   entries.forEach(e => aoa.push([...e.tuple, ...metricKeys.map(k => reportRawExportVal(k, e[k]))]));
   aoa.push([...dimLabels.map((_, i) => i === 0 ? '합계' : ''), ...metricKeys.map(k => reportRawExportVal(k, reportMetricFromAgg(totalAgg, k)))]);
   reportExportAOA = aoa;
+  reportExportPctCols = metricKeys.reduce((acc, k, i) => {
+    if (k === 'ctr' || k === 'cvr') acc.push(dimLabels.length + i);
+    return acc;
+  }, []);
   reportExportImgCol = rowDims.findIndex(d => d.key === 'imgurl');
 }
 
@@ -9019,6 +9024,12 @@ function renderReportPivotTable(data) {
     ...exportMetricCells(grandAgg)
   ]);
   reportExportAOA = aoa;
+  reportExportPctCols = [];
+  let pctCol = dimLabels.length;
+  colKeys.forEach(() => {
+    metricKeys.forEach(m => { if (m === 'ctr' || m === 'cvr') reportExportPctCols.push(pctCol); pctCol++; });
+  });
+  metricKeys.forEach(m => { if (m === 'ctr' || m === 'cvr') reportExportPctCols.push(pctCol); pctCol++; });
   reportExportImgCol = rowDims.findIndex(d => d.key === 'imgurl');
 }
 
@@ -9119,14 +9130,16 @@ const REPORT_CELL_ALIGN = { horizontal: 'center', vertical: 'middle' };
 // 줬었는데, 그러면 이번엔 반대로 원본이 정사각형이 아닌(직사각형) 소재 이미지가 강제로
 // 정사각형 틀에 눌려 들어가 여전히 찌부 현상이 남았다. 진짜 원인은 "박스 모양"이 아니라
 // "원본 이미지 자기 비율을 안 쓴다"는 것이었다 — 그래서 이미지를 워크북에 등록하기 전에
-// 브라우저에서 실제 픽셀 크기(naturalWidth/Height)를 읽어 비율을 구하고, 그 비율을 유지한
-// 채 박스(maxW×maxH) 안에 맞춰 넣도록(contain) 고쳤다. oneCell 앵커라 셀에 맞춰 이동은
-// 하되 리사이즈는 안 하므로, 필터로 행이 숨겨질 때 이미지가 옆/아래 행과 겹치는 것도 방지된다.
-function reportImageBoxPx(rowHeightPt) {
-  return Math.round(rowHeightPt * (96 / 72) * 0.85);
+// 브라우저에서 실제 픽셀 크기(naturalWidth/Height)를 읽어 비율을 구하고, 셀 픽셀 크기
+// (아래 reportRowPx/reportCharsToPx) 안에 그 비율대로 맞춰 넣도록(contain) 고쳤다. 남는
+// 여백은 reportPlaceImage가 셀 정중앙에 오도록 오프셋을 계산한다. oneCell 앵커라 셀에
+// 맞춰 이동은 하되 리사이즈는 안 하므로, 필터로 행이 숨겨질 때 이미지가 옆/아래 행과
+// 겹치는 것도 방지된다.
+function reportRowPx(rowHeightPt) {
+  return Math.round(rowHeightPt * (96 / 72));
 }
-function reportImageMaxW(colChars) {
-  return Math.round(colChars * 7 * 0.85);
+function reportCharsToPx(colChars) {
+  return Math.round(colChars * 7);
 }
 
 // base64 이미지를 브라우저에 실제로 디코드시켜 원본 가로/세로 픽셀을 읽고 비율(width/height)을
@@ -9140,28 +9153,34 @@ function reportImageRatio(base64, contentType) {
   });
 }
 
-// drawInfo 엔트리({imageId, ratio})를 받아 원본 비율을 유지한 채 maxW×maxH 박스 안에
-// contain으로 맞춰 넣는다. ratio를 못 구한 이미지는 1(정사각형)로 대체.
-function reportPlaceImage(ws, info, col0, row0, maxW, maxH) {
+// drawInfo 엔트리({imageId, ratio})를 받아 원본 비율을 유지한 채 셀 안(cellW×cellH, 픽셀)에
+// 85% 크기로 contain 맞춤하고, 남는 여백만큼 좌우/상하 오프셋을 계산해 셀 정중앙에 앉힌다.
+// ratio를 못 구한 이미지는 1(정사각형)로 대체.
+function reportPlaceImage(ws, info, col0, row0, cellW, cellH) {
   if (!info) return;
   const ratio = info.ratio > 0 ? info.ratio : 1;
-  let width = maxW, height = Math.round(maxW / ratio);
-  if (height > maxH) { height = maxH; width = Math.round(maxH * ratio); }
+  const maxW = cellW * 0.85, maxH = cellH * 0.85;
+  let width = maxW, height = maxW / ratio;
+  if (height > maxH) { height = maxH; width = maxH * ratio; }
+  width = Math.max(1, Math.round(width));
+  height = Math.max(1, Math.round(height));
+  const offXfrac = Math.max(0, (cellW - width) / 2) / cellW;
+  const offYfrac = Math.max(0, (cellH - height) / 2) / cellH;
   ws.addImage(info.imageId, {
-    tl: { col: col0 + 0.06, row: row0 + 0.06 },
-    ext: { width: Math.max(1, width), height: Math.max(1, height) },
+    tl: { col: col0 + offXfrac, row: row0 + offYfrac },
+    ext: { width, height },
     editAs: 'oneCell'
   });
 }
 
-function reportAnchorTopNImage(ws, url, drawInfo, col0, row0, maxW, maxH) {
-  reportPlaceImage(ws, url && drawInfo[url], col0, row0, maxW, maxH);
+function reportAnchorTopNImage(ws, url, drawInfo, col0, row0, cellW, cellH) {
+  reportPlaceImage(ws, url && drawInfo[url], col0, row0, cellW, cellH);
 }
 
 function reportBuildTopNSheets(wb, byMedia, drawInfo, topN) {
   const COLS = ['순위', '소재이름', '소재유형', '이미지유형', '노출', '클릭', 'CTR(%)', '전환', 'CVR(%)', '비용(원)', 'CPA(원)', '이미지'];
   const ROW_H = 50, COL_W = 16, IMG_COL_W = 14;
-  const IMG_MAX_W = reportImageMaxW(IMG_COL_W), IMG_MAX_H = reportImageBoxPx(ROW_H);
+  const IMG_CELL_W = reportCharsToPx(IMG_COL_W), IMG_CELL_H = reportRowPx(ROW_H);
   const usedNames = new Set(['보고서']);
 
   Object.keys(byMedia).sort().forEach(media => {
@@ -9211,7 +9230,7 @@ function reportBuildTopNSheets(wb, byMedia, drawInfo, topN) {
           if (ci === 6 || ci === 8) cell.numFmt = '0.00%';
           else if (typeof v === 'number' && ci >= 4) cell.numFmt = REPORT_TOPN_NUMFMT;
         });
-        reportAnchorTopNImage(ws, c.url, drawInfo, 2 + COLS.length - 2, rowNow - 1, IMG_MAX_W, IMG_MAX_H);
+        reportAnchorTopNImage(ws, c.url, drawInfo, 2 + COLS.length - 2, rowNow - 1, IMG_CELL_W, IMG_CELL_H);
         R += 1;
       });
       R += 1;
@@ -9276,7 +9295,8 @@ async function downloadReportExcelWithImages(topNOn, topN) {
     // ── 메인 "보고서" 시트 ──
     const ws = wb.addWorksheet('보고서');
     const ROW_H = 58;
-    const IMG_MAX_W = reportImageMaxW(14), IMG_MAX_H = reportImageBoxPx(ROW_H);
+    const IMG_CELL_W = reportCharsToPx(14), IMG_CELL_H = reportRowPx(ROW_H);
+    const pctCols = reportExportPctCols || [];
     ws.addRow(aoa[0]);
     ws.getRow(1).font = { ...REPORT_CELL_FONT, bold: true };
     ws.getRow(1).alignment = REPORT_CELL_ALIGN;
@@ -9290,10 +9310,14 @@ async function downloadReportExcelWithImages(topNOn, topN) {
       const row = ws.addRow(rowVals);
       row.font = REPORT_CELL_FONT;
       row.alignment = REPORT_CELL_ALIGN;
+      // CTR/CVR처럼 %로 표시하는 지표 열은 소수점 둘째 자리까지 "0.00%" 형식으로 고정
+      // (값 자체가 이미 0~100 스케일 숫자라 Excel 기본 %서식(값*100)을 쓰면 안 되고,
+      // 리터럴 "%" 접미사를 붙이는 커스텀 서식을 쓴다)
+      pctCols.forEach(ci => { row.getCell(ci + 1).numFmt = '0.00"%"'; });
       if (info) {
         row.height = ROW_H;
         const r0 = row.number - 1;
-        reportPlaceImage(ws, info, colIdx, r0, IMG_MAX_W, IMG_MAX_H);
+        reportPlaceImage(ws, info, colIdx, r0, IMG_CELL_W, IMG_CELL_H);
         row.getCell(colIdx + 1).value = { text: '(이미지)', hyperlink: url, tooltip: url };
         row.getCell(colIdx + 1).font = { size: 1, color: { argb: 'FFFFFFFF' } };
       }
