@@ -7432,7 +7432,14 @@ function azResolveBundleThumb(url, name) {
 // uc?export=view는 IMAGE() 서버측 fetch에서 막히는 경우가 많음). 번들(?unit=코드) 링크는
 // 먼저 대표 이미지로 치환한 뒤 같은 변환을 적용하고, 대표 이미지를 못 찾으면 번들 링크를
 // 그대로 반환한다(적어도 클릭해서 모아보기는 되도록).
+//
+// 소재_마스터(소재 인덱싱)에 이 소재이름으로 등록된 이미지가 있으면 그걸 최우선으로 쓴다.
+// 매체 실적 RAW의 이미지URL은 업로드 시 그대로 복사·적재된 값이라(피맥스 등 번들 링크의
+// "대표 이미지"도 광고단위 안 첫 번째로 매칭되는 소재 하나일 뿐), 보종/유형이 다른 소재끼리
+// 같은 이미지로 잘못 매칭되는 원인이 됐다. 반면 소재_마스터는 소재 하나하나 직접 등록·검증된
+// 데이터라 항상 정확하므로, 있으면 RAW/번들 값보다 우선한다(2026-08-14).
 function azReportImageUrl(url, name) {
+  if (name && azCreativeThumbMap[name]) return driveThumb(azCreativeThumbMap[name]);
   if (!url) return url;
   let u = url;
   if (/[?&]unit=/.test(u)) u = azResolveBundleThumb(u, name) || u;
