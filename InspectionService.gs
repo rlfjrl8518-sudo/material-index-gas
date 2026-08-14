@@ -34,8 +34,13 @@ function _getOrCreateFolder(parent, name) {
   return it.hasNext() ? it.next() : parent.createFolder(name);
 }
 
+// 새 검수번호 발급은 _processInspectionBatch(배치 Vision 분석, 몇십 초씩 걸릴 수 있음)와
+// 완전히 무관한 순간 작업인데, 둘 다 LockService.getScriptLock()을 쓰면 같은 스크립트
+// 전역 잠금을 공유해서 배치가 도는 동안 새 검수 시작이 그 뒤에서 대기하다 10초 만에
+// "잠금 시간초과"로 실패했다(2026-08-14 실측). Document 잠금은 Script 잠금과 별개 자원이라
+// 여기서만 바꾸면 배치 처리 쪽 잠금(동시 처리 방지 목적)은 그대로 두고도 서로 안 기다린다.
 function _generateInspectionId() {
-  const lock = LockService.getScriptLock();
+  const lock = LockService.getDocumentLock();
   lock.waitLock(10000);
   try {
     const props = PropertiesService.getScriptProperties();
