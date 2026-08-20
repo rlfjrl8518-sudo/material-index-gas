@@ -9355,6 +9355,7 @@ let abEditingId       = null;
 let abCurrentDetailId = null;
 let abPickerTargetSlot = null;
 let abAllCodes        = [];             // 소재 피커용 캐시 (getImageCodes 결과)
+let abAllCodesLoaded  = false;          // true면 이미 불러온 적 있음 — 피커를 다시 열 때 서버 재조회 생략
 let abScopeCombos     = [];             // 비교 범위 셀렉트용 캐시 (getRawMediaCampaignGroups 결과)
 let abScopeLoaded     = false;
 
@@ -9600,6 +9601,11 @@ function ensureABModal() {
   searchInput.id = 'abImgSearch';
   searchInput.placeholder = '코드 또는 소재명 검색...';
   searchInput.addEventListener('input', filterABPicker);
+  const refreshBtn = document.createElement('button');
+  refreshBtn.className = 'btn btn-ghost btn-sm';
+  refreshBtn.title = '방금 등록한 소재가 안 보이면 눌러서 목록을 새로 불러오세요';
+  refreshBtn.textContent = '↻ 새로고침';
+  refreshBtn.addEventListener('click', () => { abAllCodesLoaded = false; openABPicker(abPickerTargetSlot); });
   const closeBtn = document.createElement('button');
   closeBtn.className = 'btn btn-ghost btn-sm';
   closeBtn.textContent = '닫기';
@@ -9610,6 +9616,7 @@ function ensureABModal() {
   controls.appendChild(filterCrtype);
   controls.appendChild(filterBoJong);
   controls.appendChild(searchInput);
+  controls.appendChild(refreshBtn);
   controls.appendChild(closeBtn);
   header.appendChild(title);
   header.appendChild(controls);
@@ -9655,10 +9662,25 @@ function openABPicker(slotIndex) {
   document.getElementById('abImgFilterCrtype').value = '';
   document.getElementById('abImgFilterBoJong').value = '';
   const grid = document.getElementById('abImgPickerGrid');
+
+  // getImageCodes()는 전매체 인덱스 + 구글DA 인덱스 전체를 읽는 무거운 호출이라,
+  // 슬롯을 여러 개(보통 2~4개) 채우려고 피커를 열 때마다 매번 다시 불러오면
+  // 그만큼 반복해서 느려졌다(2026-08-20) — 페이지를 새로고침하기 전까지는
+  // 한 번 불러온 걸 그대로 재사용하고, "새로고침" 버튼으로만 다시 불러온다.
+  if (abAllCodesLoaded) {
+    filterABPicker();
+    document.getElementById('abImgFilterMedia').value    = scopeMedia;
+    document.getElementById('abImgFilterCampaign').value = scopeCampaign;
+    document.getElementById('abImgFilterGroup').value    = scopeGroup;
+    filterABPicker();
+    return;
+  }
+
   grid.innerHTML = '<div class="modal-empty">불러오는 중...</div>';
   google.script.run
     .withSuccessHandler(codes => {
       abAllCodes = codes;
+      abAllCodesLoaded = true;
       filterABPicker(); // 옵션 목록부터 채운다
       document.getElementById('abImgFilterMedia').value    = scopeMedia;
       document.getElementById('abImgFilterCampaign').value = scopeCampaign;
@@ -9722,6 +9744,40 @@ function filterABPicker() {
   renderABPickerGrid(filtered);
 }
 
+// 구글DA(디멘드젠/피맥스) 번들 소재의 Drive 공개 썸네일 핫링크(drive.google.com/thumbnail?id=...)는
+// 간헐적으로 막혀서 소재 피커에 이미지가 안 뜨는 문제가 있었다(getBundleData의 동일 문제를
+// 2026-07-28에 base64 data URI로 우회한 전례가 있음, AB테스트 피커는 그 수정을 못 받았었다 —
+// 2026-08-20 확인). 핫링크가 실패한 썸네일만 이 함수로 서버에서 blob을 직접 받아와 대체한다
+// (전부 다 미리 data URI로 받으면 목록이 커질수록 느려지므로, 실패한 것만 개별적으로 재시도).
+function abThumbFallback(imgEl, originalUrl) {
+  if (imgEl.dataset.fallbackTried) {
+    imgEl.style.display = 'none';
+    if (imgEl.nextElementSibling) imgEl.nextElementSibling.style.display = 'flex';
+    return;
+  }
+  imgEl.dataset.fallbackTried = '1';
+  const m = (originalUrl || '').match(/[?&]id=([^&]+)/) || (originalUrl || '').match(/\/d\/([^/?]+)/);
+  const fileId = m ? m[1] : '';
+  if (!fileId) {
+    imgEl.style.display = 'none';
+    if (imgEl.nextElementSibling) imgEl.nextElementSibling.style.display = 'flex';
+    return;
+  }
+  google.script.run
+    .withSuccessHandler(dataUri => {
+      if (dataUri) { imgEl.onerror = null; imgEl.src = dataUri; }
+      else {
+        imgEl.style.display = 'none';
+        if (imgEl.nextElementSibling) imgEl.nextElementSibling.style.display = 'flex';
+      }
+    })
+    .withFailureHandler(() => {
+      imgEl.style.display = 'none';
+      if (imgEl.nextElementSibling) imgEl.nextElementSibling.style.display = 'flex';
+    })
+    .getImageDataUri(fileId);
+}
+
 function renderABPickerGrid(codes) {
   const grid = document.getElementById('abImgPickerGrid');
   if (!codes.length) { grid.innerHTML = '<div class="modal-empty">검색 결과가 없습니다.</div>'; return; }
@@ -9731,7 +9787,7 @@ function renderABPickerGrid(codes) {
     const thumbUrl = driveThumbnail(c.imageUrl);
     const media = (thumbUrl && !isVideo)
       ? `<img class="img-pick-thumb" src="${esc(thumbUrl)}" loading="lazy" style="pointer-events:none"
-           onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+           onerror="abThumbFallback(this, '${esc(c.imageUrl)}')">
          <div class="img-pick-placeholder" style="display:none;pointer-events:none">[IMG]</div>`
       : `<div class="img-pick-placeholder" style="pointer-events:none">${isVideo ? '▶ VID' : '[IMG]'}</div>`;
     const usedStyle = usedCodes.has(c.code) ? ' style="opacity:.4"' : '';
