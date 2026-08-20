@@ -1556,6 +1556,29 @@ function _getOrCreateABTestSheet() {
   return sheet;
 }
 
+// 소재_통합RAW(21열)에서 AB테스트 실적 계산에 실제로 쓰는 컬럼만 읽는다 —
+// 컨텍스트(A~E: 매체,일,캠페인,광고그룹,소재이름)와 실적(O~S: 노출수,클릭수,CTR,비용,전환) 뿐이고
+// 그 사이 F~N(보종~모델유형) 9개 열은 안 쓰는데도 통째로 읽어오고 있었다. 수천 행까지 쌓인
+// 시트에서 이 9개 열을 매번 같이 읽어오던 게 AB테스트 실적 조회를 느리게 만드는 원인이었다
+// (2026-08-20) — 두 좁은 범위로 나눠 읽고, 기존 코드가 쓰던 인덱스(0~4, 14/15/17/18)에 맞춰
+// 다시 조립해서 반환한다(호출부 로직은 그대로 두기 위함).
+function _readAbRawRows_() {
+  const ss = getSpreadsheet();
+  const rawSheet = ss.getSheetByName(CONSOLIDATED_RAW_SHEET_NAME);
+  if (!rawSheet || rawSheet.getLastRow() < 2) return [];
+  const n = rawSheet.getLastRow() - 1;
+  const ctx  = rawSheet.getRange(2, 1, n, 5).getValues();   // A~E
+  const perf = rawSheet.getRange(2, 15, n, 5).getValues();  // O~S: 노출수,클릭수,CTR,비용,전환
+  return ctx.map((row, i) => {
+    const r = row.slice();
+    r[14] = perf[i][0];
+    r[15] = perf[i][1];
+    r[17] = perf[i][3];
+    r[18] = perf[i][4];
+    return r;
+  });
+}
+
 function _abDateStr(val) {
   if (!val) return '';
   if (val instanceof Date) return Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy-MM-dd');
@@ -1752,11 +1775,7 @@ function deleteTargetingABTest(testId) {
 // 캠페인·그룹 전체(그 안의 모든 소재 합산) 실적을 비교한다 — "타겟팅" 자체의
 // 효율을 보는 것이라 소재 단위로 볼 필요가 없다.
 function getTargetingABTestPerformance(slots, startDate, endDate) {
-  const ss = getSpreadsheet();
-  const rawSheet = ss.getSheetByName(CONSOLIDATED_RAW_SHEET_NAME);
-  const rawRows = (rawSheet && rawSheet.getLastRow() >= 2)
-    ? rawSheet.getRange(2, 1, rawSheet.getLastRow() - 1, CONSOLIDATED_RAW_HEADERS.length).getValues()
-    : [];
+  const rawRows = _readAbRawRows_();
 
   return slots.map(slot => {
     const matched = rawRows.filter(r => {
@@ -1942,10 +1961,7 @@ function debugABScopeData() {
 // 소재_마스터에서 각 코드의 배치 정보를 먼저 찾은 뒤 그 키로 매칭한다.
 function getABTestPerformance(codes, startDate, endDate, scope) {
   const ss = getSpreadsheet();
-  const rawSheet = ss.getSheetByName(CONSOLIDATED_RAW_SHEET_NAME);
-  const rawRows = (rawSheet && rawSheet.getLastRow() >= 2)
-    ? rawSheet.getRange(2, 1, rawSheet.getLastRow() - 1, CONSOLIDATED_RAW_HEADERS.length).getValues()
-    : [];
+  const rawRows = _readAbRawRows_();
 
   const masterSheet = ss.getSheetByName(MASTER_SHEET_NAME);
   const masterRows = (masterSheet && masterSheet.getLastRow() >= 2)

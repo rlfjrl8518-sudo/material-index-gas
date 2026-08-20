@@ -9350,6 +9350,7 @@ async function downloadReportExcelWithImages(topNOn, topN) {
 // AB 테스트 탭
 // ============================================================
 let abTestsCache      = [];
+let abListLoaded      = false;          // true면 이미 불러온 적 있음 — 탭 재진입 시 서버 재조회 생략
 let abSlots           = [null, null];   // 각 슬롯: {code, name, url} | null
 let abEditingId       = null;
 let abCurrentDetailId = null;
@@ -9421,11 +9422,17 @@ function switchABSubTab(tabId, btn) {
   btn.classList.add('active');
 }
 
-async function loadABList() {
+// force가 없으면(탭 재진입) 이미 불러온 목록을 그대로 다시 그리기만 한다 —
+// AB테스트 탭을 여러 번 여닫을 때마다 매번 서버를 다시 불러서 느껴지던
+// 느림을 줄인다(2026-08-20). 저장/삭제 직후에는 반드시 force=true로 불러야
+// 최신 상태가 반영된다.
+async function loadABList(force) {
+  if (abListLoaded && !force) { renderABList(); return; }
   const listEl = document.getElementById('ab-list');
   listEl.innerHTML = '<div class="ab-empty">불러오는 중...</div>';
   try {
     abTestsCache = await gasRun('getABTests');
+    abListLoaded = true;
     renderABList();
   } catch (err) {
     listEl.innerHTML = `<div class="ab-empty" style="color:#ef4444">로드 실패: ${esc(String(err.message||err))}</div>`;
@@ -9849,7 +9856,7 @@ async function saveABTestForm() {
     const res = await gasRun('saveABTest', data);
     if (res.error) { msgEl.textContent = res.message; return; }
     closeABForm();
-    await loadABList();
+    await loadABList(true);
     viewABDetail(res.테스트ID);
   } catch (err) {
     msgEl.textContent = '저장 실패: ' + (err.message || String(err));
@@ -9989,7 +9996,7 @@ async function saveABConclusion() {
   try {
     const res = await gasRun('saveABTest', data);
     if (res.error) { alert(res.message); return; }
-    await loadABList();
+    await loadABList(true);
   } catch (err) {
     alert('저장 실패: ' + (err.message || String(err)));
   }
@@ -10002,7 +10009,7 @@ async function deleteABTestConfirm(testId) {
     const res = await gasRun('deleteABTest', testId);
     if (res.error) { alert(res.message); return; }
     closeABDetail();
-    await loadABList();
+    await loadABList(true);
   } catch (err) {
     alert('삭제 실패: ' + (err.message || String(err)));
   }
@@ -10014,15 +10021,19 @@ async function deleteABTestConfirm(testId) {
 // 대신 슬롯마다 매체→캠페인→그룹 캐스케이드 셀렉트 + 메모 입력란을 둔다.
 // ============================================================
 let targetingTestsCache = [];
+let targetingListLoaded = false;        // true면 이미 불러온 적 있음 — 탭 재진입 시 서버 재조회 생략
 let targetingSlots      = [{매체:'',캠페인:'',그룹:'',메모:''}, {매체:'',캠페인:'',그룹:'',메모:''}];
 let tabEditingId         = null;
 let tabCurrentDetailId   = null;
 
-async function loadTargetingABList() {
+// loadABList와 동일한 이유로 캐시 적용 — 탭 재진입 시 force 없으면 재조회 생략.
+async function loadTargetingABList(force) {
+  if (targetingListLoaded && !force) { renderTargetingABList(); return; }
   const listEl = document.getElementById('tab-list');
   listEl.innerHTML = '<div class="ab-empty">불러오는 중...</div>';
   try {
     targetingTestsCache = await gasRun('getTargetingABTests');
+    targetingListLoaded = true;
     renderTargetingABList();
   } catch (err) {
     listEl.innerHTML = `<div class="ab-empty" style="color:#ef4444">로드 실패: ${esc(String(err.message||err))}</div>`;
@@ -10182,7 +10193,7 @@ async function saveTargetingABTestForm() {
     const res = await gasRun('saveTargetingABTest', data);
     if (res.error) { msgEl.textContent = res.message; return; }
     closeTargetingABForm();
-    await loadTargetingABList();
+    await loadTargetingABList(true);
     viewTargetingABDetail(res.테스트ID);
   } catch (err) {
     msgEl.textContent = '저장 실패: ' + (err.message || String(err));
@@ -10301,7 +10312,7 @@ async function saveTargetingABConclusion() {
   try {
     const res = await gasRun('saveTargetingABTest', data);
     if (res.error) { alert(res.message); return; }
-    await loadTargetingABList();
+    await loadTargetingABList(true);
   } catch (err) {
     alert('저장 실패: ' + (err.message || String(err)));
   }
@@ -10314,7 +10325,7 @@ async function deleteTargetingABTestConfirm(testId) {
     const res = await gasRun('deleteTargetingABTest', testId);
     if (res.error) { alert(res.message); return; }
     closeTargetingABDetail();
-    await loadTargetingABList();
+    await loadTargetingABList(true);
   } catch (err) {
     alert('삭제 실패: ' + (err.message || String(err)));
   }
