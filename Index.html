@@ -5907,7 +5907,11 @@ function msToggleOpen(id, ev) {
   const wrap = document.getElementById(id);
   if (wrap) wrap.classList.toggle('open');
 }
-document.addEventListener('click', () => {
+// 체크박스를 골라도 label 클릭이 document까지 버블링되는데, 그때마다 드롭다운을
+// 닫아버리면 여러 개를 고를 때마다 매번 다시 열어야 해서 번거로웠다(2026-08-20).
+// .az-ms 내부(체크박스, 전체 해제 버튼 등) 클릭은 무시하고, 진짜 바깥을 클릭했을 때만 닫는다.
+document.addEventListener('click', (e) => {
+  if (e.target.closest('.az-ms')) return;
   document.querySelectorAll('.az-ms.open').forEach(w => w.classList.remove('open'));
 });
 
@@ -9801,6 +9805,8 @@ async function saveABTestForm() {
 
 // --- 상세 비교 뷰 ------------------------------------------
 async function viewABDetail(testId) {
+  const detailOpen = document.getElementById('ab-detail').style.display !== 'none';
+  if (abCurrentDetailId === testId && detailOpen) { closeABDetail(); return; }
   closeABForm();
   const test = abTestsCache.find(t => t.테스트ID === testId);
   if (!test) return;
@@ -10131,6 +10137,9 @@ async function saveTargetingABTestForm() {
 }
 
 async function viewTargetingABDetail(testId) {
+  const detailEl0 = document.getElementById('tab-detail');
+  const detailOpen = detailEl0 && detailEl0.style.display !== 'none';
+  if (tabCurrentDetailId === testId && detailOpen) { closeTargetingABDetail(); return; }
   closeTargetingABForm();
   const test = targetingTestsCache.find(t => t.테스트ID === testId);
   if (!test) return;
