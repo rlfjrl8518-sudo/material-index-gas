@@ -448,26 +448,56 @@ function saveHierarchy(rows) {
 function getImageCodes() {
   const ss = getSpreadsheet();
   const sheet = ss.getSheetByName(MASTER_SHEET_NAME);
-  if (!sheet || sheet.getLastRow() < 2) return [];
-
-  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 15).getValues();
-  // col: 0=이미지코드, 1=등록일자, 2=매체, 3=캠페인, 4=그룹, 5=소재이름, 6=보종, 8=소재유형, 14=이미지URL
   const seen = new Map();
-  data.forEach(row => {
-    const code = String(row[0] || '').trim();
-    if (!code || seen.has(code)) return;
-    seen.set(code, {
-      code,
-      등록일자: row[1] ? String(row[1]).slice(0, 10) : '',
-      매체:     String(row[2] || ''),
-      캠페인:   String(row[3] || ''),
-      그룹:     String(row[4] || ''),
-      소재이름: String(row[5] || ''),
-      보종:     String(row[6] || ''),
-      소재유형: String(row[8] || ''),
-      imageUrl: String(row[14] || '')
+
+  if (sheet && sheet.getLastRow() >= 2) {
+    const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 15).getValues();
+    // col: 0=이미지코드, 1=등록일자, 2=매체, 3=캠페인, 4=그룹, 5=소재이름, 6=보종, 8=소재유형, 14=이미지URL
+    data.forEach(row => {
+      const code = String(row[0] || '').trim();
+      if (!code || seen.has(code)) return;
+      seen.set(code, {
+        code,
+        등록일자: row[1] ? String(row[1]).slice(0, 10) : '',
+        매체:     String(row[2] || ''),
+        캠페인:   String(row[3] || ''),
+        그룹:     String(row[4] || ''),
+        소재이름: String(row[5] || ''),
+        보종:     String(row[6] || ''),
+        소재유형: String(row[8] || ''),
+        imageUrl: String(row[14] || '')
+      });
     });
-  });
+  }
+
+  // 디멘드젠/피맥스는 광고단위(번들) 단위로 구글DA 인덱스에 등록되는데, 소재 등록
+  // 탭의 이미지 업로드를 거치지 않고 등록된 경우 전매체 인덱스에 개별 이미지코드가
+  // 없다 — 이런 소재는 AB 테스트 등 이미지코드 기반 기능에서 아예 선택할 수 없었다
+  // (2026-08-20 확인). 광고단위코드를 코드처럼 취급해 목록에 함께 포함시킨다.
+  const dgpmSheet = ss.getSheetByName(DGPM_SHEET_NAME);
+  if (dgpmSheet && dgpmSheet.getLastRow() >= 2) {
+    const dgpmRows = dgpmSheet.getRange(2, 1, dgpmSheet.getLastRow() - 1, DGPM_HEADERS.length).getValues();
+    dgpmRows.forEach(row => {
+      const code = String(row[DGPM_COL['광고단위코드']] || '').trim();
+      if (!code || seen.has(code)) return;
+      const firstImageCode = _splitList(row[DGPM_COL['이미지코드목록']])[0];
+      const bundleImageUrl = (firstImageCode && seen.has(firstImageCode))
+        ? seen.get(firstImageCode).imageUrl
+        : String(row[DGPM_COL['번들URL']] || '');
+      seen.set(code, {
+        code,
+        등록일자: row[DGPM_COL['등록일시']] ? String(row[DGPM_COL['등록일시']]).slice(0, 10) : '',
+        매체:     String(row[DGPM_COL['매체']]     || ''),
+        캠페인:   String(row[DGPM_COL['캠페인']]   || ''),
+        그룹:     String(row[DGPM_COL['그룹']]     || ''),
+        소재이름: String(row[DGPM_COL['소재이름']] || ''),
+        보종:     String(row[DGPM_COL['보종']]     || ''),
+        소재유형: String(row[DGPM_COL['소재유형']] || ''),
+        imageUrl: bundleImageUrl
+      });
+    });
+  }
+
   return [...seen.values()].reverse();
 }
 
@@ -1922,6 +1952,14 @@ function getABTestPerformance(codes, startDate, endDate, scope) {
     ? masterSheet.getRange(2, 1, masterSheet.getLastRow() - 1, 16).getValues()
     : [];
 
+  // 디멘드젠/피맥스 번들 소재(전매체 인덱스에 개별 이미지코드가 없는 경우)를 위한
+  // 폴백 — getImageCodes()가 광고단위코드를 코드처럼 내려주므로, 여기서도 그
+  // 광고단위코드로 구글DA 인덱스에서 직접 컨텍스트를 찾는다.
+  const dgpmSheet = ss.getSheetByName(DGPM_SHEET_NAME);
+  const dgpmRows = (dgpmSheet && dgpmSheet.getLastRow() >= 2)
+    ? dgpmSheet.getRange(2, 1, dgpmSheet.getLastRow() - 1, DGPM_HEADERS.length).getValues()
+    : [];
+
   const hasScope = scope && (scope.매체 || scope.캠페인 || scope.그룹);
 
   return codes.map(code => {
@@ -1930,6 +1968,25 @@ function getABTestPerformance(codes, startDate, endDate, scope) {
     // 이 이미지코드에 연결된 모든 조합을 모아 그 중 하나라도 일치하면 실적에
     // 포함시킨다(하위호환 — 예전엔 이 필터가 아예 없어서 매번 이렇게 동작했다).
     let rowsForCode = masterRows.filter(r => String(r[0] || '').trim() === code);
+
+    if (!rowsForCode.length) {
+      const dgpmRow = dgpmRows.find(r => String(r[DGPM_COL['광고단위코드']] || '').trim() === code);
+      if (dgpmRow) {
+        // masterRows와 같은 컬럼 배치(0=코드,2=매체,3=캠페인,4=그룹,5=소재이름,
+        // 6=보종,8=소재유형,14=이미지URL)로 맞춘 가짜 행 하나로 아래 로직을 그대로 재사용한다.
+        const pseudo = [];
+        pseudo[0]  = code;
+        pseudo[2]  = dgpmRow[DGPM_COL['매체']];
+        pseudo[3]  = dgpmRow[DGPM_COL['캠페인']];
+        pseudo[4]  = dgpmRow[DGPM_COL['그룹']];
+        pseudo[5]  = dgpmRow[DGPM_COL['소재이름']];
+        pseudo[6]  = dgpmRow[DGPM_COL['보종']];
+        pseudo[8]  = dgpmRow[DGPM_COL['소재유형']];
+        pseudo[14] = dgpmRow[DGPM_COL['번들URL']];
+        rowsForCode = [pseudo];
+      }
+    }
+
     if (hasScope) {
       rowsForCode = rowsForCode.filter(r =>
         (!scope.매체   || String(r[2] || '') === scope.매체)   &&
