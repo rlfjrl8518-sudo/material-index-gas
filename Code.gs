@@ -1990,6 +1990,17 @@ function getABTestPerformance(codes, startDate, endDate, scope) {
       if (dgpmRow) {
         // masterRows와 같은 컬럼 배치(0=코드,2=매체,3=캠페인,4=그룹,5=소재이름,
         // 6=보종,8=소재유형,14=이미지URL)로 맞춘 가짜 행 하나로 아래 로직을 그대로 재사용한다.
+        // 이미지URL은 번들URL(대시보드 갤러리 링크 — 이미지 파일이 아니라 썸네일로 못 씀)을
+        // 무조건 쓰지 않고, getImageCodes()와 똑같이 번들 안의 이미지코드목록 중 전매체
+        // 인덱스에 실제로 있는 첫 번째 것의 이미지URL을 먼저 찾는다 — 이걸 빠뜨려서
+        // AB테스트 실적 비교표에서 피맥스/디멘드젠 번들 소재 썸네일이 안 뜨고 있었다
+        // (2026-08-21, 사용자가 캡처로 확인해줌).
+        const bundleImageCodes = _splitList(dgpmRow[DGPM_COL['이미지코드목록']]);
+        let resolvedImageUrl = '';
+        for (let i = 0; i < bundleImageCodes.length; i++) {
+          const found = masterRows.find(r => String(r[0] || '').trim() === bundleImageCodes[i]);
+          if (found && found[14]) { resolvedImageUrl = String(found[14]); break; }
+        }
         const pseudo = [];
         pseudo[0]  = code;
         pseudo[2]  = dgpmRow[DGPM_COL['매체']];
@@ -1998,7 +2009,7 @@ function getABTestPerformance(codes, startDate, endDate, scope) {
         pseudo[5]  = dgpmRow[DGPM_COL['소재이름']];
         pseudo[6]  = dgpmRow[DGPM_COL['보종']];
         pseudo[8]  = dgpmRow[DGPM_COL['소재유형']];
-        pseudo[14] = dgpmRow[DGPM_COL['번들URL']];
+        pseudo[14] = resolvedImageUrl || String(dgpmRow[DGPM_COL['번들URL']] || '');
         rowsForCode = [pseudo];
       }
     }
