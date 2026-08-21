@@ -9532,7 +9532,7 @@ function renderABSlots() {
       const thumb = isVid
         ? '<div class="ab-slot-thumb-fallback" style="display:flex">▶</div>'
         : `<img class="ab-slot-thumb" src="${esc(driveThumbnail(s.url, 400))}"
-             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+             onerror="abThumbFallback(this, '${esc(s.url)}')">
            <div class="ab-slot-thumb-fallback">🖼️</div>`;
       return `<div class="ab-slot filled">
         <span class="ab-slot-label">${label}</span>
@@ -9949,7 +9949,7 @@ function renderABCompare(perf) {
     const isVid = p.code.startsWith('VID');
     const thumb = isVid
       ? '<div class="ab-thumb-placeholder">▶</div>'
-      : `<img src="${esc(driveThumbnail(p.imageUrl))}" onerror="this.style.display='none'">`;
+      : `<img src="${esc(driveThumbnail(p.imageUrl))}" onerror="abThumbFallback(this, '${esc(p.imageUrl)}')">`;
     const isWinner = bestCpa !== null && p.conv > 0 && p.cpa === bestCpa;
 
     const impCls  = bestImp  !== null && p.imp  === bestImp  && p.imp  > 0 ? 'best' : '';
