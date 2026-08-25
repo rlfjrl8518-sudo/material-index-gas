@@ -166,8 +166,10 @@ function _visionSystemPrompt() {
 
 function _buildVisionPromptText(criteria, ocrText) {
   const lines = [];
+  let ocrAvailable = false;
   if (ocrText) {
-    lines.push('아래는 Google Drive OCR 엔진이 이 이미지에서 실제로 추출한 문자 그대로의 텍스트입니다(글자 단위로 정확함). OCR 텍스트에 있는 문구만 정답 후보로 삼고, OCR 텍스트에 전혀 없는 글자는 이미지에서도 지어내지 마라. OCR이 헛짚거나 왜곡되었을 수 있으면 그 부분만 이미지를 참고해 자연스럽게 정정해도 된다.');
+    ocrAvailable = true;
+    lines.push('아래는 Google Drive OCR 엔진이 이 이미지에서 추출한 참고용 텍스트입니다. OCR은 화려한 배경·작은 글씨·장식 폰트가 많은 광고 소재에서 문구를 통째로 놓치는 경우가 있으니 절대적인 정답이 아니라 1차 힌트로만 참고하고, 최종 판단은 반드시 이미지를 직접 보고 하라. OCR에 없는 문구라도 이미지에 실제로 선명하게 보이면 text에 포함해도 된다 — 다만 실제로 읽은 것이 아니라 그럴듯하게 지어낸 문구는 절대 포함하지 말고, 조금이라도 불확실하면 confidence를 낮게 매겨라.');
     lines.push('--- OCR 텍스트 시작 ---');
     lines.push(ocrText);
     lines.push('--- OCR 텍스트 끝 ---');
@@ -175,9 +177,12 @@ function _buildVisionPromptText(criteria, ocrText) {
     lines.push('OCR 텍스트를 가져오지 못했다. 이미지에서 직접 읽되, 확신이 없는 글자는 낮은 confidence로 표시하라.');
   }
   lines.push('이 이미지에서 다음을 분석해서 JSON으로 반환하라.');
-  lines.push('- productText: 상품명 또는 보종명으로 보이는 문구와 confidence(0~1)');
-  lines.push('- reviewText: 심의필 문구(예: 확인필-제OOOO-NNNNNN호 형태)로 보이는 문구와 confidence(0~1)');
-  lines.push('- allTexts: 이미지에서 인식되는 전체 문구 목록(배열)');
+  lines.push('- productText: 상품명 또는 보종명으로 보이는 문구, confidence(0~1)' + (ocrAvailable ? ', ocrConfirmed(boolean) — 이 text가 위 OCR 텍스트 안에 그대로(또는 사소한 오탈자 수준으로) 있으면 true, 이미지에서는 보이지만 OCR 텍스트엔 전혀 없으면 false. 정답 여부 판단이 아니라 OCR과의 교차검증용이니 솔직하게 표시하라.' : ''));
+  lines.push('- reviewText: 심의필 문구(예: 확인필-제OOOO-NNNNNN호 형태)로 보이는 문구, confidence(0~1)' + (ocrAvailable ? ', ocrConfirmed(boolean) — 위와 동일한 기준' : ''));
+  if (!ocrAvailable) {
+    lines.push('- (OCR 텍스트가 없으므로 productText/reviewText의 ocrConfirmed는 항상 null로 답하라)');
+  }
+  lines.push('- allTexts: 이미지에서 인식되는 전체 문구 목록(배열) — 마찬가지로 OCR에 없어도 이미지에서 실제로 보이면 포함하라');
   lines.push('- logo: { detected: boolean, description: string, confidence } — 이미지 내 로고 유무와 설명');
   if (criteria.font && criteria.font.use && criteria.font.value) {
     const targetText = (criteria.font.targetText || '').trim();
@@ -195,7 +200,7 @@ function _buildVisionPromptText(criteria, ocrText) {
     lines.push('- font: { matched: null, description: "", confidence: 0 }');
   }
   lines.push('응답 예시 형식:');
-  lines.push('{"productText":{"text":"","confidence":0.9},"reviewText":{"text":"","confidence":0.9},"allTexts":[""],"logo":{"detected":false,"description":"","confidence":0.5},"font":{"matched":null,"description":"","confidence":0.5}}');
+  lines.push('{"productText":{"text":"","confidence":0.9,"ocrConfirmed":true},"reviewText":{"text":"","confidence":0.9,"ocrConfirmed":true},"allTexts":[""],"logo":{"detected":false,"description":"","confidence":0.5},"font":{"matched":null,"description":"","confidence":0.5}}');
   lines.push('텍스트가 전혀 보이지 않는 항목은 text를 빈 문자열로, confidence를 0으로 반환하라.');
 
   if (criteria.customPrompt) {

@@ -84,7 +84,11 @@ function startInspection(inspectionId, fileRefs) {
     return { error: true, message: '처리할 이미지가 없습니다.' + (skipped.length ? ' (' + skipped.length + '개 파일 제외됨)' : '') };
   }
 
-  const state = { folderId: folderId, total: total, ok: 0, mismatch: 0, needCheck: 0 };
+  // criteria를 검수 시작 시점에 스냅샷으로 고정한다 — 대량 처리는 트리거로 여러 배치에
+  // 걸쳐 진행되는데, 그 사이 검수기준 시트를 수정하면 같은 검수번호 안에서 앞/뒤 배치가
+  // 서로 다른 기준으로 판정되는 일관성 문제가 있었다(_processInspectionBatch가 매번
+  // getInspectionCriteria()를 새로 읽었음).
+  const state = { folderId: folderId, total: total, ok: 0, mismatch: 0, needCheck: 0, criteria: criteria };
   PropertiesService.getScriptProperties().setProperty('INSPECTION_STATE_' + inspectionId, JSON.stringify(state));
 
   _appendHistoryRow(inspectionId, total, 0, 0, 0, '진행중');

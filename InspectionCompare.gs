@@ -100,6 +100,15 @@ function judgeField(baseValue, useFlag, recognizedObj, options, isReviewNumber) 
     return { result: '확인 필요', recognizedText: text, diff: diffText(baseValue, text), reason: '낮은 OCR 신뢰도' };
   }
 
+  // Drive OCR과 Vision 단독 판독이 서로 다른 경우(=Vision이 OCR에 없는 문구를 이미지에서
+  // 직접 읽어낸 경우) 둘 중 하나만 믿고 자동으로 일치/불일치를 확정하지 않고 확인 필요로
+  // 낮춘다. Vision이 OCR 제약 없이 이미지를 직접 읽도록 완화한 대신 마련한 2차 안전장치 —
+  // 화려한 배경/장식 폰트에서 OCR이 문구를 통째로 놓쳐 생기던 오탐(false 불일치/확인필요)은
+  // 줄이면서, Vision 단독 판독의 환각 위험은 사람 확인으로 돌려 그대로 가둔다.
+  if (recognizedObj.ocrConfirmed === false) {
+    return { result: '확인 필요', recognizedText: text, diff: diffText(baseValue, text), reason: 'OCR 미대조 - 육안 확인 필요' };
+  }
+
   const normBase = normalizeText(baseValue, options, isReviewNumber);
   const normRec = normalizeText(text, options, isReviewNumber);
 
