@@ -4,6 +4,28 @@
 // ====================================================
 
 // --------------------------------------------------
+// 호환 문자 치환 — 로마 숫자(Ⅰ,Ⅱ...)·원문자(①,②...)는 의미상 ASCII/숫자와 동일하게
+// 봐야 하는데, Apps Script V8 런타임의 normalize('NFKC')는 이런 호환 분해를 안정적으로
+// 처리하지 못해(엔진 ICU 제약, Node/브라우저와 다르게 동작) 그대로 남는 경우가 있다.
+// 그래서 런타임 normalize에 기대지 않고 직접 치환 테이블로 보정한다.
+// (예: "보장플랜Ⅱ" vs "보장플랜II"가 서로 다른 문자로 남아 불일치 오판정되던 문제)
+// --------------------------------------------------
+const COMPAT_CHAR_MAP = {
+  'Ⅰ': 'I', 'Ⅱ': 'II', 'Ⅲ': 'III', 'Ⅳ': 'IV', 'Ⅴ': 'V', 'Ⅵ': 'VI',
+  'Ⅶ': 'VII', 'Ⅷ': 'VIII', 'Ⅸ': 'IX', 'Ⅹ': 'X', 'Ⅺ': 'XI', 'Ⅻ': 'XII',
+  'ⅰ': 'i', 'ⅱ': 'ii', 'ⅲ': 'iii', 'ⅳ': 'iv', 'ⅴ': 'v', 'ⅵ': 'vi',
+  'ⅶ': 'vii', 'ⅷ': 'viii', 'ⅸ': 'ix', 'ⅹ': 'x', 'ⅺ': 'xi', 'ⅻ': 'xii',
+  '①': '1', '②': '2', '③': '3', '④': '4', '⑤': '5', '⑥': '6', '⑦': '7',
+  '⑧': '8', '⑨': '9', '⑩': '10', '⑪': '11', '⑫': '12', '⑬': '13', '⑭': '14',
+  '⑮': '15', '⑯': '16', '⑰': '17', '⑱': '18', '⑲': '19', '⑳': '20'
+};
+const COMPAT_CHAR_RE = new RegExp('[' + Object.keys(COMPAT_CHAR_MAP).join('') + ']', 'g');
+
+function normalizeCompatChars(s) {
+  return s.replace(COMPAT_CHAR_RE, function (ch) { return COMPAT_CHAR_MAP[ch] || ch; });
+}
+
+// --------------------------------------------------
 // 정규화
 // 심의필(isReviewNumber=true)은 숫자·하이픈이 중요하므로
 // specialCharStrict 설정과 무관하게 특수문자를 제거하지 않는다
@@ -11,6 +33,7 @@
 function normalizeText(text, options, isReviewNumber) {
   let s = String(text || '');
   s = s.normalize('NFKC');
+  s = normalizeCompatChars(s);
 
   if (options.ignoreLineBreak) s = s.replace(/[\r\n]+/g, ' ');
 
