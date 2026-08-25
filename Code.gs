@@ -523,28 +523,65 @@ function debugImageCodes() {
 function getCreativeByImageCode(imageCode) {
   const ss = getSpreadsheet();
   const sheet = ss.getSheetByName(MASTER_SHEET_NAME);
-  if (!sheet || sheet.getLastRow() < 2) return null;
+  if (sheet && sheet.getLastRow() >= 2) {
+    const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 16).getValues();
+    const rows = data.filter(r => String(r[0]).trim() === imageCode);
+    if (rows.length) {
+      const row = rows[rows.length - 1]; // 가장 최근 행
+      return {
+        매체:       String(row[2]  || ''),
+        캠페인:     String(row[3]  || ''),
+        그룹:       String(row[4]  || ''),
+        소재이름:   String(row[5]  || ''),
+        보종:       String(row[6]  || ''),
+        광고유형:   String(row[7]  || ''),
+        소재유형:   String(row[8]  || ''),
+        소구포인트: String(row[9]  || ''),
+        후킹방식:   String(row[10] || ''),
+        소구상세:   String(row[11] || ''),
+        이미지유형: String(row[12] || ''),
+        모델유형:   String(row[13] || ''),
+        이미지URL:  String(row[14] || '')
+      };
+    }
+  }
 
-  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 16).getValues();
-  const rows = data.filter(r => String(r[0]).trim() === imageCode);
-  if (!rows.length) return null;
-  const row = rows[rows.length - 1]; // 가장 최근 행
+  // 전매체 인덱스에 없으면 디멘드젠/피맥스 광고단위코드로 폴백한다 — 소재 등록 탭의
+  // 이미지 업로드를 거치지 않고 등록된 DG/PM 소재는 개별 이미지코드가 전매체 인덱스에
+  // 없고 구글DA 인덱스 시트에 광고단위(번들) 단위로만 있어(getImageCodes()가 이런
+  // 소재를 픽커 목록에 광고단위코드로 포함시키는 것과 같은 이유), 여기서도 못 찾으면
+  // "정보 불러오기"가 아무 반응 없이 조용히 실패했다(2026-08-25 확인).
+  const dgpmSheet = ss.getSheetByName(DGPM_SHEET_NAME);
+  if (dgpmSheet && dgpmSheet.getLastRow() >= 2) {
+    const dgpmRows = dgpmSheet.getRange(2, 1, dgpmSheet.getLastRow() - 1, DGPM_HEADERS.length).getValues();
+    const dgpmRow = dgpmRows.find(r => String(r[DGPM_COL['광고단위코드']] || '').trim() === imageCode);
+    if (dgpmRow) {
+      const firstImageCode = _splitList(dgpmRow[DGPM_COL['이미지코드목록']])[0];
+      let resolvedImageUrl = '';
+      if (firstImageCode && sheet && sheet.getLastRow() >= 2) {
+        const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 16).getValues();
+        const match = data.find(r => String(r[0]).trim() === firstImageCode);
+        if (match) resolvedImageUrl = String(match[14] || '');
+      }
+      return {
+        매체:       String(dgpmRow[DGPM_COL['매체']]     || ''),
+        캠페인:     String(dgpmRow[DGPM_COL['캠페인']]   || ''),
+        그룹:       String(dgpmRow[DGPM_COL['그룹']]     || ''),
+        소재이름:   String(dgpmRow[DGPM_COL['소재이름']] || ''),
+        보종:       String(dgpmRow[DGPM_COL['보종']]     || ''),
+        광고유형:   String(dgpmRow[DGPM_COL['광고유형']] || ''),
+        소재유형:   String(dgpmRow[DGPM_COL['소재유형']] || ''),
+        소구포인트: String(dgpmRow[DGPM_COL['소구포인트']] || ''),
+        후킹방식:   String(dgpmRow[DGPM_COL['후킹방식']]   || ''),
+        소구상세:   String(dgpmRow[DGPM_COL['소구상세']]   || ''),
+        이미지유형: _splitList(dgpmRow[DGPM_COL['이미지유형목록']])[0] || '',
+        모델유형:   _splitList(dgpmRow[DGPM_COL['모델유형목록']])[0] || '',
+        이미지URL:  resolvedImageUrl || String(dgpmRow[DGPM_COL['번들URL']] || '')
+      };
+    }
+  }
 
-  return {
-    매체:       String(row[2]  || ''),
-    캠페인:     String(row[3]  || ''),
-    그룹:       String(row[4]  || ''),
-    소재이름:   String(row[5]  || ''),
-    보종:       String(row[6]  || ''),
-    광고유형:   String(row[7]  || ''),
-    소재유형:   String(row[8]  || ''),
-    소구포인트: String(row[9]  || ''),
-    후킹방식:   String(row[10] || ''),
-    소구상세:   String(row[11] || ''),
-    이미지유형: String(row[12] || ''),
-    모델유형:   String(row[13] || ''),
-    이미지URL:  String(row[14] || '')
-  };
+  return null;
 }
 
 // --------------------------------------------------
