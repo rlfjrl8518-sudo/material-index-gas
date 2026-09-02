@@ -1542,16 +1542,26 @@ function consolidateRawData() {
     const rawSheets = ss.getSheets().filter(s => s.getName().startsWith('RAW_'));
 
     const rowsToAppend = [];
+    // 스킵된 행은 조용히 사라지면 "적재했는데 왜 분석 탭에 안 보이냐"는 문의로만
+    // 드러나서 원인을 찾기 어려웠다(2026-09-02) — 시트별·사유별로 세어뒀다가
+    // 완료 알림에 같이 보여준다.
+    const skippedBySheet = {};
+    let skippedIncomplete = 0; // 매체/소재이름 누락
+    let skippedDup = 0;        // 이미 적재된 키와 중복
 
     rawSheets.forEach(srcSheet => {
       if (srcSheet.getLastRow() < 2) return;
       const data = srcSheet.getRange(2, 1, srcSheet.getLastRow() - 1, 21).getValues();
       data.forEach(row => {
         // 매체(A) 또는 소재이름(E) 중 하나라도 없으면 불완전한 행으로 스킵
-        if (!row[0] || !row[4]) return;
+        if (!row[0] || !row[4]) {
+          skippedIncomplete++;
+          skippedBySheet[srcSheet.getName()] = (skippedBySheet[srcSheet.getName()] || 0) + 1;
+          return;
+        }
         const normalized = _normalizeRawRow(row);
         const key = _rowKey(normalized);
-        if (existingSet.has(key)) return;
+        if (existingSet.has(key)) { skippedDup++; return; }
         existingSet.add(key);
         rowsToAppend.push(normalized);
       });
@@ -1563,8 +1573,14 @@ function consolidateRawData() {
         .setValues(rowsToAppend);
     }
 
-    SpreadsheetApp.getUi().alert(`${rowsToAppend.length}건 적재 완료`);
-    return { success: true, count: rowsToAppend.length };
+    let msg = `${rowsToAppend.length}건 적재 완료`;
+    if (skippedIncomplete > 0) {
+      const detail = Object.entries(skippedBySheet).map(([name, n]) => `${name} ${n}건`).join(', ');
+      msg += `\n⚠ 매체/소재이름 누락으로 스킵: ${skippedIncomplete}건 (${detail})`;
+    }
+    if (skippedDup > 0) msg += `\n(이미 적재된 중복 ${skippedDup}건은 건너뜀)`;
+    SpreadsheetApp.getUi().alert(msg);
+    return { success: true, count: rowsToAppend.length, skippedIncomplete, skippedDup, skippedBySheet };
   } catch (e) {
     SpreadsheetApp.getUi().alert('오류: ' + e.message);
     return { error: true, message: e.message };
