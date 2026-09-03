@@ -472,8 +472,9 @@ function getImageCodes() {
     data.forEach(row => {
       const code = String(row[0] || '').trim();
       if (!code) return;
+      const regRaw = row[1];
       const rowData = {
-        등록일자: row[1] ? String(row[1]).slice(0, 10) : '',
+        등록일자: regRaw ? String(regRaw).slice(0, 10) : '',
         매체:     String(row[2] || '').trim(),
         캠페인:   String(row[3] || '').trim(),
         그룹:     String(row[4] || '').trim(),
@@ -482,15 +483,23 @@ function getImageCodes() {
         소재유형: String(row[8] || '').trim(),
         imageUrl: String(row[14] || '').trim()
       };
+      // 목록 정렬용 — 재사용된 코드는 대표값(태그에 보이는 매체·날짜 등)이 최신 행
+      // 기준인데, 예전엔 목록 순서가 "이 코드가 처음 등록된 행" 기준이라 최근에
+      // 재사용된 이미지도 카드엔 최근 날짜가 찍혀있으면서 정작 목록에선 한참
+      // 아래(예전 위치)에 있어 "분명 최근에 썼는데 안 보인다"로 이어졌다
+      // (2026-09-03, IMG260713002 — 보종 필터만 걸었을 때 찾기 어려웠던 문제).
+      // 대표값과 같은 기준(가장 최근 행)으로 정렬 키도 매번 갱신한다.
+      const regTs = (regRaw instanceof Date) ? regRaw.getTime() : 0;
       let existing = seen.get(code);
       if (!existing) {
-        existing = { code, ...rowData };
+        existing = { code, ...rowData, _sortTs: regTs };
         Object.keys(LIST_FIELDS).forEach(f => { existing[LIST_FIELDS[f]] = rowData[f] ? [rowData[f]] : []; });
         seen.set(code, existing);
         return;
       }
       // 대표값은 더 최근 행(시트 아래쪽) 기준으로 계속 갱신 — 값이 없는 필드는 유지
       Object.keys(rowData).forEach(k => { if (rowData[k]) existing[k] = rowData[k]; });
+      if (regRaw) existing._sortTs = regTs;
       Object.keys(LIST_FIELDS).forEach(f => {
         const list = existing[LIST_FIELDS[f]];
         if (rowData[f] && !list.includes(rowData[f])) list.push(rowData[f]);
@@ -520,9 +529,10 @@ function getImageCodes() {
       const dgpm그룹   = String(row[DGPM_COL['그룹']]   || '').trim();
       const dgpm보종   = String(row[DGPM_COL['보종']]   || '').trim();
       const dgpm소재유형 = String(row[DGPM_COL['소재유형']] || '').trim();
+      const dgpmRegRaw = row[DGPM_COL['등록일시']];
       seen.set(code, {
         code,
-        등록일자: row[DGPM_COL['등록일시']] ? String(row[DGPM_COL['등록일시']]).slice(0, 10) : '',
+        등록일자: dgpmRegRaw ? String(dgpmRegRaw).slice(0, 10) : '',
         매체:     dgpm매체,
         캠페인:   dgpm캠페인,
         그룹:     dgpm그룹,
@@ -534,12 +544,19 @@ function getImageCodes() {
         캠페인목록: dgpm캠페인 ? [dgpm캠페인] : [],
         그룹목록:   dgpm그룹   ? [dgpm그룹]   : [],
         보종목록:   dgpm보종   ? [dgpm보종]   : [],
-        소재유형목록: dgpm소재유형 ? [dgpm소재유형] : []
+        소재유형목록: dgpm소재유형 ? [dgpm소재유형] : [],
+        _sortTs: (dgpmRegRaw instanceof Date) ? dgpmRegRaw.getTime() : 0
       });
     });
   }
 
-  return [...seen.values()].reverse();
+  // 최근에 (재)등록된 코드가 먼저 오도록 정렬 — 재사용된 코드는 대표값이 최신
+  // 행 기준으로 갱신되므로, 정렬도 같은 기준(가장 최근 행)을 따라야 카드에 찍힌
+  // 날짜와 목록 순서가 어긋나지 않는다. _sortTs는 클라이언트에 보일 필요 없는
+  // 내부 정렬용 값이라 반환 직전에 제거한다.
+  return [...seen.values()]
+    .sort((a, b) => b._sortTs - a._sortTs)
+    .map(({ _sortTs, ...rest }) => rest);
 }
 
 // --------------------------------------------------
