@@ -4707,6 +4707,16 @@ function openImageModal() {
 
   document.getElementById('imgSearch').value = '';
 
+  // 검색어만 초기화하고 보종/매체 필터는 그대로 둬서, 예전에 모달을 열었을 때
+  // 걸어둔 필터가 다음에 완전히 다른 소재를 찾으려고 열었을 때도 계속 남아있었다
+  // — 목록 대부분이 필터에 걸러진 채로 있으니 "항목이 다 표시되지 않는다"처럼
+  // 보였다(2026-09-03). 다른 두 소재 피커(추이 탭 소재 선택, AB테스트 소재 선택)는
+  // 열 때마다 필터를 전부 리셋하는데 이 모달만 빠져 있었다 — 같은 방식으로 맞춘다.
+  const boJongEl = document.getElementById('imgFilterBoJong');
+  const mediaEl  = document.getElementById('imgFilterMedia');
+  if (boJongEl) boJongEl.value = '';
+  if (mediaEl)  mediaEl.value  = '';
+
   loadExistingCodes(); // 항상 새로 읽기 (시트 수정 반영)
 
 }
