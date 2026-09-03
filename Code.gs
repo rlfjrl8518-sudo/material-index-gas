@@ -182,13 +182,16 @@ function getBundleData(unitCode, ctx, opts) {
   if (!dgpmSheet || dgpmSheet.getLastRow() < 2) return null;
 
   const rows = dgpmSheet.getRange(2, 1, dgpmSheet.getLastRow() - 1, DGPM_HEADERS.length).getValues();
-  let unitRow = rows.find(r => String(r[DGPM_COL['광고단위코드']]) === unitCode);
+  let unitRow = rows.find(r => String(r[DGPM_COL['광고단위코드']]).trim() === unitCode);
+  // 구글DA 인덱스 시트 값도 getImageCodes()와 같은 이유로 trim 없이 저장돼 있을 수
+  // 있어(2026-09-03), ctx(소재_통합RAW 기준이라 이미 trim된 값) 쪽만 깨끗하고 시트
+  // 쪽에 공백이 섞여 있으면 이 매칭이 조용히 실패한다 — 양쪽 다 trim해서 비교.
   if (!unitRow && ctx && ctx.매체 && ctx.캠페인 && ctx.그룹 && ctx.소재이름) {
     unitRow = rows.find(r =>
-      String(r[DGPM_COL['매체']])     === ctx.매체     &&
-      String(r[DGPM_COL['캠페인']])   === ctx.캠페인   &&
-      String(r[DGPM_COL['그룹']])     === ctx.그룹     &&
-      String(r[DGPM_COL['소재이름']]) === ctx.소재이름
+      String(r[DGPM_COL['매체']]     || '').trim() === ctx.매체     &&
+      String(r[DGPM_COL['캠페인']]   || '').trim() === ctx.캠페인   &&
+      String(r[DGPM_COL['그룹']]     || '').trim() === ctx.그룹     &&
+      String(r[DGPM_COL['소재이름']] || '').trim() === ctx.소재이름
     );
   }
   if (!unitRow) return null;
@@ -872,12 +875,15 @@ function _updateDGPMUnit(data, imageCode) {
 
   if (sheet.getLastRow() >= 2) {
     const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, totalCols).getValues();
+    // data는 saveCreative에서 이미 trim됐지만 시트에 이미 저장된 값은 아닐 수 있어
+    // (2026-09-03, getImageCodes와 같은 원인) 시트 쪽도 trim해서 비교 — 안 그러면
+    // 같은 광고단위인데 못 찾아서 중복 행이 새로 생긴다.
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      if (row[DGPM_COL['매체']]    === data.매체    &&
-          row[DGPM_COL['캠페인']]  === data.캠페인  &&
-          row[DGPM_COL['그룹']]    === data.그룹    &&
-          row[DGPM_COL['소재이름']] === data.소재이름) {
+      if (String(row[DGPM_COL['매체']]    || '').trim() === data.매체    &&
+          String(row[DGPM_COL['캠페인']]  || '').trim() === data.캠페인  &&
+          String(row[DGPM_COL['그룹']]    || '').trim() === data.그룹    &&
+          String(row[DGPM_COL['소재이름']] || '').trim() === data.소재이름) {
 
         // 이미지코드 추가
         const codes = _splitList(row[DGPM_COL['이미지코드목록']]);
@@ -1116,7 +1122,7 @@ function getDGPMList(매체필터) {
   const totalCols = DGPM_HEADERS.length;
   const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, totalCols).getValues();
   return data
-    .filter(r => r[DGPM_COL['광고단위코드']] && (!매체필터 || r[DGPM_COL['매체']] === 매체필터))
+    .filter(r => r[DGPM_COL['광고단위코드']] && (!매체필터 || String(r[DGPM_COL['매체']] || '').trim() === 매체필터))
     .map(r => ({
       광고단위코드:   String(r[DGPM_COL['광고단위코드']]),
       매체:           String(r[DGPM_COL['매체']]),
