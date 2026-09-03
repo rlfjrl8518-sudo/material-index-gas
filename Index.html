@@ -4770,24 +4770,36 @@ function loadExistingCodes() {
 
 
 
+// 같은 이미지코드가 여러 매체/보종에 재사용됐을 수 있어(getImageCodes 주석 참고),
+// 대표값(c.보종/c.매체) 하나만 보고 정확히 일치 비교하면 "이 코드가 실제로 그
+// 매체/보종에서도 쓰였는데" 다른 조합이 대표로 뽑힌 탓에 필터에서 빠질 수 있다
+// (2026-09-03, IMG260713002 확인). 이 코드가 지금까지 등록된 매체·보종 전체
+// 목록(매체목록/보종목록) 중 하나라도 선택값과 일치하면 통과시킨다.
+function azItemMatchesBoJong(c, boJong) {
+  return !boJong || (c.보종목록 || [c.보종]).includes(boJong);
+}
+function azItemMatchesMedia(c, media) {
+  return !media || (c.매체목록 || [c.매체]).includes(media);
+}
+
 // 보종/매체 필터 드롭다운도, 다른 필터가 이미 적용된 상태에서 실제로
 // 존재하는 값만 옵션으로 남도록 매번 다시 채운다 (캐스케이드)
 function refreshImagePickerFilterOptions(boJong, media) {
-  function fillSelect(id, excludeField, field, label) {
+  function fillSelect(id, excludeField, listField, label) {
     const sel = document.getElementById(id);
     if (!sel) return;
     const prevVal = sel.value;
     const scoped = allImageCodes.filter(c => {
-      if (excludeField !== 'boJong' && boJong && c.보종 !== boJong) return false;
-      if (excludeField !== 'media'  && media  && c.매체 !== media)  return false;
+      if (excludeField !== 'boJong' && !azItemMatchesBoJong(c, boJong)) return false;
+      if (excludeField !== 'media'  && !azItemMatchesMedia(c, media))  return false;
       return true;
     });
-    const vals = [...new Set(scoped.map(c => c[field]).filter(Boolean))].sort();
+    const vals = [...new Set(scoped.flatMap(c => c[listField] && c[listField].length ? c[listField] : []))].sort();
     sel.innerHTML = `<option value="">${label} 전체</option>` + vals.map(v => `<option value="${escHtml(v)}">${escHtml(v)}</option>`).join('');
     if (vals.includes(prevVal)) sel.value = prevVal;
   }
-  fillSelect('imgFilterBoJong', 'boJong', '보종', '보종');
-  fillSelect('imgFilterMedia',  'media',  '매체', '매체');
+  fillSelect('imgFilterBoJong', 'boJong', '보종목록', '보종');
+  fillSelect('imgFilterMedia',  'media',  '매체목록', '매체');
 }
 
 function filterImagePicker() {
@@ -4802,9 +4814,9 @@ function filterImagePicker() {
 
   const filtered = allImageCodes.filter(c => {
 
-    if (boJong && c.보종  !== boJong) return false;
+    if (!azItemMatchesBoJong(c, boJong)) return false;
 
-    if (media  && c.매체  !== media)  return false;
+    if (!azItemMatchesMedia(c, media))  return false;
 
     if (q && !c.code.toLowerCase().includes(q) && !c.소재이름.toLowerCase().includes(q)) return false;
 
@@ -9756,22 +9768,32 @@ function closeABPicker() {
   document.getElementById('abImgModalOverlay')?.classList.remove('open');
 }
 
+// 같은 이미지코드가 여러 매체/캠페인/그룹/보종/소재유형에 재사용됐을 수 있어
+// (getImageCodes 주석 참고), 대표값 하나만 보고 정확히 일치 비교하면 이 코드가
+// 실제로 그 조합에서도 쓰였는데 다른 조합이 대표로 뽑힌 탓에 필터에서 빠질 수
+// 있다(2026-09-03, IMG260713002 확인 — 소재 등록 이미지 선택 모달과 같은 원인,
+// 이 피커도 getImageCodes를 그대로 쓰므로 동일하게 고친다). 해당 코드가 지금까지
+// 등록된 값 전체(각 필드의 *목록) 중 하나라도 선택값과 일치하면 통과시킨다.
+function abItemMatches(c, listField, singleField, val) {
+  return !val || (c[listField] || [c[singleField]]).includes(val);
+}
+
 // 매체/캠페인/그룹/소재유형/보종 필터 드롭다운 옵션을, 다른 필터들이 이미
 // 적용된 상태에서 실제로 존재하는 값만 남도록 매번 다시 채운다 (캐스케이드)
 function abRefreshFilterOptions(scopeFn) {
-  function fillSelect(id, excludeField, field, label) {
+  function fillSelect(id, excludeField, listField, label) {
     const sel = document.getElementById(id);
     if (!sel) return;
     const prevVal = sel.value;
-    const vals = [...new Set(scopeFn(excludeField).map(c => c[field]).filter(Boolean))].sort();
+    const vals = [...new Set(scopeFn(excludeField).flatMap(c => (c[listField] && c[listField].length) ? c[listField] : []))].sort();
     sel.innerHTML = `<option value="">${label} 전체</option>` + vals.map(v => `<option value="${escHtml(v)}">${escHtml(v)}</option>`).join('');
     if (vals.includes(prevVal)) sel.value = prevVal;
   }
-  fillSelect('abImgFilterMedia',    'media',    '매체',    '매체');
-  fillSelect('abImgFilterCampaign', 'campaign', '캠페인',  '캠페인');
-  fillSelect('abImgFilterGroup',    'group',    '그룹',    '그룹');
-  fillSelect('abImgFilterCrtype',   'crtype',   '소재유형', '소재유형');
-  fillSelect('abImgFilterBoJong',   'boJong',   '보종',    '보종');
+  fillSelect('abImgFilterMedia',    'media',    '매체목록',    '매체');
+  fillSelect('abImgFilterCampaign', 'campaign', '캠페인목록',  '캠페인');
+  fillSelect('abImgFilterGroup',    'group',    '그룹목록',    '그룹');
+  fillSelect('abImgFilterCrtype',   'crtype',   '소재유형목록', '소재유형');
+  fillSelect('abImgFilterBoJong',   'boJong',   '보종목록',    '보종');
 }
 
 function filterABPicker() {
@@ -9785,20 +9807,20 @@ function filterABPicker() {
   // 필터 드롭다운 자체는, "자기 자신 필드를 제외한" 다른 필터들만 적용된 목록을
   // 기준으로 옵션을 다시 채운다 — 그래야 지금 고른 값이 사라지지 않는다
   abRefreshFilterOptions(excludeField => abAllCodes.filter(c => {
-    if (excludeField !== 'media'    && media    && c.매체     !== media)    return false;
-    if (excludeField !== 'campaign' && campaign && c.캠페인   !== campaign) return false;
-    if (excludeField !== 'group'    && group    && c.그룹     !== group)    return false;
-    if (excludeField !== 'crtype'   && crtype   && c.소재유형 !== crtype)   return false;
-    if (excludeField !== 'boJong'   && boJong   && c.보종     !== boJong)   return false;
+    if (excludeField !== 'media'    && !abItemMatches(c, '매체목록',    '매체',    media))    return false;
+    if (excludeField !== 'campaign' && !abItemMatches(c, '캠페인목록',  '캠페인',  campaign)) return false;
+    if (excludeField !== 'group'    && !abItemMatches(c, '그룹목록',    '그룹',    group))    return false;
+    if (excludeField !== 'crtype'   && !abItemMatches(c, '소재유형목록', '소재유형', crtype))   return false;
+    if (excludeField !== 'boJong'   && !abItemMatches(c, '보종목록',    '보종',    boJong))   return false;
     return true;
   }));
 
   const filtered = abAllCodes.filter(c => {
-    if (media    && c.매체     !== media)    return false;
-    if (campaign && c.캠페인   !== campaign) return false;
-    if (group    && c.그룹     !== group)    return false;
-    if (crtype   && c.소재유형 !== crtype)   return false;
-    if (boJong   && c.보종     !== boJong)   return false;
+    if (!abItemMatches(c, '매체목록',    '매체',    media))    return false;
+    if (!abItemMatches(c, '캠페인목록',  '캠페인',  campaign)) return false;
+    if (!abItemMatches(c, '그룹목록',    '그룹',    group))    return false;
+    if (!abItemMatches(c, '소재유형목록', '소재유형', crtype))   return false;
+    if (!abItemMatches(c, '보종목록',    '보종',    boJong))   return false;
     if (q && !c.code.toLowerCase().includes(q) && !(c.소재이름 || '').toLowerCase().includes(q)) return false;
     return true;
   });

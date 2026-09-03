@@ -456,16 +456,23 @@ function getImageCodes() {
   if (sheet && sheet.getLastRow() >= 2) {
     const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 15).getValues();
     // col: 0=이미지코드, 1=등록일자, 2=매체, 3=캠페인, 4=그룹, 5=소재이름, 6=보종, 8=소재유형, 14=이미지URL
-    // 매체/보종 등은 코드(0열)와 달리 trim 없이 저장돼서, 시트에 우연히 섞여든
-    // 앞뒤 공백이 있으면 피커의 검색(코드/소재이름 부분일치)에는 걸리는데 매체·보종
-    // 드롭다운(정확히 일치)에는 안 걸려 "코드 검색엔 나오는데 매체/보종 선택하면
-    // 안 보인다"는 문의로 이어졌다(2026-09-03, IMG260713002 확인 중 발견). 소재_통합RAW
-    // 적재 시(_normalizeRawRow)와 마찬가지로 여기서도 모든 텍스트 필드를 trim한다.
+    //
+    // 같은 이미지코드가 "같은 이미지를 다른 지면에 재등록"(saveCreative의 INSERT
+    // 조건)으로 여러 행에 걸쳐 서로 다른 매체·캠페인·그룹·보종·소재유형 조합으로
+    // 존재할 수 있다. 예전엔 코드당 "처음 만난 행" 하나만 남기고 나머지는
+    // 버렸는데(seen.has(code)면 skip), 그러면 이 코드가 실제로 등록된 다른 매체·
+    // 보종 등에서는 필터를 걸면 안 보이고(처음 등록된 조합하고만 일치) 코드/
+    // 소재이름 검색에는 여전히 걸려서 "코드 검색엔 나오는데 매체/보종 선택하면
+    // 안 보인다"는 문의로 이어졌다(2026-09-03, IMG260713002로 확인 — 여러 지면에
+    // 재사용된 이미지였다). 표시용 대표값(태그 등)은 최신 등록 기준으로 갱신하되,
+    // 필터링은 이 코드가 지금까지 등록된 값 전체(각 필드의 *목록) 중 하나라도
+    // 선택값과 일치하면 통과시킨다 — AB테스트 소재 선택 피커도 이 함수를 그대로
+    // 쓰므로 매체/보종뿐 아니라 캠페인/그룹/소재유형도 같은 방식으로 맞춘다.
+    const LIST_FIELDS = { 매체: '매체목록', 캠페인: '캠페인목록', 그룹: '그룹목록', 보종: '보종목록', 소재유형: '소재유형목록' };
     data.forEach(row => {
       const code = String(row[0] || '').trim();
-      if (!code || seen.has(code)) return;
-      seen.set(code, {
-        code,
+      if (!code) return;
+      const rowData = {
         등록일자: row[1] ? String(row[1]).slice(0, 10) : '',
         매체:     String(row[2] || '').trim(),
         캠페인:   String(row[3] || '').trim(),
@@ -474,6 +481,19 @@ function getImageCodes() {
         보종:     String(row[6] || '').trim(),
         소재유형: String(row[8] || '').trim(),
         imageUrl: String(row[14] || '').trim()
+      };
+      let existing = seen.get(code);
+      if (!existing) {
+        existing = { code, ...rowData };
+        Object.keys(LIST_FIELDS).forEach(f => { existing[LIST_FIELDS[f]] = rowData[f] ? [rowData[f]] : []; });
+        seen.set(code, existing);
+        return;
+      }
+      // 대표값은 더 최근 행(시트 아래쪽) 기준으로 계속 갱신 — 값이 없는 필드는 유지
+      Object.keys(rowData).forEach(k => { if (rowData[k]) existing[k] = rowData[k]; });
+      Object.keys(LIST_FIELDS).forEach(f => {
+        const list = existing[LIST_FIELDS[f]];
+        if (rowData[f] && !list.includes(rowData[f])) list.push(rowData[f]);
       });
     });
   }
@@ -492,16 +512,29 @@ function getImageCodes() {
       const bundleImageUrl = (firstImageCode && seen.has(firstImageCode))
         ? seen.get(firstImageCode).imageUrl
         : String(row[DGPM_COL['번들URL']] || '');
+      // 광고단위코드는 이미지코드와 달리 단위 하나당 매체·캠페인·그룹·보종·소재유형이
+      // 고정이라(재사용 개념이 없음) 각 *목록은 항상 원소 하나뿐이지만, 클라이언트
+      // 필터 로직이 모든 항목에 대해 이 배열들을 기대하므로 형태를 맞춰준다.
+      const dgpm매체   = String(row[DGPM_COL['매체']]   || '').trim();
+      const dgpm캠페인 = String(row[DGPM_COL['캠페인']] || '').trim();
+      const dgpm그룹   = String(row[DGPM_COL['그룹']]   || '').trim();
+      const dgpm보종   = String(row[DGPM_COL['보종']]   || '').trim();
+      const dgpm소재유형 = String(row[DGPM_COL['소재유형']] || '').trim();
       seen.set(code, {
         code,
         등록일자: row[DGPM_COL['등록일시']] ? String(row[DGPM_COL['등록일시']]).slice(0, 10) : '',
-        매체:     String(row[DGPM_COL['매체']]     || '').trim(),
-        캠페인:   String(row[DGPM_COL['캠페인']]   || '').trim(),
-        그룹:     String(row[DGPM_COL['그룹']]     || '').trim(),
+        매체:     dgpm매체,
+        캠페인:   dgpm캠페인,
+        그룹:     dgpm그룹,
         소재이름: String(row[DGPM_COL['소재이름']] || '').trim(),
-        보종:     String(row[DGPM_COL['보종']]     || '').trim(),
-        소재유형: String(row[DGPM_COL['소재유형']] || '').trim(),
-        imageUrl: bundleImageUrl.trim()
+        보종:     dgpm보종,
+        소재유형: dgpm소재유형,
+        imageUrl: bundleImageUrl.trim(),
+        매체목록:   dgpm매체   ? [dgpm매체]   : [],
+        캠페인목록: dgpm캠페인 ? [dgpm캠페인] : [],
+        그룹목록:   dgpm그룹   ? [dgpm그룹]   : [],
+        보종목록:   dgpm보종   ? [dgpm보종]   : [],
+        소재유형목록: dgpm소재유형 ? [dgpm소재유형] : []
       });
     });
   }
