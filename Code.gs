@@ -559,6 +559,49 @@ function debugImageCodes() {
 }
 
 // --------------------------------------------------
+// 디버그: 특정 이미지코드 하나를 원시 시트값 + getImageCodes() 최종 결과 둘 다 보여준다.
+// Apps Script 편집기에서 이 함수를 선택해 "실행" 누르고 "실행 로그" 보면 됨(인자 없이
+// 바로 실행 가능하도록 코드를 기본값으로 넣어뒀다 — 다른 코드를 보려면 아래
+// TARGET_CODE만 바꿔서 다시 실행).
+// (2026-09-03, IMG260713002가 코드 검색엔 나오는데 매체/보종 필터에선 안 보인다는
+// 문의가 재수정 후에도 재현돼서, 추측 대신 실제 저장값을 직접 확인하기 위해 추가)
+// --------------------------------------------------
+function debugOneImageCode() {
+  const TARGET_CODE = 'IMG260713002'; // 확인하고 싶은 코드로 바꿔서 재실행 가능
+
+  const ss = getSpreadsheet();
+  const sheet = ss.getSheetByName(MASTER_SHEET_NAME);
+  const rawRows = [];
+  if (sheet && sheet.getLastRow() >= 2) {
+    const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 15).getValues();
+    data.forEach((row, i) => {
+      if (String(row[0] || '').trim() !== TARGET_CODE) return;
+      rawRows.push({
+        행: i + 2,
+        매체:     JSON.stringify(String(row[2] || '')),
+        캠페인:   JSON.stringify(String(row[3] || '')),
+        그룹:     JSON.stringify(String(row[4] || '')),
+        소재이름: JSON.stringify(String(row[5] || '')),
+        보종:     JSON.stringify(String(row[6] || '')),
+        소재유형: JSON.stringify(String(row[8] || ''))
+      });
+    });
+  }
+
+  const allCodes = getImageCodes();
+  const aggregated = allCodes.find(c => c.code === TARGET_CODE) || null;
+
+  const result = {
+    찾는코드: TARGET_CODE,
+    소재_마스터에서_찾은_행수: rawRows.length,
+    소재_마스터_원시행들: rawRows, // 여러 행이면 재사용된 이미지, 0행이면 아예 다른 시트(구글DA 인덱스)나 오타
+    getImageCodes_결과: aggregated // null이면 getImageCodes()가 이 코드를 아예 못 찾은 것
+  };
+  Logger.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+// --------------------------------------------------
 // 이미지코드로 소재 정보 조회 (기존 코드 선택 시 폼 자동 채우기)
 // --------------------------------------------------
 function getCreativeByImageCode(imageCode) {
