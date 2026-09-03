@@ -6467,6 +6467,14 @@ function switchAzSubTab(tabId, btn) {
   document.querySelectorAll('.az-sub-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('az-sub-' + tabId).classList.add('active');
   btn.classList.add('active');
+  // updateDashboard()는 최초 로드 시 "요약" 탭만 보이는 상태에서 모든 서브탭의
+  // 차트를 한 번에 그린다 — .az-sub-panel이 display:none인 동안 만들어진 Chart.js
+  // 캔버스는 크기가 0으로 잡혀서, 나중에 "차원별 분석"·"추이·생애주기" 탭으로
+  // 전환해도(display만 block으로 바뀔 뿐 차트는 다시 안 그려짐) 빈 화면으로 보인다
+  // (2026-09-03, "차원별 분석/추이 생애주기에 데이터 안 들어온다" 문의로 확인).
+  // 탭이 실제로 보이게 된 시점에 이미 그려진 차트들을 새 컨테이너 크기에 맞춰
+  // 다시 계산시킨다 — 데이터를 다시 집계할 필요 없이 캔버스만 재측정하면 된다.
+  Object.values(azCharts).forEach(c => { try { c.resize(); } catch (e) {} });
 }
 
 // ── 필터 더보기 토글 ──────────────────────────────────────
