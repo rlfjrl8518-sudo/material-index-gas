@@ -453,19 +453,24 @@ function getImageCodes() {
   if (sheet && sheet.getLastRow() >= 2) {
     const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 15).getValues();
     // col: 0=이미지코드, 1=등록일자, 2=매체, 3=캠페인, 4=그룹, 5=소재이름, 6=보종, 8=소재유형, 14=이미지URL
+    // 매체/보종 등은 코드(0열)와 달리 trim 없이 저장돼서, 시트에 우연히 섞여든
+    // 앞뒤 공백이 있으면 피커의 검색(코드/소재이름 부분일치)에는 걸리는데 매체·보종
+    // 드롭다운(정확히 일치)에는 안 걸려 "코드 검색엔 나오는데 매체/보종 선택하면
+    // 안 보인다"는 문의로 이어졌다(2026-09-03, IMG260713002 확인 중 발견). 소재_통합RAW
+    // 적재 시(_normalizeRawRow)와 마찬가지로 여기서도 모든 텍스트 필드를 trim한다.
     data.forEach(row => {
       const code = String(row[0] || '').trim();
       if (!code || seen.has(code)) return;
       seen.set(code, {
         code,
         등록일자: row[1] ? String(row[1]).slice(0, 10) : '',
-        매체:     String(row[2] || ''),
-        캠페인:   String(row[3] || ''),
-        그룹:     String(row[4] || ''),
-        소재이름: String(row[5] || ''),
-        보종:     String(row[6] || ''),
-        소재유형: String(row[8] || ''),
-        imageUrl: String(row[14] || '')
+        매체:     String(row[2] || '').trim(),
+        캠페인:   String(row[3] || '').trim(),
+        그룹:     String(row[4] || '').trim(),
+        소재이름: String(row[5] || '').trim(),
+        보종:     String(row[6] || '').trim(),
+        소재유형: String(row[8] || '').trim(),
+        imageUrl: String(row[14] || '').trim()
       });
     });
   }
@@ -487,13 +492,13 @@ function getImageCodes() {
       seen.set(code, {
         code,
         등록일자: row[DGPM_COL['등록일시']] ? String(row[DGPM_COL['등록일시']]).slice(0, 10) : '',
-        매체:     String(row[DGPM_COL['매체']]     || ''),
-        캠페인:   String(row[DGPM_COL['캠페인']]   || ''),
-        그룹:     String(row[DGPM_COL['그룹']]     || ''),
-        소재이름: String(row[DGPM_COL['소재이름']] || ''),
-        보종:     String(row[DGPM_COL['보종']]     || ''),
-        소재유형: String(row[DGPM_COL['소재유형']] || ''),
-        imageUrl: bundleImageUrl
+        매체:     String(row[DGPM_COL['매체']]     || '').trim(),
+        캠페인:   String(row[DGPM_COL['캠페인']]   || '').trim(),
+        그룹:     String(row[DGPM_COL['그룹']]     || '').trim(),
+        소재이름: String(row[DGPM_COL['소재이름']] || '').trim(),
+        보종:     String(row[DGPM_COL['보종']]     || '').trim(),
+        소재유형: String(row[DGPM_COL['소재유형']] || '').trim(),
+        imageUrl: bundleImageUrl.trim()
       });
     });
   }
@@ -529,19 +534,19 @@ function getCreativeByImageCode(imageCode) {
     if (rows.length) {
       const row = rows[rows.length - 1]; // 가장 최근 행
       return {
-        매체:       String(row[2]  || ''),
-        캠페인:     String(row[3]  || ''),
-        그룹:       String(row[4]  || ''),
-        소재이름:   String(row[5]  || ''),
-        보종:       String(row[6]  || ''),
-        광고유형:   String(row[7]  || ''),
-        소재유형:   String(row[8]  || ''),
-        소구포인트: String(row[9]  || ''),
-        후킹방식:   String(row[10] || ''),
-        소구상세:   String(row[11] || ''),
-        이미지유형: String(row[12] || ''),
-        모델유형:   String(row[13] || ''),
-        이미지URL:  String(row[14] || '')
+        매체:       String(row[2]  || '').trim(),
+        캠페인:     String(row[3]  || '').trim(),
+        그룹:       String(row[4]  || '').trim(),
+        소재이름:   String(row[5]  || '').trim(),
+        보종:       String(row[6]  || '').trim(),
+        광고유형:   String(row[7]  || '').trim(),
+        소재유형:   String(row[8]  || '').trim(),
+        소구포인트: String(row[9]  || '').trim(),
+        후킹방식:   String(row[10] || '').trim(),
+        소구상세:   String(row[11] || '').trim(),
+        이미지유형: String(row[12] || '').trim(),
+        모델유형:   String(row[13] || '').trim(),
+        이미지URL:  String(row[14] || '').trim()
       };
     }
   }
@@ -564,19 +569,19 @@ function getCreativeByImageCode(imageCode) {
         if (match) resolvedImageUrl = String(match[14] || '');
       }
       return {
-        매체:       String(dgpmRow[DGPM_COL['매체']]     || ''),
-        캠페인:     String(dgpmRow[DGPM_COL['캠페인']]   || ''),
-        그룹:       String(dgpmRow[DGPM_COL['그룹']]     || ''),
-        소재이름:   String(dgpmRow[DGPM_COL['소재이름']] || ''),
-        보종:       String(dgpmRow[DGPM_COL['보종']]     || ''),
-        광고유형:   String(dgpmRow[DGPM_COL['광고유형']] || ''),
-        소재유형:   String(dgpmRow[DGPM_COL['소재유형']] || ''),
-        소구포인트: String(dgpmRow[DGPM_COL['소구포인트']] || ''),
-        후킹방식:   String(dgpmRow[DGPM_COL['후킹방식']]   || ''),
-        소구상세:   String(dgpmRow[DGPM_COL['소구상세']]   || ''),
-        이미지유형: _splitList(dgpmRow[DGPM_COL['이미지유형목록']])[0] || '',
-        모델유형:   _splitList(dgpmRow[DGPM_COL['모델유형목록']])[0] || '',
-        이미지URL:  resolvedImageUrl || String(dgpmRow[DGPM_COL['번들URL']] || '')
+        매체:       String(dgpmRow[DGPM_COL['매체']]     || '').trim(),
+        캠페인:     String(dgpmRow[DGPM_COL['캠페인']]   || '').trim(),
+        그룹:       String(dgpmRow[DGPM_COL['그룹']]     || '').trim(),
+        소재이름:   String(dgpmRow[DGPM_COL['소재이름']] || '').trim(),
+        보종:       String(dgpmRow[DGPM_COL['보종']]     || '').trim(),
+        광고유형:   String(dgpmRow[DGPM_COL['광고유형']] || '').trim(),
+        소재유형:   String(dgpmRow[DGPM_COL['소재유형']] || '').trim(),
+        소구포인트: String(dgpmRow[DGPM_COL['소구포인트']] || '').trim(),
+        후킹방식:   String(dgpmRow[DGPM_COL['후킹방식']]   || '').trim(),
+        소구상세:   String(dgpmRow[DGPM_COL['소구상세']]   || '').trim(),
+        이미지유형: (_splitList(dgpmRow[DGPM_COL['이미지유형목록']])[0] || '').trim(),
+        모델유형:   (_splitList(dgpmRow[DGPM_COL['모델유형목록']])[0] || '').trim(),
+        이미지URL:  (resolvedImageUrl || String(dgpmRow[DGPM_COL['번들URL']] || '')).trim()
       };
     }
   }
@@ -614,7 +619,11 @@ function checkDuplicate(매체, 캠페인, 그룹, 소재이름) {
   const sheet = ss.getSheetByName(MASTER_SHEET_NAME);
   if (!sheet || sheet.getLastRow() < 2) return false;
   const data = sheet.getRange(2, 3, sheet.getLastRow() - 1, 4).getValues();
-  return data.some(r => r[0] === 매체 && r[1] === 캠페인 && r[2] === 그룹 && r[3] === 소재이름);
+  // _findMasterRowToUpdate와 같은 이유로 trim해서 비교 — 안 그러면 예전에 저장된
+  // 지저분한 행이 진짜 중복인데도 조용히 안 걸러진다(2026-09-03).
+  return data.some(r =>
+    String(r[0] || '').trim() === 매체 && String(r[1] || '').trim() === 캠페인 &&
+    String(r[2] || '').trim() === 그룹 && String(r[3] || '').trim() === 소재이름);
 }
 
 // --------------------------------------------------
@@ -704,9 +713,16 @@ function _findMasterRowToUpdate(imageCode, 매체, 캠페인, 그룹, 소재이�
   if (!sheet || sheet.getLastRow() < 2) return -1;
 
   const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 6).getValues();
+  // 시트에 예전부터 남아있는 값에 앞뒤 공백이 섞여 있으면(saveCreative가 이제 저장
+  // 시점엔 trim하지만, 그 전에 이미 저장된 행은 여전히 지저분할 수 있다) 여기서
+  // 정확히 일치 비교가 조용히 실패해서 수정해야 할 기존 행을 못 찾고 중복으로
+  // 새 행이 추가돼버린다(2026-09-03, getImageCodes 매체/보종 필터 문제와 같은 원인
+  // 계열). 비교 직전에 양쪽 다 trim해서 맞춘다.
   for (let i = 0; i < data.length; i++) {
     const [code, , m, c, g, n] = data[i];
-    if (String(code) === imageCode && m === 매체 && c === 캠페인 && g === 그룹 && n === 소재이름)
+    if (String(code).trim() === imageCode &&
+        String(m || '').trim() === 매체 && String(c || '').trim() === 캠페인 &&
+        String(g || '').trim() === 그룹 && String(n || '').trim() === 소재이름)
       return i + 2; // 헤더(1행) + 데이터 오프셋
   }
   return -1;
@@ -740,8 +756,26 @@ function _updateMasterRow(rowIndex, data, imageCode, imageUrl) {
 //
 // INSERT 조건: 위 조건 불일치 (새 이미지 or 같은 이미지를 다른 지면에 등록)
 // --------------------------------------------------
+// 매체/보종 등 텍스트 필드에 앞뒤 공백이 섞여 저장되면, 소재_마스터를 읽는 쪽
+// (getImageCodes 등)의 매체·보종 "정확히 일치" 필터가 조용히 실패해서 코드/
+// 소재이름 검색에는 나오는데 매체·보종을 선택하면 안 보이는 것처럼 보인다
+// (2026-09-03, IMG260713002 확인 중 발견). 읽는 쪽에서 trim해도 이미 시트에
+// 저장된 값 자체가 지저분하면 계속 재발하므로, 쓰는 시점(saveCreative)에도
+// 여기서 한 번에 정리해서 새로 저장되는 값은 항상 깨끗하게 유지한다.
+const SAVE_CREATIVE_TEXT_FIELDS = [
+  '매체', '캠페인', '그룹', '소재이름', '보종', '광고유형',
+  '소재유형', '소구포인트', '후킹방식', '소구상세', '이미지유형', '모델유형'
+];
+function _trimCreativeFields(data) {
+  SAVE_CREATIVE_TEXT_FIELDS.forEach(f => {
+    if (typeof data[f] === 'string') data[f] = data[f].trim();
+  });
+  return data;
+}
+
 function saveCreative(data) {
   try {
+    data = _trimCreativeFields(data);
     const isDGPM = DGPM_MEDIA.includes(data.매체);
 
     // 이미지코드 결정 우선순위:
