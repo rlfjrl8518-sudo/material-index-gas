@@ -6123,17 +6123,14 @@ async function loadAnalysisData() {
       return;
     }
     initFilterDropdowns();
-    updateDashboard();
+    // dashEl(display:none)이 안 보이는 상태에서 Chart.js 차트를 그리면 캔버스
+    // 크기가 0으로 굳어버린다(2026-09-03, 2026-09-07 두 차례 확인) — updateDashboard()
+    // 안에서 알아서 resize()해주긴 하지만, 애초에 컨테이너를 먼저 보이게 만든 뒤
+    // 그리면 그 안전망에 기댈 필요도 없이 처음부터 올바른 크기로 그려진다. 그래서
+    // 로딩 화면을 내리고 대시보드를 보여주는 걸 데이터 렌더링보다 먼저 한다.
     loadEl.style.display = 'none';
     dashEl.style.display = 'block';
-    // updateDashboard()가 방금 위에서 dashEl(display:none)이 아직 안 보이는 상태로
-    // 모든 Chart.js 차트를 그렸기 때문에, "차원별 분석"·"추이·생애주기"처럼 지금
-    // 활성 서브탭에 있는 캔버스는 크기가 0으로 잡힌 채로 남는다 — switchAzSubTab의
-    // 탭 전환 리사이즈(2026-09-03)는 서브탭을 "새로 클릭"할 때만 걸리고, 이 새로고침
-    // 경로(데이터 업데이트 버튼)에는 없어서 "업데이트할 때마다 차트가 안 보인다"로
-    // 재발했다(2026-09-07). dashEl이 실제로 보이게 된 지금, 이미 만들어진 차트들을
-    // 새 캔버스 크기에 맞춰 다시 계산시킨다.
-    Object.values(azCharts).forEach(c => { try { c.resize(); } catch (e) {} });
+    updateDashboard();
     document.getElementById('az-kpi-count').textContent =
       `총 ${totalRows.toLocaleString('ko-KR')}행 중 ${getFilteredRows().length.toLocaleString('ko-KR')}행`;
   } catch (err) {
@@ -6489,6 +6486,13 @@ function updateDashboard() {
   renderCreativeTrend(rows);
   renderPareto(rows);
   renderThresholdAlerts(rows);
+  // 안전망: updateDashboard()를 부르는 경로(필터 변경, 탭 재진입, 데이터 새로고침 등)가
+  // 앞으로 늘어나도 "컨테이너가 숨겨진 동안 그려서 캔버스 크기가 0으로 굳는" 문제가
+  // 개별 호출부마다 따로 리사이즈를 챙겨야 재발하지 않는 구조였다(2026-09-07,
+  // loadAnalysisData 새로고침 경로 재발 확인). 매번 렌더링 끝에 여기서 한 번 더
+  // resize()해주면, 이 시점에 컨테이너가 보이는 상태이기만 하면(숨겨져 있으면 그냥
+  // no-op) 어느 경로로 호출됐든 항상 올바른 크기로 맞춰진다.
+  Object.values(azCharts).forEach(c => { try { c.resize(); } catch (e) {} });
 }
 
 // ── 분석 탭 서브탭 전환 ───────────────────────────────────
