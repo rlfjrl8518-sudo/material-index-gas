@@ -2344,11 +2344,19 @@
               <select id="az-hm-metric" onchange="azLoaded && renderHeatmap(getFilteredRows())">
                 <option>CTR</option><option>CVR</option><option>CPA</option>
               </select>
-              <span style="font-size:11px;color:var(--az-t3)">🔴 나쁨 → 🟡 보통 → 🟢 좋음 &nbsp;(진할수록 평균과 차이 큼)&nbsp;·&nbsp; 회색=데이터 없음</span>
+              <label>색상 기준</label>
+              <select id="az-hm-scale" onchange="azLoaded && renderHeatmap(getFilteredRows())">
+                <option value="row">Y축 행별 비교</option>
+                <option value="global">전체 비교</option>
+              </select>
+              <span style="font-size:11px;color:var(--az-t3)">🔴 나쁨 → 🟡 보통 → 🟢 좋음 &nbsp;(진할수록 차이 큼)&nbsp;·&nbsp; 회색=데이터 없음</span>
             </div>
             <div style="font-size:11px;color:var(--az-t3);margin:-4px 0 10px">
               💡 X축·Y축을 둘 다 <b>모델유형</b>으로 설정하면 "20대남자 × 20대여자"처럼 유형 조합별 성과를 한 눈에 비교할 수 있습니다.
-              셀을 클릭하면 해당 조합의 소재 목록을 볼 수 있습니다.
+              셀을 클릭하면 해당 조합의 소재 목록을 볼 수 있습니다.<br>
+              <b>Y축 행별 비교</b>(기본값)는 같은 Y축 값 안에서만 상대적으로 색을 매깁니다 — 예를 들어 "보종=100세암" 행은 다른 보종의
+              수치 크기와 무관하게 그 행 안에서 CVR이 높은/낮은 조합만 비교해서 색을 정합니다. 여러 Y축 값을 서로 직접 비교하고
+              싶으면 <b>전체 비교</b>로 바꾸세요.
             </div>
             <div id="az-heatmap"></div>
           </div>
@@ -7615,14 +7623,33 @@ function renderHeatmap(rows) {
 
   azHeatmapCtx = { xKey, yKey, mat };
 
+  // 색상 기준: "전체"는 모든 셀을 한 스케일에 놓고 비교하는데, 그러면 Y축 값(예: 보종)마다
+  // 성과 수준 자체가 다를 때 — CVR이 원래 낮은 보종은 그 안에서 아무리 잘해도 다른 보종의
+  // 높은 수치에 묻혀 색이 옅게(=나쁨처럼) 나온다. "Y축 행별 비교"는 같은 Y값 행 안에서만
+  // min/max를 잡아서, 그 행 안의 상대적 고저만 색으로 표현한다(2026-09-08, "100세암 CVR이
+  // 다른 보종 수치에 묻혀 색이 옅어 보인다" 문의로 확인). 기본값을 행별로 둔다.
+  const scaleMode = document.getElementById('az-hm-scale')?.value || 'row';
+
   const allVals = [];
   yVals.forEach(y => xVals.forEach(x => {
     const c = mat[y]?.[x];
     if (c) { const v = azMetricVal(c, metric); if (v > 0) allVals.push(v); }
   }));
+  const globalMinV = allVals.length ? Math.min(...allVals) : 0;
+  const globalMaxV = allVals.length ? Math.max(...allVals) : 1;
 
-  const minV = allVals.length ? Math.min(...allVals) : 0;
-  const maxV = allVals.length ? Math.max(...allVals) : 1;
+  // Y값별 min/max (scaleMode==='row'일 때 사용)
+  const rowRange = {};
+  yVals.forEach(y => {
+    const vals = xVals.map(x => mat[y]?.[x]).filter(Boolean).map(c => azMetricVal(c, metric)).filter(v => v > 0);
+    rowRange[y] = { min: vals.length ? Math.min(...vals) : 0, max: vals.length ? Math.max(...vals) : 1 };
+  });
+
+  function rangeFor(y) {
+    if (scaleMode === 'row') return rowRange[y] || { min: 0, max: 1 };
+    return { min: globalMinV, max: globalMaxV };
+  }
+
   const lowerBetter = metric === 'CPA';
 
   // 성과 고저를 색으로 뚜렷하게 구분: 나쁨(빨강, hue≈4) → 보통(주황, hue≈38) → 좋음(초록, hue≈152).
@@ -7651,18 +7678,20 @@ function renderHeatmap(rows) {
   function heatLightness(dist) { return 0.82 - dist * 0.32; } // 0.82 ~ 0.50
   function heatSaturation(dist) { return 0.55 + dist * 0.20; } // 0.55 ~ 0.75
 
-  function cellBg(v) {
+  function cellBg(v, y) {
     if (!v || v <= 0 || !allVals.length) return 'var(--az-bd2)';
-    const pct  = (v - minV) / ((maxV - minV) || 1);
+    const { min, max } = rangeFor(y);
+    const pct  = (v - min) / ((max - min) || 1);
     const good = lowerBetter ? 1 - pct : pct;
     const dist = Math.abs(good - 0.5) * 2;
     const [r, g, b] = hslToRgb(heatHue(good), heatSaturation(dist), heatLightness(dist));
     return `rgb(${r},${g},${b})`;
   }
 
-  function cellTextColor(v) {
+  function cellTextColor(v, y) {
     if (!v || v <= 0) return 'var(--az-t4)';
-    const pct  = (v - minV) / ((maxV - minV) || 1);
+    const { min, max } = rangeFor(y);
+    const pct  = (v - min) / ((max - min) || 1);
     const good = lowerBetter ? 1 - pct : pct;
     const dist = Math.abs(good - 0.5) * 2;
     return heatLightness(dist) > 0.62 ? '#1a1a2e' : '#ffffff';
@@ -7682,8 +7711,8 @@ function renderHeatmap(rows) {
       const v   = c ? azMetricVal(c, metric) : 0;
       const txt = v > 0 ? (metric==='CPA' ? azWon(v) : azPct(v)) : '—';
       const clickable = c && c.rows.length
-        ? ` style="background:${cellBg(v)};color:${cellTextColor(v)};cursor:pointer" onclick="azOpenHeatmapDrill('${jsStr(y)}','${jsStr(x)}')" title="클릭하면 소재 목록 보기"`
-        : ` style="background:${cellBg(v)};color:${cellTextColor(v)}"`;
+        ? ` style="background:${cellBg(v, y)};color:${cellTextColor(v, y)};cursor:pointer" onclick="azOpenHeatmapDrill('${jsStr(y)}','${jsStr(x)}')" title="클릭하면 소재 목록 보기"`
+        : ` style="background:${cellBg(v, y)};color:${cellTextColor(v, y)}"`;
       html += `<td${clickable}>${txt}</td>`;
     });
     html += '</tr>';
