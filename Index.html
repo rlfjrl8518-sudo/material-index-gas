@@ -6126,6 +6126,14 @@ async function loadAnalysisData() {
     updateDashboard();
     loadEl.style.display = 'none';
     dashEl.style.display = 'block';
+    // updateDashboard()가 방금 위에서 dashEl(display:none)이 아직 안 보이는 상태로
+    // 모든 Chart.js 차트를 그렸기 때문에, "차원별 분석"·"추이·생애주기"처럼 지금
+    // 활성 서브탭에 있는 캔버스는 크기가 0으로 잡힌 채로 남는다 — switchAzSubTab의
+    // 탭 전환 리사이즈(2026-09-03)는 서브탭을 "새로 클릭"할 때만 걸리고, 이 새로고침
+    // 경로(데이터 업데이트 버튼)에는 없어서 "업데이트할 때마다 차트가 안 보인다"로
+    // 재발했다(2026-09-07). dashEl이 실제로 보이게 된 지금, 이미 만들어진 차트들을
+    // 새 캔버스 크기에 맞춰 다시 계산시킨다.
+    Object.values(azCharts).forEach(c => { try { c.resize(); } catch (e) {} });
     document.getElementById('az-kpi-count').textContent =
       `총 ${totalRows.toLocaleString('ko-KR')}행 중 ${getFilteredRows().length.toLocaleString('ko-KR')}행`;
   } catch (err) {
