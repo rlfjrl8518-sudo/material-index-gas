@@ -6628,6 +6628,30 @@ function azDestroyChart(id) {
   if (azCharts[id]) { azCharts[id].destroy(); delete azCharts[id]; }
 }
 
+// 차트를 "데이터 없음" 상태로 표시할 때 el.parentElement.innerHTML을 통째로 갈아치우면
+// 캔버스 엘리먼트 자체가 DOM에서 영영 사라져서, 나중에 데이터가 다시 생겨도
+// document.getElementById(canvasId)가 계속 null만 돌려줘 차트가 다시는 안 그려진다
+// (2026-09-10, "생애주기 그래프가 또 안 보인다" 재발 확인 — 필터링으로 한 번 데이터가
+// 0건이 된 뒤로는 데이터가 다시 생겨도 영구히 빈 화면이었다. 같은 패턴이 차원별 분석·
+// 추이 차트에도 있었다). az-status-chart 등에서 이미 쓰던 "캔버스는 숨기고 안내 문구만
+// 토글" 방식을 어떤 캔버스에도 쓸 수 있게 일반화했다 — 캔버스는 항상 DOM에 남는다.
+function azSetChartNoData(el, msg) {
+  el.style.display = 'none';
+  let nd = el.nextElementSibling;
+  if (!nd || !nd.classList.contains('az-no-data')) {
+    nd = document.createElement('div');
+    nd.className = 'az-no-data';
+    el.after(nd);
+  }
+  nd.textContent = msg;
+  nd.style.display = 'block';
+}
+function azClearChartNoData(el) {
+  el.style.display = '';
+  const nd = el.nextElementSibling;
+  if (nd && nd.classList.contains('az-no-data')) nd.style.display = 'none';
+}
+
 function azIsLight() {
   return document.getElementById('panel-analyze').classList.contains('az-light');
 }
@@ -6646,7 +6670,8 @@ function azDrawHBar(canvasId, labels, data, label, color, height, dimKey) {
   const el = document.getElementById(canvasId);
   if (!el) return;
   el.parentElement.style.height = height + 'px';
-  if (!labels.length) { el.parentElement.innerHTML = '<div class="az-no-data">데이터 없음</div>'; return; }
+  if (!labels.length) { azSetChartNoData(el, '데이터 없음'); return; }
+  azClearChartNoData(el);
   const c = azChartColors();
   azCharts[canvasId] = new Chart(el.getContext('2d'), {
     type: 'bar',
@@ -7822,7 +7847,7 @@ function renderTrend(rows) {
   azDestroyChart('az-trend-chart');
   const el = document.getElementById('az-trend-chart');
   if (!el) return;
-  if (!metrics.length) { el.parentElement.innerHTML = '<div class="az-no-data">지표를 1개 이상 선택하세요.</div>'; return; }
+  if (!metrics.length) { azSetChartNoData(el, '지표를 1개 이상 선택하세요.'); return; }
 
   const grouped = {};
   rows.forEach(r => {
@@ -7841,7 +7866,8 @@ function renderTrend(rows) {
   });
 
   const entries = Object.entries(grouped).sort((a,b) => a[0].localeCompare(b[0]));
-  if (!entries.length) { el.parentElement.innerHTML = '<div class="az-no-data">데이터 없음</div>'; return; }
+  if (!entries.length) { azSetChartNoData(el, '데이터 없음'); return; }
+  azClearChartNoData(el);
   const labels = entries.map(([k]) => azPeriodLabel(k, unit));
 
   const multi   = metrics.length > 1;
@@ -7987,6 +8013,7 @@ function renderLifecycle(rows) {
   azDestroyChart('az-lifecycle-chart');
   const el = document.getElementById('az-lifecycle-chart');
   if (el && phaseStats.length) {
+    azClearChartNoData(el);
     azCharts['az-lifecycle-chart'] = new Chart(el.getContext('2d'), {
       type: 'bar',
       data: {
@@ -8008,7 +8035,7 @@ function renderLifecycle(rows) {
       }
     });
   } else if (el) {
-    el.parentElement.innerHTML = '<div class="az-no-data">생애주기 데이터 없음</div>';
+    azSetChartNoData(el, '생애주기 데이터 없음');
   }
 
   // 교체 검토 소재 (후기 + CPA > 평균*1.2)
