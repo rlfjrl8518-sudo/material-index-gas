@@ -1516,16 +1516,27 @@ ${sectionInstruction}
 
 ${JSON.stringify(aggregatedData, null, 2)}`;
 
+  // 2026-10-12 NVIDIA 무료 모델 실측 비교(같은 필터 데이터로 3회씩): deepseek-v4.1-flash는 31~38초로
+  // 느리지만 데이터에 있는 수치만 근거로 쓰고 [[/섹션]] 형식도 매번 지켰다. nemotron-3-super는 7~9초로
+  // 빠르지만 데이터에 없는 성과를 지어내거나 "100% 보장" 같은 보험 심의 위반 문구를 제안했다 →
+  // 인사이트는 deepseek, 실패(혼잡·타임아웃) 시에만 nemotron으로 폴백한다.
+  let lastError = null;
+  for (const model of [AI_INSIGHT_MODEL, AI_TEXT_MODEL]) {
+    const res = _requestInsight(apiKey, model, prompt);
+    if (res.success) return res;
+    lastError = res;
+  }
+  return lastError;
+}
+
+function _requestInsight(apiKey, model, prompt) {
   const options = {
     method: 'post',
     contentType: 'application/json',
     headers: { Authorization: 'Bearer ' + apiKey },
     payload: JSON.stringify({
-      model: AI_TEXT_MODEL,
+      model: model,
       messages: [{ role: 'user', content: prompt }],
-      // 2026-10-12 NVIDIA 무료 모델 실측 비교: nemotron-3-super(thinking 끔)가 3.5초에 수치 근거·
-      // 추세까지 반영한 인사이트를 형식대로 출력. glm-5.3-flash·deepseek-v4.1-flash는 품질 비슷하나
-      // 30초대, kimi-k3는 서버 혼잡으로 타임아웃, gpt-oss-20b는 수치 근거가 빈약했다.
       max_tokens: 2000,
       temperature: 0.4,
       chat_template_kwargs: { enable_thinking: false }
@@ -1543,9 +1554,7 @@ ${JSON.stringify(aggregatedData, null, 2)}`;
     // reasoning 모델이 토큰 예산을 전부 reasoning에 써버리면 content가 빈 문자열인 채로
     // finish_reason='length'가 온다 — 이걸 그냥 success:true로 넘기면 화면엔 빈 결과만
     // 남아 "답이 안 나온다"로 보인다(2026-07-28 채팅에서 실제로 겪은 문제). 명확한 에러로 변환.
-    if (!text && json.choices[0].finish_reason === 'length') {
-      return { error: true, message: '응답이 비어 있습니다(토큰 한도 초과) — 다시 시도해보세요.' };
-    }
+    if (!text) return { error: true, message: '응답이 비어 있습니다' + (json.choices[0].finish_reason === 'length' ? '(토큰 한도 초과)' : '') + ' — 다시 시도해보세요.' };
     return { success: true, text };
   } catch (e) {
     return { error: true, message: e.message };

@@ -9,10 +9,11 @@
 // 4분 타임아웃, llama-3.2-11b-vision은 문구 누락. thinking을 켜면 정확도는 같은데 67초가 걸려 끈다.
 // 무료 티어는 워커당 동시 16건 제한이라 fetchAll 20장 배치에서 일부가 503(ResourceExhausted)으로
 // 떨어질 수 있다 — 재시도 라운드(텀을 두고 재발사)가 이를 흡수한다.
-// AI_TEXT_MODEL(Code.gs 인사이트·챗봇)도 같은 키·URL을 공유한다.
+// AI_INSIGHT_MODEL/AI_TEXT_MODEL(Code.gs 인사이트·챗봇)도 같은 키·URL을 공유한다.
 const NVIDIA_CHAT_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
 const AI_VISION_MODEL = 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning';
-const AI_TEXT_MODEL = 'nvidia/nemotron-3-super-120b-a12b';
+const AI_INSIGHT_MODEL = 'deepseek-ai/deepseek-v4.1-flash';  // AI 인사이트(품질 우선, 실패 시 AI_TEXT_MODEL로 폴백)
+const AI_TEXT_MODEL = 'nvidia/nemotron-3-super-120b-a12b';    // 인사이트 챗봇(속도 우선) + 인사이트 폴백
 const VISION_CONCURRENCY = 5; // fetchAll 한 번에 동시 발사할 이미지 수(무료 티어 한도 대응)
 const VISION_TIME_BUDGET_MS = 4 * 60 * 1000; // 배치 1회 분석에 쓸 최대 시간(GAS 6분 한도 - 시트 기록 여유)
 const VISION_MAX_RETRY = 5; // JSON 파싱/호출 실패 시 재시도 횟수 — 무료 티어 503이 실측 ~30% 확률로 나고 몇 초 안에 풀려서 넉넉히(대기 합계 최대 30초)

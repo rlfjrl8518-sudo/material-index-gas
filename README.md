@@ -30,7 +30,7 @@ appsscript.json          매니페스트 (oauthScopes에 spreadsheets/drive/scri
 
 ## API 키 설정
 
-NVIDIA NIM 무료 API 키(`nvapi-...`) 하나를 두 기능이 함께 사용합니다: 소재 분석 탭의 AI 인사이트(`nvidia/nemotron-3-super-120b-a12b`), 소재 검수 탭의 이미지 분석(`nvidia/nemotron-3-nano-omni-30b-a3b-reasoning`). 모델은 `InspectionVision.gs` 상단 상수에서 바꿉니다.
+NVIDIA NIM 무료 API 키(`nvapi-...`) 하나를 두 기능이 함께 사용합니다: 소재 분석 탭의 AI 인사이트(`deepseek-ai/deepseek-v4.1-flash`, 실패 시 `nvidia/nemotron-3-super-120b-a12b`)·후속 질문 챗봇(`nvidia/nemotron-3-super-120b-a12b`), 소재 검수 탭의 이미지 분석(`nvidia/nemotron-3-nano-omni-30b-a3b-reasoning`). 모델은 `InspectionVision.gs` 상단 상수에서 바꿉니다.
 
 - **권장**: 대시보드 상단 `⚙️ 설정 관리` 탭 → `🔑 API 키` 서브탭 → `NVIDIA API Key`에 입력. Script Properties에 저장되며 시트에는 절대 남지 않습니다.
 - **대체 경로**: 스프레드시트 메뉴 `이미지 검수 > API 키 설정` (같은 Script Property `NVIDIA_API_KEY`를 사용합니다)
