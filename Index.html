@@ -6072,7 +6072,8 @@ async function loadAnalysisData() {
     const usableCache = cached && Array.isArray(cached.rows) && cached.rows.length && cached.lastRow;
 
     const rawDataPromise = usableCache
-      ? gasRun('getAllDataSince', cached.lastRow, azFingerprint(cached.rows[cached.rows.length - 1])).then(async delta => {
+      ? gasRun('getAllDataSince', cached.lastRow, azFingerprint(cached.rows[cached.rows.length - 1]),
+               (({ imp, cost }) => ({ imp, cost }))(azSum(cached.rows.slice(1)))).then(async delta => {
           // 시트 행이 캐시 기준보다 줄어들어(예: 데이터 정리로 행 삭제) 델타 로직이
           // 더 이상 못 믿을 때 서버가 invalidated를 내려준다 — 이땐 캐시를 버리고
           // 전체를 다시 받아야 새로 쌓인 데이터가 누락 없이 보인다(2026-07-31).

@@ -1367,7 +1367,12 @@ function _rowFingerprint_(rowValues) {
 // sinceFingerprint: 클라이언트가 캐시에 저장해둔 sinceLastRow번째 행의 지문
 // (azFingerprint, Index.html). append-only 전제가 실제로 지켜졌다면 지금 시트의
 // sinceLastRow번째 행도 그 지문과 같아야 한다.
-function getAllDataSince(sinceLastRow, sinceFingerprint) {
+// sinceTotals: 클라이언트 캐시 전체의 { imp, cost } 합계. 경계 행 지문은 마지막 한 행만
+// 보기 때문에, 중간 행을 "행 삭제"가 아니라 "내용 지우기"로 비우고 다시 적재하면
+// 행 수도 경계 행도 그대로라 못 잡는다 — 그러면 캐시의 옛 행 + 새로 적재된 행이 둘 다
+// 남아 노출·클릭·비용이 두 번 집계된다(2026-10-12, 피맥스 재적재 후 대시보드 중복 확인).
+// 노출수(O)/비용(R) 두 열만 읽어 합계를 대조하면 싸게 잡힌다.
+function getAllDataSince(sinceLastRow, sinceFingerprint, sinceTotals) {
   const ss = getSpreadsheet();
   const sheet = ss.getSheetByName(CONSOLIDATED_RAW_SHEET_NAME);
   if (!sheet) return { rows: [], lastRow: 0 };
@@ -1388,6 +1393,15 @@ function getAllDataSince(sinceLastRow, sinceFingerprint) {
   if (sinceLastRow >= 2 && sinceFingerprint) {
     const boundaryRow = sheet.getRange(sinceLastRow, 1, 1, CONSOLIDATED_RAW_HEADERS.length).getValues()[0];
     if (_rowFingerprint_(boundaryRow) !== sinceFingerprint) {
+      return { rows: [], lastRow, invalidated: true };
+    }
+  }
+
+  if (sinceLastRow >= 2 && sinceTotals) {
+    const cols = sheet.getRange(2, 15, sinceLastRow - 1, 4).getValues(); // O~R: 노출수, 클릭수, CTR, 비용
+    let imp = 0, cost = 0;
+    cols.forEach(r => { imp += Number(_normNum(r[0])) || 0; cost += Number(_normNum(r[3])) || 0; });
+    if (Math.abs(imp - sinceTotals.imp) > 0.5 || Math.abs(cost - sinceTotals.cost) > 0.5) {
       return { rows: [], lastRow, invalidated: true };
     }
   }
