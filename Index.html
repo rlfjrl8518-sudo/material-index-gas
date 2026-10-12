@@ -1900,13 +1900,13 @@
         <p style="font-size:12px;color:#6b7280;margin-bottom:10px">
           아래에서 직접 입력/수정하고 저장하면 구글 스프레드시트의 <b>검수기준</b> 시트에 바로 반영됩니다.
           (시트에서 직접 열어 수정해도 동일하게 적용됩니다 — 상단 메뉴 [이미지 검수 &gt; 검수 기준 시트 열기])<br>
-          API 키는 <b>설정 관리 &gt; API 키</b> 탭에서 OpenAI API Key로 등록하세요.
+          API 키는 <b>설정 관리 &gt; API 키</b> 탭에서 NVIDIA API Key로 등록하세요.
         </p>
         <div id="inspCriteriaForm" class="insp-criteria-form">
           <div class="insp-criteria-item off">로딩 중...</div>
         </div>
         <div id="inspApiKeyWarn" style="display:none;margin-top:10px;font-size:12px;color:#b91c1c">
-          ⚠ OpenAI API 키가 설정되어 있지 않습니다. 검수를 실행하려면 먼저 API 키를 등록하세요.
+          ⚠ NVIDIA API 키가 설정되어 있지 않습니다. 검수를 실행하려면 먼저 API 키를 등록하세요.
         </div>
         <div style="display:flex;align-items:center;gap:10px;margin-top:14px">
           <button class="btn btn-primary btn-sm" id="inspSaveCriteriaBtn" onclick="saveInspectionCriteriaForm()">
@@ -3213,7 +3213,7 @@ async function startInspectionRun() {
   hideInspMsg();
   if (!window._inspFiles || window._inspFiles.length === 0) { showInspError('업로드할 파일을 선택하세요.'); return; }
   if (window._inspCriteria && window._inspCriteria.apiKeyConfigured === false) {
-    showInspError('OpenAI API 키가 설정되어 있지 않습니다. 설정 관리 > API 키에서 등록하세요.');
+    showInspError('NVIDIA API 키가 설정되어 있지 않습니다. 설정 관리 > API 키에서 등록하세요.');
     return;
   }
 
@@ -8065,7 +8065,7 @@ function renderLifecycle(rows) {
   }
 }
 
-// ── 12. OpenAI 인사이트 ───────────────────────────────────
+// ── 12. AI 인사이트 ───────────────────────────────────
 async function runAIInsight() {
   const btn     = document.getElementById('az-insight-btn');
   const spinner = document.getElementById('az-insight-spinner');
@@ -8321,8 +8321,10 @@ function mdToHtml(rawText) {
 }
 
 function renderAIInsightSections(text) {
-  const filterMatch   = text.match(/\[\[필터인사이트\]\]([\s\S]*?)\[\[\/필터인사이트\]\]/);
-  const creativeMatch = text.match(/\[\[소재인사이트\]\]([\s\S]*?)\[\[\/소재인사이트\]\]/);
+  // 닫는 태그는 선택 — NVIDIA nemotron이 [[/필터인사이트]]를 빼먹고 바로 다음 섹션을 쓰는 경우를
+  // 실측으로 확인(2026-10-12). 닫는 태그가 없으면 다음 [[ 태그나 끝까지를 섹션으로 본다.
+  const filterMatch   = text.match(/\[\[필터인사이트\]\]([\s\S]*?)(?:\[\[\/필터인사이트\]\]|(?=\[\[)|$)/);
+  const creativeMatch = text.match(/\[\[소재인사이트\]\]([\s\S]*?)(?:\[\[\/소재인사이트\]\]|(?=\[\[)|$)/);
 
   if (!filterMatch && !creativeMatch) {
     return `<div class="az-insight-text">${mdToHtml(text)}</div>`;

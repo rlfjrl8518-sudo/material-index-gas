@@ -1,15 +1,20 @@
 // ====================================================
 // 소재 검수 - InspectionVision.gs
-// OpenAI Vision 이미지 분석 + ZIP 압축 해제
+// NVIDIA NIM Vision 이미지 분석 + ZIP 압축 해제
 // ====================================================
 
-// 이 프로젝트는 기존 AI 인사이트 기능(Code.gs getOpenAIInsight)에서 gpt-5-mini를 쓰고 있고,
-// 실측으로 확인된 제약을 그대로 따른다: temperature는 기본값(1) 외엔 거부됨 → 아예 넣지 않음,
-// max_tokens가 아니라 max_completion_tokens 사용, reasoning_effort 미지정 시 토큰을 reasoning에
-// 다 쓰고 content가 빈 문자열로 오는 경우가 있어 명시적으로 지정한다.
-const OPENAI_MODEL = 'gpt-5-mini';
-const OPENAI_CHAT_URL = 'https://api.openai.com/v1/chat/completions';
-const VISION_MAX_RETRY = 2; // JSON 파싱/호출 실패 시 재시도 횟수
+// NVIDIA NIM 무료 API(OpenAI 호환 chat/completions). 2026-10-12 실측 비교로 선정:
+// 한글 광고 이미지 문구 추출에서 nemotron-3-nano-omni(thinking 끔)가 상품명·심의필·전체 문구를
+// 전부 정확히 읽고 4~5초에 응답. gemma-4-31b·llama-3.2-90b-vision·kimi-k3는 무료 서버 혼잡으로
+// 4분 타임아웃, llama-3.2-11b-vision은 문구 누락. thinking을 켜면 정확도는 같은데 67초가 걸려 끈다.
+// 무료 티어는 워커당 동시 16건 제한이라 fetchAll 20장 배치에서 일부가 503(ResourceExhausted)으로
+// 떨어질 수 있다 — 재시도 라운드(텀을 두고 재발사)가 이를 흡수한다.
+// AI_TEXT_MODEL(Code.gs 인사이트·챗봇)도 같은 키·URL을 공유한다.
+const NVIDIA_CHAT_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
+const AI_VISION_MODEL = 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning';
+const AI_TEXT_MODEL = 'nvidia/nemotron-3-super-120b-a12b';
+const VISION_CONCURRENCY = 5; // fetchAll 한 번에 동시 발사할 이미지 수(무료 티어 한도 대응)
+const VISION_MAX_RETRY = 5; // JSON 파싱/호출 실패 시 재시도 횟수 — 무료 티어 503이 실측 ~30% 확률로 나고 몇 초 안에 풀려서 넉넉히(대기 합계 최대 30초)
 
 const IMAGE_EXT_MIME = {
   jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp'
@@ -20,8 +25,8 @@ const IMAGE_EXT_MIME = {
 // (README에 문서화된 "편집기에서 직접 실행" 수동 테스트용 진입점이라 시그니처를 그대로 둔다)
 // --------------------------------------------------
 function analyzeImageWithOpenAI(fileId, criteria) {
-  const apiKey = getOpenAIApiKey();
-  if (!apiKey) return { error: true, message: 'OpenAI API 키가 설정되지 않았습니다.' };
+  const apiKey = getAiApiKey();
+  if (!apiKey) return { error: true, message: 'NVIDIA API 키가 설정되지 않았습니다.' };
 
   let imageBlob;
   try {
@@ -35,6 +40,7 @@ function analyzeImageWithOpenAI(fileId, criteria) {
 
   let lastError = null;
   for (let attempt = 0; attempt <= VISION_MAX_RETRY; attempt++) {
+    if (attempt > 0) Utilities.sleep(2000 * attempt);
     const res = _callOpenAIChat(apiKey, messages);
     if (res.error) { lastError = res.message; continue; }
     const parsed = _extractJsonObject(res.text);
@@ -46,7 +52,7 @@ function analyzeImageWithOpenAI(fileId, criteria) {
 
 // 이미지 여러 장을 한 번에 분석한다. items: [{fileId, fileName}].
 // Drive OCR(_ocrImageText)은 Drive Advanced Service 호출이라 fetchAll로 동시에 못 보내서
-// 이미지당 순차로 하지만(원래도 순차였으니 이 부분은 속도가 그대로), OpenAI Vision 호출은
+// 이미지당 순차로 하지만(원래도 순차였으니 이 부분은 속도가 그대로), Vision 호출은
 // UrlFetchApp.fetchAll()로 대기 중인 항목을 한 번에 동시 발사한다 — 배치 처리 시간이
 // "이미지 수 × 호출시간"에서 "가장 느린 호출 1번" 수준으로 준다. 프롬프트·모델·OCR은
 // analyzeImageWithOpenAI와 완전히 동일한 _buildVisionMessages를 그대로 쓰므로 정확도는
@@ -54,8 +60,8 @@ function analyzeImageWithOpenAI(fileId, criteria) {
 // 재시도한다(최대 VISION_MAX_RETRY+1라운드, analyzeImageWithOpenAI의 재시도 횟수와 동일).
 // 반환값: items와 같은 순서의 분석 결과 배열.
 function analyzeImagesWithOpenAIBatch(items, criteria) {
-  const apiKey = getOpenAIApiKey();
-  if (!apiKey) return items.map(() => ({ error: true, message: 'OpenAI API 키가 설정되지 않았습니다.' }));
+  const apiKey = getAiApiKey();
+  if (!apiKey) return items.map(() => ({ error: true, message: 'NVIDIA API 키가 설정되지 않았습니다.' }));
 
   const built = items.map(item => {
     try {
@@ -68,36 +74,44 @@ function analyzeImagesWithOpenAIBatch(items, criteria) {
   });
 
   const results = new Array(items.length);
-  let pending = [];
+  const ready = [];
   built.forEach((b, i) => {
     if (b.error) results[i] = { error: true, message: b.error };
-    else pending.push(i);
+    else ready.push(i);
   });
 
-  for (let round = 0; round <= VISION_MAX_RETRY && pending.length; round++) {
-    // 재시도 라운드 사이엔 살짝 텀을 둔다 — 동시 요청이 한꺼번에 실패했다면 순간
-    // rate limit(429)일 가능성이 있어, 곧바로 똑같이 동시 재발사하면 또 걸리기 쉽다.
-    if (round > 0) Utilities.sleep(1000 * round);
+  // NVIDIA 무료 티어는 20장을 한 번에 쏘면 동시 처리 한도(503)·분당 요청 한도(429)에 걸려
+  // 재시도까지 소진하고 일부가 실패했다(2026-10-12 실측 15/20). VISION_CONCURRENCY장씩 나눠 보낸다.
+  for (let c = 0; c < ready.length; c += VISION_CONCURRENCY) {
+    let pending = ready.slice(c, c + VISION_CONCURRENCY);
+    let rateLimited = false;
+    for (let round = 0; round <= VISION_MAX_RETRY && pending.length; round++) {
+      // 재시도 라운드 사이엔 텀을 둔다 — 503(동시 한도)은 몇 초면 풀리지만 429(분당 한도)는
+      // 1분 창이 지나야 풀리므로 길게 기다린다.
+      if (round > 0) Utilities.sleep(rateLimited ? 15000 : 2000 * round);
 
-    const requests = pending.map(i => _openAIRequestOptions(apiKey, built[i].messages));
-    let responses;
-    try {
-      responses = UrlFetchApp.fetchAll(requests);
-    } catch (e) {
-      pending.forEach(i => { results[i] = { error: true, message: 'OpenAI 동시 호출 실패: ' + e.message }; });
-      break;
+      const requests = pending.map(i => _openAIRequestOptions(apiKey, built[i].messages));
+      let responses;
+      try {
+        responses = UrlFetchApp.fetchAll(requests);
+      } catch (e) {
+        pending.forEach(i => { results[i] = { error: true, message: 'NVIDIA 동시 호출 실패: ' + e.message }; });
+        break;
+      }
+
+      const stillPending = [];
+      rateLimited = false;
+      pending.forEach((i, k) => {
+        if (responses[k].getResponseCode() === 429) rateLimited = true;
+        const res = _parseOpenAIHttpResponse(responses[k]);
+        if (res.error) { results[i] = res; stillPending.push(i); return; }
+        const parsed = _extractJsonObject(res.text);
+        if (parsed) { results[i] = parsed; return; }
+        results[i] = { error: true, message: 'JSON 파싱 실패: 응답에서 JSON 객체를 찾지 못했습니다.' };
+        stillPending.push(i);
+      });
+      pending = stillPending;
     }
-
-    const stillPending = [];
-    pending.forEach((i, k) => {
-      const res = _parseOpenAIHttpResponse(responses[k]);
-      if (res.error) { results[i] = res; stillPending.push(i); return; }
-      const parsed = _extractJsonObject(res.text);
-      if (parsed) { results[i] = parsed; return; }
-      results[i] = { error: true, message: 'JSON 파싱 실패: 응답에서 JSON 객체를 찾지 못했습니다.' };
-      stillPending.push(i);
-    });
-    pending = stillPending;
   }
   return results;
 }
@@ -141,7 +155,7 @@ function _ocrImageText(fileId) {
   return text;
 }
 
-// gpt-5 계열은 response_format 강제 없이도 JSON만 답하도록 프롬프트로 지시하지만,
+// 모델은 response_format 강제 없이도 JSON만 답하도록 프롬프트로 지시하지만,
 // 코드블록(```json ... ```)으로 감싸 보내는 경우가 있어 관대하게 파싱한다.
 function _extractJsonObject(text) {
   if (!text) return null;
@@ -215,18 +229,17 @@ function _buildVisionPromptText(criteria, ocrText) {
 // url이 섞여 있어도 무시하고 첫 인자를 쓰므로 두 경로에 그대로 재사용해도 안전하다).
 function _openAIRequestOptions(apiKey, messages) {
   return {
-    url: OPENAI_CHAT_URL,
+    url: NVIDIA_CHAT_URL,
     method: 'post',
     contentType: 'application/json',
     headers: { Authorization: 'Bearer ' + apiKey },
-    // gpt-5 계열: max_tokens 대신 max_completion_tokens, temperature는 기본값 외 거부됨(둘 다
-    // Code.gs의 getOpenAIInsight/getOpenAIChatReply에서 2026-07-28 실측으로 확인된 제약).
-    // 이미지 분석 + JSON 조립이라 순수 텍스트 답변보다 reasoning 여유가 더 필요해 'medium'으로 지정.
+    // 문구 추출은 창작이 아니라 낮은 temperature로 고정. enable_thinking:false — 위 상단 주석 참고.
     payload: JSON.stringify({
-      model: OPENAI_MODEL,
+      model: AI_VISION_MODEL,
       messages: messages,
-      max_completion_tokens: 3000,
-      reasoning_effort: 'medium'
+      max_tokens: 3000,
+      temperature: 0.1,
+      chat_template_kwargs: { enable_thinking: false }
     }),
     muteHttpExceptions: true
   };
@@ -239,12 +252,12 @@ function _parseOpenAIHttpResponse(res) {
   try {
     json = JSON.parse(res.getContentText());
   } catch (e) {
-    return { error: true, message: 'OpenAI 응답 파싱 실패: ' + e.message };
+    return { error: true, message: 'NVIDIA 응답 파싱 실패: ' + e.message };
   }
   const code = res.getResponseCode();
   if (code < 200 || code >= 300) {
     const msg = (json.error && json.error.message) || res.getContentText().slice(0, 300);
-    return { error: true, message: 'OpenAI API 오류 (HTTP ' + code + '): ' + msg };
+    return { error: true, message: 'NVIDIA API 오류 (HTTP ' + code + '): ' + msg };
   }
   const choice = json.choices && json.choices[0];
   const text = choice && choice.message && choice.message.content;
@@ -252,17 +265,17 @@ function _parseOpenAIHttpResponse(res) {
     if (choice && choice.finish_reason === 'length') {
       return { error: true, message: '응답이 비어 있습니다(토큰 한도 초과) — reasoning 토큰 소모로 content 없음' };
     }
-    return { error: true, message: 'OpenAI 응답에 content가 없습니다.' };
+    return { error: true, message: 'NVIDIA 응답에 content가 없습니다.' };
   }
   return { text: text };
 }
 
 function _callOpenAIChat(apiKey, messages) {
   try {
-    const res = UrlFetchApp.fetch(OPENAI_CHAT_URL, _openAIRequestOptions(apiKey, messages));
+    const res = UrlFetchApp.fetch(NVIDIA_CHAT_URL, _openAIRequestOptions(apiKey, messages));
     return _parseOpenAIHttpResponse(res);
   } catch (e) {
-    return { error: true, message: 'OpenAI 호출 실패: ' + e.message };
+    return { error: true, message: 'NVIDIA 호출 실패: ' + e.message };
   }
 }
 

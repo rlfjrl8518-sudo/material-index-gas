@@ -60,7 +60,7 @@ function startInspection(inspectionId, fileRefs) {
   const criteria = getInspectionCriteria();
   if (criteria.error) return criteria;
   if (!criteria.apiKeyConfigured) {
-    return { error: true, message: 'OpenAI API 키가 설정되지 않았습니다. 스프레드시트 메뉴 [이미지 검수 > API 키 설정]에서 등록하세요.' };
+    return { error: true, message: 'NVIDIA API 키가 설정되지 않았습니다. 스프레드시트 메뉴 [이미지 검수 > API 키 설정]에서 등록하세요.' };
   }
 
   const folderId = PropertiesService.getScriptProperties().getProperty('INSPECTION_FOLDER_' + inspectionId);
@@ -123,7 +123,7 @@ function _processInspectionBatch(inspectionId) {
     const resultSheet = getSpreadsheet().getSheetByName(INSPECTION_RESULT_SHEET);
     const criteria = state.criteria || getInspectionCriteria();
 
-    // pending 최대 20장을 한 번에 분석(OpenAI Vision 호출은 fetchAll로 동시 발사)하고,
+    // pending 최대 20장을 한 번에 분석(NVIDIA Vision 호출은 fetchAll로 동시 발사)하고,
     // 결과 행을 한 번의 setValues로 일괄 기록한다(appendRow 20번보다 시트 쓰기도 빠르다).
     const results = _analyzeAndBuildRows(inspectionId, pending, criteria);
     if (results.length) {

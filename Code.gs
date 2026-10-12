@@ -1424,7 +1424,7 @@ function getMasterData() {
 // API 키 관리 (스크립트 속성)
 // --------------------------------------------------
 const MANAGED_API_KEYS = [
-  { id: 'OPENAI_API_KEY', label: 'OpenAI API Key', description: 'AI 인사이트 분석 (소재 분석 탭) · 소재 검수 이미지 분석 (소재 검수 탭)' }
+  { id: 'NVIDIA_API_KEY', label: 'NVIDIA API Key', description: 'AI 인사이트 분석 (소재 분석 탭) · 소재 검수 이미지 분석 (소재 검수 탭)' }
 ];
 
 function getApiKeys() {
@@ -1458,14 +1458,14 @@ function saveApiKey(keyId, value) {
 }
 
 // --------------------------------------------------
-// OpenAI 인사이트 생성
-// PropertiesService 'OPENAI_API_KEY' → gpt-5 호출 → 텍스트 반환
+// AI 인사이트 생성 (NVIDIA NIM, OpenAI 호환 API)
+// PropertiesService 'NVIDIA_API_KEY' → AI_TEXT_MODEL 호출 → 텍스트 반환
 // --------------------------------------------------
 function getOpenAIInsight(aggregatedData) {
-  const apiKey = PropertiesService.getScriptProperties().getProperty('OPENAI_API_KEY');
+  const apiKey = getAiApiKey();
   if (!apiKey) return {
     error: true,
-    message: 'OPENAI_API_KEY가 설정되지 않았습니다.\nApps Script 편집기 > 프로젝트 설정 > 스크립트 속성에서 OPENAI_API_KEY를 추가하세요.'
+    message: 'NVIDIA_API_KEY가 설정되지 않았습니다.\n대시보드 설정 관리 > API 키에서 NVIDIA API Key를 등록하세요.'
   };
 
   // 매체/캠페인/광고그룹/소재이름/보종 필터가 걸려 있으면 그 맥락에 맞는 운영
@@ -1521,22 +1521,24 @@ ${JSON.stringify(aggregatedData, null, 2)}`;
     contentType: 'application/json',
     headers: { Authorization: 'Bearer ' + apiKey },
     payload: JSON.stringify({
-      model: 'gpt-5-mini',
+      model: AI_TEXT_MODEL,
       messages: [{ role: 'user', content: prompt }],
-      // gpt-5 계열은 max_tokens가 아니라 max_completion_tokens를 쓰고, temperature도 기본값(1)
-      // 외엔 거부한다(2026-07-28 실제 호출로 확인: 둘 다 넣으면 400 에러). reasoning_effort를
-      // 안 주면 기본 reasoning에 토큰을 다 쓰고 정작 답변 내용은 비어서 나오는 것도 실측
-      // 확인했다 — 데이터 분석·전략 제안이라 분류 작업보다는 약간 여유를 둬서 'low'로 설정.
-      max_completion_tokens: 1600,
-      reasoning_effort: 'low'
+      // 2026-10-12 NVIDIA 무료 모델 실측 비교: nemotron-3-super(thinking 끔)가 3.5초에 수치 근거·
+      // 추세까지 반영한 인사이트를 형식대로 출력. glm-5.3-flash·deepseek-v4.1-flash는 품질 비슷하나
+      // 30초대, kimi-k3는 서버 혼잡으로 타임아웃, gpt-oss-20b는 수치 근거가 빈약했다.
+      max_tokens: 2000,
+      temperature: 0.4,
+      chat_template_kwargs: { enable_thinking: false }
     }),
     muteHttpExceptions: true
   };
 
   try {
-    const resp = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', options);
+    const resp = UrlFetchApp.fetch(NVIDIA_CHAT_URL, options);
     const json = JSON.parse(resp.getContentText());
-    if (json.error) return { error: true, message: json.error.message };
+    if (json.error) return { error: true, message: json.error.message || String(json.error) };
+    // NVIDIA는 404/400 등을 {status, detail} 또는 {message} 형태로 돌려줘 json.error가 없을 수 있다
+    if (!json.choices) return { error: true, message: 'NVIDIA API 오류 (HTTP ' + resp.getResponseCode() + '): ' + (json.detail || json.message || resp.getContentText().slice(0, 300)) };
     const text = json.choices[0].message.content;
     // reasoning 모델이 토큰 예산을 전부 reasoning에 써버리면 content가 빈 문자열인 채로
     // finish_reason='length'가 온다 — 이걸 그냥 success:true로 넘기면 화면엔 빈 결과만
@@ -1553,13 +1555,13 @@ ${JSON.stringify(aggregatedData, null, 2)}`;
 // --------------------------------------------------
 // AI 인사이트 챗봇 — 생성된 인사이트에 대한 후속 질문
 // messages: [{role:'system'|'user'|'assistant', content:'...'}] 형태의 전체 대화 기록을
-// 그대로 받아 OpenAI에 전달한다 (컨텍스트는 클라이언트가 system 메시지로 구성해서 보냄)
+// 그대로 받아 NVIDIA NIM에 전달한다 (컨텍스트는 클라이언트가 system 메시지로 구성해서 보냄)
 // --------------------------------------------------
 function getOpenAIChatReply(messages) {
-  const apiKey = PropertiesService.getScriptProperties().getProperty('OPENAI_API_KEY');
+  const apiKey = getAiApiKey();
   if (!apiKey) return {
     error: true,
-    message: 'OPENAI_API_KEY가 설정되지 않았습니다.\nApps Script 편집기 > 프로젝트 설정 > 스크립트 속성에서 OPENAI_API_KEY를 추가하세요.'
+    message: 'NVIDIA_API_KEY가 설정되지 않았습니다.\n대시보드 설정 관리 > API 키에서 NVIDIA API Key를 등록하세요.'
   };
   if (!Array.isArray(messages) || !messages.length) return { error: true, message: '대화 내용이 없습니다.' };
 
@@ -1568,22 +1570,23 @@ function getOpenAIChatReply(messages) {
     contentType: 'application/json',
     headers: { Authorization: 'Bearer ' + apiKey },
     payload: JSON.stringify({
-      model: 'gpt-5-mini',
-      messages: messages,
-      // "질문하면 답이 안 나온다"는 신고를 실제 API 호출로 재현했다(2026-07-28): reasoning_effort
-      // 'low' + max_completion_tokens 900이면 짧은 후속 질문에도 모델이 900 토큰을 전부
-      // reasoning에 써버려서 finish_reason=length, 실제 답변 내용은 빈 문자열로 나왔다.
-      // 'minimal'로 낮추고 여유분도 늘려 같은 조건에서 정상 답변 나오는 것 확인.
-      max_completion_tokens: 1200,
-      reasoning_effort: 'minimal'
+      model: AI_TEXT_MODEL,
+      // nemotron이 긴 답변 중간에 "wait — actually", 일본어 등을 섞는 경우가 실측으로 있어 언어를 못박는다.
+      messages: [{ role: 'system', content: '반드시 자연스러운 한국어로만 답하라. 영어·일본어 문장이나 스스로 정정하는 혼잣말을 섞지 마라.' }].concat(messages),
+      // thinking을 끄면 토큰이 전부 답변에 쓰여 "content가 비어서 온다" 문제(2026-07-28 gpt-5-mini)가 없다.
+      max_tokens: 1500,
+      temperature: 0.2,
+      chat_template_kwargs: { enable_thinking: false }
     }),
     muteHttpExceptions: true
   };
 
   try {
-    const resp = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', options);
+    const resp = UrlFetchApp.fetch(NVIDIA_CHAT_URL, options);
     const json = JSON.parse(resp.getContentText());
-    if (json.error) return { error: true, message: json.error.message };
+    if (json.error) return { error: true, message: json.error.message || String(json.error) };
+    // NVIDIA는 404/400 등을 {status, detail} 또는 {message} 형태로 돌려줘 json.error가 없을 수 있다
+    if (!json.choices) return { error: true, message: 'NVIDIA API 오류 (HTTP ' + resp.getResponseCode() + '): ' + (json.detail || json.message || resp.getContentText().slice(0, 300)) };
     const text = json.choices[0].message.content;
     // reasoning 모델이 토큰 예산을 전부 reasoning에 써버리면 content가 빈 문자열인 채로
     // finish_reason='length'가 온다 — 이걸 그냥 success:true로 넘기면 화면엔 빈 결과만
