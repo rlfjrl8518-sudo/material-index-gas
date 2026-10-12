@@ -14,6 +14,7 @@ const NVIDIA_CHAT_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
 const AI_VISION_MODEL = 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning';
 const AI_TEXT_MODEL = 'nvidia/nemotron-3-super-120b-a12b';
 const VISION_CONCURRENCY = 5; // fetchAll 한 번에 동시 발사할 이미지 수(무료 티어 한도 대응)
+const VISION_TIME_BUDGET_MS = 4 * 60 * 1000; // 배치 1회 분석에 쓸 최대 시간(GAS 6분 한도 - 시트 기록 여유)
 const VISION_MAX_RETRY = 5; // JSON 파싱/호출 실패 시 재시도 횟수 — 무료 티어 503이 실측 ~30% 확률로 나고 몇 초 안에 풀려서 넉넉히(대기 합계 최대 30초)
 
 const IMAGE_EXT_MIME = {
@@ -60,6 +61,7 @@ function analyzeImageWithOpenAI(fileId, criteria) {
 // 재시도한다(최대 VISION_MAX_RETRY+1라운드, analyzeImageWithOpenAI의 재시도 횟수와 동일).
 // 반환값: items와 같은 순서의 분석 결과 배열.
 function analyzeImagesWithOpenAIBatch(items, criteria) {
+  const startedAt = Date.now();
   const apiKey = getAiApiKey();
   if (!apiKey) return items.map(() => ({ error: true, message: 'NVIDIA API 키가 설정되지 않았습니다.' }));
 
@@ -82,10 +84,18 @@ function analyzeImagesWithOpenAIBatch(items, criteria) {
 
   // NVIDIA 무료 티어는 20장을 한 번에 쏘면 동시 처리 한도(503)·분당 요청 한도(429)에 걸려
   // 재시도까지 소진하고 일부가 실패했다(2026-10-12 실측 15/20). VISION_CONCURRENCY장씩 나눠 보낸다.
+  // 혼잡 시 재시도 대기가 쌓여 GAS 실행 한도(6분)를 넘기면 결과 기록·다음 배치 트리거 생성 전에
+  // 실행이 끊겨 검수가 '진행중'에서 멈춘다. 마감 이후엔 재시도/남은 청크를 포기하고 오류로 돌려
+  // '확인 필요'로 기록되게 한다(결과 화면의 '확인 필요 항목 재처리'로 다시 돌릴 수 있음).
+  const deadline = startedAt + VISION_TIME_BUDGET_MS;
   for (let c = 0; c < ready.length; c += VISION_CONCURRENCY) {
     let pending = ready.slice(c, c + VISION_CONCURRENCY);
+    if (Date.now() > deadline) {
+      pending.forEach(i => { results[i] = { error: true, message: 'NVIDIA 서버 혼잡으로 시간 내 처리하지 못했습니다 — 확인 필요 항목 재처리로 다시 시도하세요.' }; });
+      continue;
+    }
     let rateLimited = false;
-    for (let round = 0; round <= VISION_MAX_RETRY && pending.length; round++) {
+    for (let round = 0; round <= VISION_MAX_RETRY && pending.length && (round === 0 || Date.now() < deadline); round++) {
       // 재시도 라운드 사이엔 텀을 둔다 — 503(동시 한도)은 몇 초면 풀리지만 429(분당 한도)는
       // 1분 창이 지나야 풀리므로 길게 기다린다.
       if (round > 0) Utilities.sleep(rateLimited ? 15000 : 2000 * round);
