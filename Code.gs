@@ -1660,22 +1660,26 @@ function _normalizeRawRow(row) {
   return out;
 }
 
-// 중복 체크 키: 일(정규화된 날짜 문자열) + 매체 + 캠페인 + 광고그룹 + 소재이름
-// → 같은 소재가 여러 캠페인/그룹에 운영되는 경우에도 행별로 구분
+// 중복 체크 키: 정규화된 행 전체(A~U) — 파생 비율 CTR/CVR/CPA(Q/T/U)만 제외.
+// 예전엔 일+매체+캠페인+그룹+소재이름 5개만 봐서, 같은 날·같은 이름이라도 이미지나
+// 수치가 다른 정상 행이 중복으로 빠졌다(2026-10-19). 비율은 표기("1.2%")가 소스마다
+// 달라 같은 행을 다르게 보이게 하므로 뺀다.
 function _rowKey(row) {
-  const d = _normDate(row[1]);
+  const r = _normalizeRawRow(row);
+  const d = r[1];
   const dateStr = (d instanceof Date && !isNaN(d.getTime()))
     ? Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd')
-    : String(row[1] || '').trim();
-  return [dateStr, String(row[0] || '').trim(), String(row[2] || '').trim(),
-          String(row[3] || '').trim(), String(row[4] || '').trim()].join('\x00');
+    : String(d || '').trim();
+  return [dateStr].concat(r.filter((_, i) => i !== 1 && i !== 16 && i !== 19 && i !== 20)
+    .map(v => String(v === null || v === undefined ? '' : v).trim())).join('\x00');
 }
 
 // --------------------------------------------------
 // 통합 적재
 // RAW_ 로 시작하는 모든 시트의 A~U열 데이터를 소재_통합RAW에 병합
-// 중복 키: 일(B) + 매체(A) + 캠페인(C) + 광고그룹(D) + 소재이름(E)
-// → 같은 소재가 여러 캠페인/그룹에 운영되는 경우에도 행별로 구분
+// 중복 키: 행 전체(_rowKey 참고). 키별 적재 개수 = 그 키가 한 시트 안에 나온 최대 횟수.
+// → 한 시트 안의 완전히 같은 행 2개는 둘 다 들어가고, 여러 RAW 시트에 겹쳐 있는 행은
+//   한 번만 들어가며, 재적재 시엔 전부 건너뛴다.
 // --------------------------------------------------
 function consolidateRawData() {
   try {
@@ -1690,11 +1694,11 @@ function consolidateRawData() {
       targetSheet.setFrozenRows(1);
     }
 
-    // 기존 데이터로 중복 체크 Set 구성 (날짜 등 표현 차이를 흡수하도록 _rowKey로 정규화)
-    const existingSet = new Set();
+    // 기존 데이터의 키별 개수 → 적재하면서 '현재 들어 있는 개수'로 갱신 (날짜 등 표현 차이를 흡수하도록 _rowKey로 정규화)
+    const existingCount = new Map();
     if (targetSheet.getLastRow() >= 2) {
-      targetSheet.getRange(2, 1, targetSheet.getLastRow() - 1, 5).getValues()
-        .forEach(r => existingSet.add(_rowKey(r)));
+      targetSheet.getRange(2, 1, targetSheet.getLastRow() - 1, 21).getValues()
+        .forEach(r => { const k = _rowKey(r); existingCount.set(k, (existingCount.get(k) || 0) + 1); });
     }
 
     // RAW_ 로 시작하는 모든 소스 시트 수집
@@ -1710,6 +1714,7 @@ function consolidateRawData() {
 
     rawSheets.forEach(srcSheet => {
       if (srcSheet.getLastRow() < 2) return;
+      const occInSheet = new Map(); // 이 시트에서 같은 키가 몇 번째로 나왔는지
       const data = srcSheet.getRange(2, 1, srcSheet.getLastRow() - 1, 21).getValues();
       data.forEach(row => {
         // 매체(A) 또는 소재이름(E) 중 하나라도 없으면 불완전한 행으로 스킵
@@ -1720,8 +1725,10 @@ function consolidateRawData() {
         }
         const normalized = _normalizeRawRow(row);
         const key = _rowKey(normalized);
-        if (existingSet.has(key)) { skippedDup++; return; }
-        existingSet.add(key);
+        const occ = (occInSheet.get(key) || 0) + 1;
+        occInSheet.set(key, occ);
+        if (occ <= (existingCount.get(key) || 0)) { skippedDup++; return; }
+        existingCount.set(key, occ);
         rowsToAppend.push(normalized);
       });
     });
