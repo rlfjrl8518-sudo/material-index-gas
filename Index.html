@@ -9326,12 +9326,17 @@ function reportPlaceImage(ws, info, col0, row0, cellW, cellH) {
   if (height > maxH) { height = maxH; width = maxH * ratio; }
   width = Math.max(1, Math.round(width));
   height = Math.max(1, Math.round(height));
-  const offXfrac = Math.max(0, (cellW - width) / 2) / cellW;
-  const offYfrac = Math.max(0, (cellH - height) / 2) / cellH;
+  const offX = Math.max(0, (cellW - width) / 2);
+  const offY = Math.max(0, (cellH - height) / 2);
+  // 'oneCell'(이동만)이면 엑셀에서 필터로 행을 숨기거나 행을 삭제해도 이미지가 그대로 남았다
+  // (2026-10-22) — 시작·끝을 둘 다 같은 셀 안에 박은 twoCell(셀에 맞춰 이동·크기 조정)로 넣어
+  // 행과 함께 숨겨지고 삭제되게 한다. 오프셋은 EMU(1px = 9525)로 직접 준다 — ExcelJS의
+  // 소수점 col/row 변환은 열너비×10000 기준이라 실제 EMU와 안 맞아 끝 좌표가 어긋난다.
+  const EMU = 9525;
   ws.addImage(info.imageId, {
-    tl: { col: col0 + offXfrac, row: row0 + offYfrac },
-    ext: { width, height },
-    editAs: 'oneCell'
+    tl: { nativeCol: col0, nativeColOff: Math.round(offX * EMU), nativeRow: row0, nativeRowOff: Math.round(offY * EMU) },
+    br: { nativeCol: col0, nativeColOff: Math.round((offX + width) * EMU), nativeRow: row0, nativeRowOff: Math.round((offY + height) * EMU) },
+    editAs: 'twoCell'
   });
 }
 
