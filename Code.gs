@@ -560,6 +560,38 @@ function getImageCodes() {
 }
 
 // --------------------------------------------------
+// 보고서 "이미지코드" 행 기준용 — (매체,캠페인,그룹,소재이름) → 이미지코드 목록.
+// 소재_통합RAW엔 이미지코드가 없어 AB테스트 실적(getABTestPerformance)과 같은 키로 잇는다.
+// 전매체 인덱스에 코드가 없는 디멘드젠/피맥스 번들은 getImageCodes()처럼 광고단위코드로 대신한다.
+// --------------------------------------------------
+function getImageCodeContextMap() {
+  const ss = getSpreadsheet();
+  const map = {};
+  const key = (m, c, g, n) => [m, c, g, n].map(v => String(v || '').trim()).join('\x00');
+  const add = (k, code) => {
+    if (!code) return;
+    const list = map[k] || (map[k] = []);
+    if (!list.includes(code)) list.push(code);
+  };
+
+  const sheet = ss.getSheetByName(MASTER_SHEET_NAME);
+  if (sheet && sheet.getLastRow() >= 2) {
+    // col: 0=이미지코드, 2=매체, 3=캠페인, 4=그룹, 5=소재이름
+    sheet.getRange(2, 1, sheet.getLastRow() - 1, 6).getValues()
+      .forEach(r => add(key(r[2], r[3], r[4], r[5]), String(r[0] || '').trim()));
+  }
+
+  const dgpmSheet = ss.getSheetByName(DGPM_SHEET_NAME);
+  if (dgpmSheet && dgpmSheet.getLastRow() >= 2) {
+    dgpmSheet.getRange(2, 1, dgpmSheet.getLastRow() - 1, DGPM_HEADERS.length).getValues().forEach(r => {
+      const k = key(r[DGPM_COL['매체']], r[DGPM_COL['캠페인']], r[DGPM_COL['그룹']], r[DGPM_COL['소재이름']]);
+      if (!map[k]) add(k, String(r[DGPM_COL['광고단위코드']] || '').trim());
+    });
+  }
+  return map;
+}
+
+// --------------------------------------------------
 // 디버그: 이미지 코드 원시값 확인
 // --------------------------------------------------
 function debugImageCodes() {

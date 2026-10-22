@@ -8364,6 +8364,7 @@ const REPORT_DIMENSIONS = [
   { key: 'hook',       label: '후킹방식',     col: AZ.HOOK },
   { key: 'imgtype',    label: '이미지유형',   col: AZ.IMGTYPE },
   { key: 'imgurl',     label: '이미지 URL',   col: AZ.IMGURL },
+  { key: 'imgcode',    label: '이미지코드',   special: 'imgcode' },
   { key: 'modeltype',  label: '모델유형(개별)', col: AZ.MODELTYPE },
   { key: 'modelcombo', label: '모델유형(조합)', special: 'modelcombo' },
   { key: 'livestatus', label: '라이브 상태',   special: 'livestatus' },
@@ -8389,7 +8390,23 @@ let reportExportAOA  = null; // 마지막으로 생성된 보고서의 원시 �
 let reportExportImgCol = -1; // reportExportAOA에서 "이미지 URL" 행 기준 열의 인덱스(0-based), 없으면 -1
 let reportExportPctCols = []; // reportExportAOA에서 CTR/CVR처럼 %로 표시해야 하는 열 인덱스(0-based) 목록
 
+// (매체,캠페인,그룹,소재이름) → 이미지코드 목록. 통합RAW엔 코드가 없어 서버에서 따로 받아온다.
+let reportImgCodeMap = null;
+let reportImgCodeMapLoading = false;
+function reportLoadImgCodeMap() {
+  if (reportImgCodeMap || reportImgCodeMapLoading) return;
+  reportImgCodeMapLoading = true;
+  gasRun('getImageCodeContextMap')
+    .then(m => {
+      reportImgCodeMap = m;
+      if (document.getElementById('report-body').style.display !== 'none') { reportRefreshAllFilterOptions(); generateReport(); }
+    })
+    .catch(e => console.warn('[보고서] 이미지코드 매핑 로드 실패:', e))
+    .finally(() => { reportImgCodeMapLoading = false; });
+}
+
 function onReportTabActivate() {
+  reportLoadImgCodeMap();
   if (azLoaded) {
     document.getElementById('report-empty').style.display = 'none';
     showReportList();
@@ -8643,6 +8660,10 @@ function reportDimValues(row, dim) {
   if (dim.special === 'lifecycle') {
     const phase = reportLifecycleCache && reportLifecycleCache[azCreativeContextKey(row)];
     return phase ? [phase] : [];
+  }
+  if (dim.special === 'imgcode') {
+    // 한 소재(번들)에 이미지가 여러 장이면 코드도 여러 개 — 모델유형(개별)처럼 각각 집계된다
+    return (reportImgCodeMap && reportImgCodeMap[azCreativeContextKey(row)]) || [];
   }
   if (dim.key === 'imgurl') {
     const name = String(row[AZ.CREATIVE] || '').trim();
