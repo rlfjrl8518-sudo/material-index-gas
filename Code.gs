@@ -152,7 +152,7 @@ function onOpen() {
     .addItem('🔍 검수 대시보드 열기 (소재 검수 탭)', 'openDashboard')
     .addSeparator()
     .addItem('검수 기준 시트 열기', 'openInspectionCriteriaSheet')
-    .addItem('API 키 설정', 'promptSetOpenAIKey')
+    .addItem('GCP 프로젝트 설정', 'promptSetOpenAIKey')
     .addSeparator()
     .addItem('검수 시트 초기화', 'initInspectionSheets')
     .addToUi();
@@ -1470,7 +1470,7 @@ function getMasterData() {
 // API 키 관리 (스크립트 속성)
 // --------------------------------------------------
 const MANAGED_API_KEYS = [
-  { id: 'NVIDIA_API_KEY', label: 'NVIDIA API Key', description: 'AI 인사이트 분석 (소재 분석 탭) · 소재 검수 이미지 분석 (소재 검수 탭)' }
+  { id: 'GCP_PROJECT_ID', label: 'GCP 프로젝트 ID', description: 'Gemini(Vertex AI) 호출 프로젝트 — AI 인사이트 분석 (소재 분석 탭) · 소재 검수 이미지 분석 (소재 검수 탭)' }
 ];
 
 function getApiKeys() {
@@ -1504,14 +1504,12 @@ function saveApiKey(keyId, value) {
 }
 
 // --------------------------------------------------
-// AI 인사이트 생성 (NVIDIA NIM, OpenAI 호환 API)
-// PropertiesService 'NVIDIA_API_KEY' → AI_TEXT_MODEL 호출 → 텍스트 반환
+// AI 인사이트 생성 (Gemini, Vertex AI — 호출 공통부는 InspectionVision.gs _callAiChat)
 // --------------------------------------------------
 function getOpenAIInsight(aggregatedData) {
-  const apiKey = getAiApiKey();
-  if (!apiKey) return {
+  if (!getAiProjectId()) return {
     error: true,
-    message: 'NVIDIA_API_KEY가 설정되지 않았습니다.\n대시보드 설정 관리 > API 키에서 NVIDIA API Key를 등록하세요.'
+    message: 'GCP 프로젝트 ID가 설정되지 않았습니다.\n대시보드 설정 관리 > API 키에서 GCP 프로젝트 ID를 등록하세요.'
   };
 
   // 매체/캠페인/광고그룹/소재이름/보종 필터가 걸려 있으면 그 맥락에 맞는 운영
@@ -1562,97 +1560,34 @@ ${sectionInstruction}
 
 ${JSON.stringify(aggregatedData, null, 2)}`;
 
-  // 2026-10-12 NVIDIA 무료 모델 실측 비교(같은 필터 데이터로 3회씩): deepseek-v4.1-flash는 31~38초로
-  // 느리지만 데이터에 있는 수치만 근거로 쓰고 [[/섹션]] 형식도 매번 지켰다. nemotron-3-super는 7~9초로
-  // 빠르지만 데이터에 없는 성과를 지어내거나 "100% 보장" 같은 보험 심의 위반 문구를 제안했다 →
-  // 인사이트는 deepseek, 실패(혼잡·타임아웃) 시에만 nemotron으로 폴백한다.
-  let lastError = null;
-  for (const model of [AI_INSIGHT_MODEL, AI_TEXT_MODEL]) {
-    const res = _requestInsight(apiKey, model, prompt);
-    if (res.success) return res;
-    lastError = res;
+  // 데이터에 있는 수치만 근거로 쓰고 보험 심의 위반 문구("100% 보장" 등)를 지어내지 않도록
+  // thinking을 조금 더 준다. 혼잡(429/5xx)에 대비해 1회 재시도.
+  let res;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt) Utilities.sleep(3000);
+    res = _callAiChat([{ role: 'user', content: prompt }], { maxTokens: 12000, temperature: 0.4, reasoningEffort: 'medium' });
+    if (!res.error) return { success: true, text: res.text };
   }
-  return lastError;
-}
-
-function _requestInsight(apiKey, model, prompt) {
-  const options = {
-    method: 'post',
-    contentType: 'application/json',
-    headers: { Authorization: 'Bearer ' + apiKey },
-    payload: JSON.stringify({
-      model: model,
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: 2000,
-      temperature: 0.4,
-      chat_template_kwargs: { enable_thinking: false }
-    }),
-    muteHttpExceptions: true
-  };
-
-  try {
-    const resp = UrlFetchApp.fetch(NVIDIA_CHAT_URL, options);
-    const json = JSON.parse(resp.getContentText());
-    if (json.error) return { error: true, message: json.error.message || String(json.error) };
-    // NVIDIA는 404/400 등을 {status, detail} 또는 {message} 형태로 돌려줘 json.error가 없을 수 있다
-    if (!json.choices) return { error: true, message: 'NVIDIA API 오류 (HTTP ' + resp.getResponseCode() + '): ' + (json.detail || json.message || resp.getContentText().slice(0, 300)) };
-    const text = json.choices[0].message.content;
-    // reasoning 모델이 토큰 예산을 전부 reasoning에 써버리면 content가 빈 문자열인 채로
-    // finish_reason='length'가 온다 — 이걸 그냥 success:true로 넘기면 화면엔 빈 결과만
-    // 남아 "답이 안 나온다"로 보인다(2026-07-28 채팅에서 실제로 겪은 문제). 명확한 에러로 변환.
-    if (!text) return { error: true, message: '응답이 비어 있습니다' + (json.choices[0].finish_reason === 'length' ? '(토큰 한도 초과)' : '') + ' — 다시 시도해보세요.' };
-    return { success: true, text };
-  } catch (e) {
-    return { error: true, message: e.message };
-  }
+  return res;
 }
 
 // --------------------------------------------------
 // AI 인사이트 챗봇 — 생성된 인사이트에 대한 후속 질문
 // messages: [{role:'system'|'user'|'assistant', content:'...'}] 형태의 전체 대화 기록을
-// 그대로 받아 NVIDIA NIM에 전달한다 (컨텍스트는 클라이언트가 system 메시지로 구성해서 보냄)
+// 그대로 받아 Gemini에 전달한다 (컨텍스트는 클라이언트가 system 메시지로 구성해서 보냄)
 // --------------------------------------------------
 function getOpenAIChatReply(messages) {
-  const apiKey = getAiApiKey();
-  if (!apiKey) return {
+  if (!getAiProjectId()) return {
     error: true,
-    message: 'NVIDIA_API_KEY가 설정되지 않았습니다.\n대시보드 설정 관리 > API 키에서 NVIDIA API Key를 등록하세요.'
+    message: 'GCP 프로젝트 ID가 설정되지 않았습니다.\n대시보드 설정 관리 > API 키에서 GCP 프로젝트 ID를 등록하세요.'
   };
   if (!Array.isArray(messages) || !messages.length) return { error: true, message: '대화 내용이 없습니다.' };
 
-  const options = {
-    method: 'post',
-    contentType: 'application/json',
-    headers: { Authorization: 'Bearer ' + apiKey },
-    payload: JSON.stringify({
-      model: AI_TEXT_MODEL,
-      // nemotron이 긴 답변 중간에 "wait — actually", 일본어 등을 섞는 경우가 실측으로 있어 언어를 못박는다.
-      messages: [{ role: 'system', content: '반드시 자연스러운 한국어로만 답하라. 영어·일본어 문장이나 스스로 정정하는 혼잣말을 섞지 마라.' }].concat(messages),
-      // thinking을 끄면 토큰이 전부 답변에 쓰여 "content가 비어서 온다" 문제(2026-07-28 gpt-5-mini)가 없다.
-      max_tokens: 1500,
-      temperature: 0.2,
-      chat_template_kwargs: { enable_thinking: false }
-    }),
-    muteHttpExceptions: true
-  };
-
-  try {
-    const resp = UrlFetchApp.fetch(NVIDIA_CHAT_URL, options);
-    const json = JSON.parse(resp.getContentText());
-    if (json.error) return { error: true, message: json.error.message || String(json.error) };
-    // NVIDIA는 404/400 등을 {status, detail} 또는 {message} 형태로 돌려줘 json.error가 없을 수 있다
-    if (!json.choices) return { error: true, message: 'NVIDIA API 오류 (HTTP ' + resp.getResponseCode() + '): ' + (json.detail || json.message || resp.getContentText().slice(0, 300)) };
-    const text = json.choices[0].message.content;
-    // reasoning 모델이 토큰 예산을 전부 reasoning에 써버리면 content가 빈 문자열인 채로
-    // finish_reason='length'가 온다 — 이걸 그냥 success:true로 넘기면 화면엔 빈 결과만
-    // 남아 "답이 안 나온다"로 보인다(2026-07-28 채팅에서 실제로 겪은 문제). 명확한 에러로 변환.
-    if (!text && json.choices[0].finish_reason === 'length') {
-      return { error: true, message: '응답이 비어 있습니다(토큰 한도 초과) — 다시 시도해보세요.' };
-    }
-    return { success: true, text };
-  } catch (e) {
-    return { error: true, message: e.message };
-  }
+  const res = _callAiChat(
+    [{ role: 'system', content: '반드시 자연스러운 한국어로만 답하라.' }].concat(messages),
+    { maxTokens: 6000, temperature: 0.2 }
+  );
+  return res.error ? res : { success: true, text: res.text };
 }
 
 // RAW_ 소스 시트마다 내보내는 방식이 달라(구글 광고 UI 직접 붙여넣기 vs 다른 도구 export

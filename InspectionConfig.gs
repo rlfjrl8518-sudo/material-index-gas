@@ -76,7 +76,7 @@ function initInspectionSheets() {
     sheet.getRange(12, 2, 4, 1).insertCheckboxes();
 
     sheet.getRange(17, 1, 1, 3)
-      .setValues([['NVIDIA API 키 입력 위치', '', '대시보드(소재 검수 탭 상단 링크) > 설정 관리 > API 키에서 NVIDIA API Key를 등록하세요. 시트에 직접 입력하지 마세요. (같은 키를 소재 분석 탭의 AI 인사이트 기능과 함께 사용합니다)']]);
+      .setValues([['GCP 프로젝트 ID 입력 위치', '', '대시보드(소재 검수 탭 상단 링크) > 설정 관리 > API 키에서 GCP 프로젝트 ID를 등록하세요. (소재 분석 탭의 AI 인사이트 기능과 함께 사용합니다)']]);
 
     sheet.setColumnWidths(1, 1, 260);
     sheet.setColumnWidths(2, 1, 90);
@@ -133,7 +133,7 @@ function getInspectionCriteria() {
       specialCharStrict: get(CRITERIA_ROW.SPECIAL_CHAR_STRICT)[1] === true,
       ocrConfidence: isNaN(ocrConfidence) ? 0.7 : ocrConfidence
     },
-    apiKeyConfigured: !!getAiApiKey()
+    apiKeyConfigured: !!getAiProjectId()
   };
 }
 
@@ -173,28 +173,28 @@ function saveInspectionCriteria(data) {
 }
 
 // --------------------------------------------------
-// NVIDIA API 키 — Script Properties에만 저장 (시트에 저장 금지)
+// Gemini(Vertex AI)를 호출할 GCP 프로젝트 ID — Script Properties에 저장
 // --------------------------------------------------
-function getAiApiKey() {
-  return PropertiesService.getScriptProperties().getProperty('NVIDIA_API_KEY') || '';
+function getAiProjectId() {
+  return PropertiesService.getScriptProperties().getProperty('GCP_PROJECT_ID') || '';
 }
 
-// 대시보드(설정 관리 > API 키)에서도 같은 NVIDIA_API_KEY를 등록/변경할 수 있다.
+// 대시보드(설정 관리 > API 키)에서도 같은 GCP_PROJECT_ID를 등록/변경할 수 있다.
 // 이 함수는 대시보드를 열지 않고 스프레드시트에서 바로 등록하고 싶을 때 쓰는 대체 경로다.
 function promptSetOpenAIKey() {
   const ui = SpreadsheetApp.getUi();
-  const existing = getAiApiKey();
+  const existing = getAiProjectId();
   const resp = ui.prompt(
-    'NVIDIA API 키 설정',
-    (existing ? '현재 키가 등록되어 있습니다. 새 값을 입력하면 교체됩니다.\n' : '') +
-    '이 키는 소재 검수와 소재 분석 탭의 AI 인사이트 기능이 함께 사용합니다.\nAPI 키를 입력하세요 (sk-...):',
+    'GCP 프로젝트 ID 설정',
+    (existing ? '현재 값: ' + existing + ' — 새 값을 입력하면 교체됩니다.\n' : '') +
+    '소재 검수와 소재 분석 탭의 AI 인사이트가 이 프로젝트의 Vertex AI(Gemini)를 사용합니다.\nGCP 프로젝트 ID를 입력하세요:',
     ui.ButtonSet.OK_CANCEL
   );
   if (resp.getSelectedButton() !== ui.Button.OK) return;
-  const key = resp.getResponseText().trim();
-  if (!key) { ui.alert('빈 값은 저장하지 않았습니다.'); return; }
-  PropertiesService.getScriptProperties().setProperty('NVIDIA_API_KEY', key);
-  ui.alert('API 키가 저장되었습니다.');
+  const id = resp.getResponseText().trim();
+  if (!id) { ui.alert('빈 값은 저장하지 않았습니다.'); return; }
+  PropertiesService.getScriptProperties().setProperty('GCP_PROJECT_ID', id);
+  ui.alert('GCP 프로젝트 ID가 저장되었습니다.');
 }
 
 function openInspectionCriteriaSheet() {

@@ -1,22 +1,74 @@
 // ====================================================
 // 소재 검수 - InspectionVision.gs
-// NVIDIA NIM Vision 이미지 분석 + ZIP 압축 해제
+// Gemini(Vertex AI) Vision 이미지 분석 + ZIP 압축 해제
 // ====================================================
 
-// NVIDIA NIM 무료 API(OpenAI 호환 chat/completions). 2026-10-12 실측 비교로 선정:
-// 한글 광고 이미지 문구 추출에서 nemotron-3-nano-omni(thinking 끔)가 상품명·심의필·전체 문구를
-// 전부 정확히 읽고 4~5초에 응답. gemma-4-31b·llama-3.2-90b-vision·kimi-k3는 무료 서버 혼잡으로
-// 4분 타임아웃, llama-3.2-11b-vision은 문구 누락. thinking을 켜면 정확도는 같은데 67초가 걸려 끈다.
-// 무료 티어는 워커당 동시 16건 제한이라 fetchAll 20장 배치에서 일부가 503(ResourceExhausted)으로
-// 떨어질 수 있다 — 재시도 라운드(텀을 두고 재발사)가 이를 흡수한다.
-// AI_INSIGHT_MODEL/AI_TEXT_MODEL(Code.gs 인사이트·챗봇)도 같은 키·URL을 공유한다.
-const NVIDIA_CHAT_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
-const AI_VISION_MODEL = 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning';
-const AI_INSIGHT_MODEL = 'deepseek-ai/deepseek-v4.1-flash';  // AI 인사이트(품질 우선, 실패 시 AI_TEXT_MODEL로 폴백)
-const AI_TEXT_MODEL = 'nvidia/nemotron-3-super-120b-a12b';    // 인사이트 챗봇(속도 우선) + 인사이트 폴백
-const VISION_CONCURRENCY = 5; // fetchAll 한 번에 동시 발사할 이미지 수(무료 티어 한도 대응)
+// Vertex AI의 OpenAI 호환 chat/completions로 Gemini를 호출한다(2026-10-23, NVIDIA NIM 무료 API에서 전환).
+// API 키 없이 스크립트 실행 계정의 OAuth 토큰(cloud-platform 스코프)으로 인증하므로, 그 계정이
+// GCP_PROJECT_ID 프로젝트에 'Vertex AI 사용자' 권한이 있어야 하고 프로젝트에 Vertex AI API가 켜져 있어야 한다.
+// 소재 검수 Vision · AI 인사이트 · 인사이트 챗봇이 모두 AI_MODEL 하나를 쓴다.
+const AI_MODEL = 'google/gemini-3.5-flash';
+const VISION_CONCURRENCY = 20; // fetchAll 한 번에 동시 발사할 이미지 수(배치 크기와 같게 — 유료 쿼터라 한 번에 보낸다)
 const VISION_TIME_BUDGET_MS = 4 * 60 * 1000; // 배치 1회 분석에 쓸 최대 시간(GAS 6분 한도 - 시트 기록 여유)
-const VISION_MAX_RETRY = 5; // JSON 파싱/호출 실패 시 재시도 횟수 — 무료 티어 503이 실측 ~30% 확률로 나고 몇 초 안에 풀려서 넉넉히(대기 합계 최대 30초)
+const VISION_MAX_RETRY = 3; // JSON 파싱/호출(429·5xx) 실패 시 재시도 횟수
+
+function _aiChatUrl() {
+  return 'https://aiplatform.googleapis.com/v1/projects/' + encodeURIComponent(getAiProjectId()) +
+    '/locations/global/endpoints/openapi/chat/completions';
+}
+
+// UrlFetchApp.fetch(단건)와 fetchAll(배치)이 같은 요청 옵션을 쓸 수 있게 url을 포함해 만든다
+// (fetch(url, options)는 options 안의 url을 무시하므로 두 경로에 그대로 재사용해도 안전하다).
+// Gemini는 max_tokens에 thinking 토큰도 포함돼, 넉넉히 주지 않으면 답이 비어서 온다.
+function _aiRequestOptions(messages, opts) {
+  return {
+    url: _aiChatUrl(),
+    method: 'post',
+    contentType: 'application/json',
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+    payload: JSON.stringify({
+      model: AI_MODEL,
+      messages: messages,
+      max_tokens: opts.maxTokens,
+      temperature: opts.temperature,
+      reasoning_effort: opts.reasoningEffort || 'low'
+    }),
+    muteHttpExceptions: true
+  };
+}
+
+// { text } 또는 { error:true, message }. Vertex는 오류를 [{error:{...}}] 배열로 돌려주기도 한다.
+function _parseAiHttpResponse(res) {
+  let json;
+  try {
+    json = JSON.parse(res.getContentText());
+  } catch (e) {
+    return { error: true, message: 'Gemini 응답 파싱 실패 (HTTP ' + res.getResponseCode() + '): ' + res.getContentText().slice(0, 300) };
+  }
+  if (Array.isArray(json)) json = json[0] || {};
+  const code = res.getResponseCode();
+  if (code < 200 || code >= 300) {
+    const msg = (json.error && json.error.message) || res.getContentText().slice(0, 300);
+    return { error: true, message: 'Gemini API 오류 (HTTP ' + code + '): ' + msg };
+  }
+  const choice = json.choices && json.choices[0];
+  const text = choice && choice.message && choice.message.content;
+  if (!text) {
+    return { error: true, message: '응답이 비어 있습니다' + (choice && choice.finish_reason === 'length' ? '(토큰 한도 초과)' : '') + ' — 다시 시도해보세요.' };
+  }
+  return { text: text };
+}
+
+function _callAiChat(messages, opts) {
+  try {
+    return _parseAiHttpResponse(UrlFetchApp.fetch(_aiChatUrl(), _aiRequestOptions(messages, opts)));
+  } catch (e) {
+    return { error: true, message: 'Gemini 호출 실패: ' + e.message };
+  }
+}
+
+// 문구 추출은 창작이 아니라 낮은 temperature로 고정.
+const VISION_OPTS = { maxTokens: 8000, temperature: 0.1 };
 
 const IMAGE_EXT_MIME = {
   jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp'
@@ -27,8 +79,7 @@ const IMAGE_EXT_MIME = {
 // (README에 문서화된 "편집기에서 직접 실행" 수동 테스트용 진입점이라 시그니처를 그대로 둔다)
 // --------------------------------------------------
 function analyzeImageWithOpenAI(fileId, criteria) {
-  const apiKey = getAiApiKey();
-  if (!apiKey) return { error: true, message: 'NVIDIA API 키가 설정되지 않았습니다.' };
+  if (!getAiProjectId()) return { error: true, message: 'GCP 프로젝트 ID가 설정되지 않았습니다.' };
 
   let imageBlob;
   try {
@@ -43,7 +94,7 @@ function analyzeImageWithOpenAI(fileId, criteria) {
   let lastError = null;
   for (let attempt = 0; attempt <= VISION_MAX_RETRY; attempt++) {
     if (attempt > 0) Utilities.sleep(2000 * attempt);
-    const res = _callOpenAIChat(apiKey, messages);
+    const res = _callAiChat(messages, VISION_OPTS);
     if (res.error) { lastError = res.message; continue; }
     const parsed = _extractJsonObject(res.text);
     if (parsed) return parsed;
@@ -63,8 +114,7 @@ function analyzeImageWithOpenAI(fileId, criteria) {
 // 반환값: items와 같은 순서의 분석 결과 배열.
 function analyzeImagesWithOpenAIBatch(items, criteria) {
   const startedAt = Date.now();
-  const apiKey = getAiApiKey();
-  if (!apiKey) return items.map(() => ({ error: true, message: 'NVIDIA API 키가 설정되지 않았습니다.' }));
+  if (!getAiProjectId()) return items.map(() => ({ error: true, message: 'GCP 프로젝트 ID가 설정되지 않았습니다.' }));
 
   const built = items.map(item => {
     try {
@@ -83,8 +133,7 @@ function analyzeImagesWithOpenAIBatch(items, criteria) {
     else ready.push(i);
   });
 
-  // NVIDIA 무료 티어는 20장을 한 번에 쏘면 동시 처리 한도(503)·분당 요청 한도(429)에 걸려
-  // 재시도까지 소진하고 일부가 실패했다(2026-10-12 실측 15/20). VISION_CONCURRENCY장씩 나눠 보낸다.
+  // VISION_CONCURRENCY장씩 나눠 보낸다(NVIDIA 무료 티어 땐 20장 동시 발사가 한도에 걸려 5장씩이었다).
   // 혼잡 시 재시도 대기가 쌓여 GAS 실행 한도(6분)를 넘기면 결과 기록·다음 배치 트리거 생성 전에
   // 실행이 끊겨 검수가 '진행중'에서 멈춘다. 마감 이후엔 재시도/남은 청크를 포기하고 오류로 돌려
   // '확인 필요'로 기록되게 한다(결과 화면의 '확인 필요 항목 재처리'로 다시 돌릴 수 있음).
@@ -92,7 +141,7 @@ function analyzeImagesWithOpenAIBatch(items, criteria) {
   for (let c = 0; c < ready.length; c += VISION_CONCURRENCY) {
     let pending = ready.slice(c, c + VISION_CONCURRENCY);
     if (Date.now() > deadline) {
-      pending.forEach(i => { results[i] = { error: true, message: 'NVIDIA 서버 혼잡으로 시간 내 처리하지 못했습니다 — 확인 필요 항목 재처리로 다시 시도하세요.' }; });
+      pending.forEach(i => { results[i] = { error: true, message: 'Gemini 서버 혼잡으로 시간 내 처리하지 못했습니다 — 확인 필요 항목 재처리로 다시 시도하세요.' }; });
       continue;
     }
     let rateLimited = false;
@@ -101,12 +150,12 @@ function analyzeImagesWithOpenAIBatch(items, criteria) {
       // 1분 창이 지나야 풀리므로 길게 기다린다.
       if (round > 0) Utilities.sleep(rateLimited ? 15000 : 2000 * round);
 
-      const requests = pending.map(i => _openAIRequestOptions(apiKey, built[i].messages));
+      const requests = pending.map(i => _aiRequestOptions(built[i].messages, VISION_OPTS));
       let responses;
       try {
         responses = UrlFetchApp.fetchAll(requests);
       } catch (e) {
-        pending.forEach(i => { results[i] = { error: true, message: 'NVIDIA 동시 호출 실패: ' + e.message }; });
+        pending.forEach(i => { results[i] = { error: true, message: 'Gemini 동시 호출 실패: ' + e.message }; });
         break;
       }
 
@@ -114,7 +163,7 @@ function analyzeImagesWithOpenAIBatch(items, criteria) {
       rateLimited = false;
       pending.forEach((i, k) => {
         if (responses[k].getResponseCode() === 429) rateLimited = true;
-        const res = _parseOpenAIHttpResponse(responses[k]);
+        const res = _parseAiHttpResponse(responses[k]);
         if (res.error) { results[i] = res; stillPending.push(i); return; }
         const parsed = _extractJsonObject(res.text);
         if (parsed) { results[i] = parsed; return; }
@@ -130,13 +179,13 @@ function analyzeImagesWithOpenAIBatch(items, criteria) {
 // analyzeImageWithOpenAI / analyzeImagesWithOpenAIBatch가 공유하는 Vision 메시지 구성.
 function _buildVisionMessages(imageBlob, criteria, ocrText) {
   const content = [{ type: 'text', text: _buildVisionPromptText(criteria, ocrText) }];
-  content.push({ type: 'image_url', image_url: { url: _blobToDataUri(imageBlob), detail: 'high' } });
+  content.push({ type: 'image_url', image_url: { url: _blobToDataUri(imageBlob) } });
 
   if (criteria.logo && criteria.logo.use && criteria.logo.value) {
     const refBlob = _resolveDriveRefToBlob(criteria.logo.value);
     if (refBlob) {
       content.push({ type: 'text', text: '위 이미지는 검수 대상, 아래 이미지는 기준 로고입니다. 검수 대상 이미지에 기준 로고와 동일하거나 매우 유사한 로고가 있는지 확인하세요.' });
-      content.push({ type: 'image_url', image_url: { url: _blobToDataUri(refBlob), detail: 'high' } });
+      content.push({ type: 'image_url', image_url: { url: _blobToDataUri(refBlob) } });
     }
   }
 
@@ -233,61 +282,6 @@ function _buildVisionPromptText(criteria, ocrText) {
   }
 
   return lines.join('\n');
-}
-
-// UrlFetchApp.fetch(단건)와 fetchAll(배치)이 같은 형태의 요청 옵션을 쓸 수 있게 공유한다
-// (fetchAll은 배열의 각 원소에 url을 포함시켜야 하는데, fetch(url, options)는 options에
-// url이 섞여 있어도 무시하고 첫 인자를 쓰므로 두 경로에 그대로 재사용해도 안전하다).
-function _openAIRequestOptions(apiKey, messages) {
-  return {
-    url: NVIDIA_CHAT_URL,
-    method: 'post',
-    contentType: 'application/json',
-    headers: { Authorization: 'Bearer ' + apiKey },
-    // 문구 추출은 창작이 아니라 낮은 temperature로 고정. enable_thinking:false — 위 상단 주석 참고.
-    payload: JSON.stringify({
-      model: AI_VISION_MODEL,
-      messages: messages,
-      max_tokens: 3000,
-      temperature: 0.1,
-      chat_template_kwargs: { enable_thinking: false }
-    }),
-    muteHttpExceptions: true
-  };
-}
-
-// UrlFetchApp.fetch/fetchAll 둘 다 같은 HTTPResponse 타입을 반환하므로 파싱 로직을 공유한다.
-// { text } 또는 { error:true, message }를 반환한다(JSON 객체 파싱은 호출부의 _extractJsonObject에서).
-function _parseOpenAIHttpResponse(res) {
-  let json;
-  try {
-    json = JSON.parse(res.getContentText());
-  } catch (e) {
-    return { error: true, message: 'NVIDIA 응답 파싱 실패: ' + e.message };
-  }
-  const code = res.getResponseCode();
-  if (code < 200 || code >= 300) {
-    const msg = (json.error && json.error.message) || res.getContentText().slice(0, 300);
-    return { error: true, message: 'NVIDIA API 오류 (HTTP ' + code + '): ' + msg };
-  }
-  const choice = json.choices && json.choices[0];
-  const text = choice && choice.message && choice.message.content;
-  if (!text) {
-    if (choice && choice.finish_reason === 'length') {
-      return { error: true, message: '응답이 비어 있습니다(토큰 한도 초과) — reasoning 토큰 소모로 content 없음' };
-    }
-    return { error: true, message: 'NVIDIA 응답에 content가 없습니다.' };
-  }
-  return { text: text };
-}
-
-function _callOpenAIChat(apiKey, messages) {
-  try {
-    const res = UrlFetchApp.fetch(NVIDIA_CHAT_URL, _openAIRequestOptions(apiKey, messages));
-    return _parseOpenAIHttpResponse(res);
-  } catch (e) {
-    return { error: true, message: 'NVIDIA 호출 실패: ' + e.message };
-  }
 }
 
 function _blobToDataUri(blob) {

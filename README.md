@@ -12,7 +12,7 @@
 ```
 Code.gs                 웹앱 진입점(doGet), 메뉴, 시트 초기화, Drive 업로드 공통 함수, API 키 관리
 InspectionConfig.gs      소재 검수 - 검수기준/검수결과/검수이력 시트 정의, 기준값 읽기
-InspectionVision.gs      소재 검수 - NVIDIA NIM Vision 이미지 분석, ZIP 압축 해제
+InspectionVision.gs      소재 검수 - Gemini(Vertex AI) 이미지 분석, ZIP 압축 해제
 InspectionCompare.gs     소재 검수 - 문자열 정규화/비교/판정, 수정 요청 문구 생성
 InspectionService.gs     소재 검수 - 업로드~검수~결과조회 오케스트레이션, 대량 처리(배치/트리거)
 Index.html               단일 페이지 웹앱 (탭: 소재 등록/분석/보고서/AB테스트/설정관리/소재 검수)
@@ -28,12 +28,15 @@ appsscript.json          매니페스트 (oauthScopes에 spreadsheets/drive/scri
    (또는 `이미지 검수 > 검수 시트 초기화`로 검수 시트만 따로 생성 가능)
 5. 웹앱으로 배포되어 있지 않다면 Apps Script 편집기에서 `배포 > 새 배포 > 웹 앱`으로 배포합니다. (`appsscript.json`에 이미 `webapp.access: ANYONE`, `executeAs: USER_DEPLOYING` 설정되어 있음)
 
-## API 키 설정
+## AI 설정 (Gemini, Vertex AI)
 
-NVIDIA NIM 무료 API 키(`nvapi-...`) 하나를 두 기능이 함께 사용합니다: 소재 분석 탭의 AI 인사이트(`deepseek-ai/deepseek-v4.1-flash`, 실패 시 `nvidia/nemotron-3-super-120b-a12b`)·후속 질문 챗봇(`nvidia/nemotron-3-super-120b-a12b`), 소재 검수 탭의 이미지 분석(`nvidia/nemotron-3-nano-omni-30b-a3b-reasoning`). 모델은 `InspectionVision.gs` 상단 상수에서 바꿉니다.
+소재 분석 탭의 AI 인사이트·후속 질문 챗봇과 소재 검수 탭의 이미지 분석이 모두 Vertex AI의 Gemini(`google/gemini-3.5-flash`, `InspectionVision.gs` 상단 `AI_MODEL`)를 사용합니다. API 키는 없고, 스크립트 실행 계정(웹앱은 배포 계정)의 OAuth 토큰으로 호출합니다.
 
-- **권장**: 대시보드 상단 `⚙️ 설정 관리` 탭 → `🔑 API 키` 서브탭 → `NVIDIA API Key`에 입력. Script Properties에 저장되며 시트에는 절대 남지 않습니다.
-- **대체 경로**: 스프레드시트 메뉴 `이미지 검수 > API 키 설정` (같은 Script Property `NVIDIA_API_KEY`를 사용합니다)
+1. GCP 프로젝트에서 **Vertex AI API**를 사용 설정합니다 (결제 계정 연결 필요).
+2. 배포 계정에 그 프로젝트의 **Vertex AI 사용자**(`roles/aiplatform.user`) 권한을 줍니다.
+3. Apps Script 편집기 `프로젝트 설정 > Google Cloud Platform(GCP) 프로젝트`에서 같은 프로젝트 번호로 변경합니다.
+4. 대시보드 `⚙️ 설정 관리` → `🔑 API 키` → `GCP 프로젝트 ID`에 프로젝트 ID를 입력합니다 (또는 스프레드시트 메뉴 `이미지 검수 > GCP 프로젝트 설정`, Script Property `GCP_PROJECT_ID`).
+5. 편집기에서 아무 함수나 한 번 실행해 새 권한(`cloud-platform`)을 승인합니다.
 
 ## 검수 기준 입력
 
@@ -79,6 +82,6 @@ Apps Script 서버 코드는 브라우저 없이도 편집기에서 개별 함�
 - **OCR 정확도**: 하단 작은 심의필 문구, 손글씨체·저해상도 이미지는 오인식 가능성이 있습니다. 신뢰도 기반 `확인 필요` 처리로 완화하지만 완전히 없앨 수는 없습니다.
 - **로고/폰트 판정**: MVP 수준으로 존재 여부·전반적 유사도만 봅니다. 위치·크기·정밀 비교는 지원하지 않으며, 폰트 판정은 참고용으로만 쓰이고 최종 결과에 반영되지 않습니다.
 - **기타 필수 문구 판정 방식**: confidence가 없는 `allTexts` 목록에 기준 문구가 포함되는지로 판정합니다(포함 매칭). 상품명·심의필처럼 confidence 기반 정밀 판정은 아닙니다.
-- **비용/한도**: NVIDIA 무료 티어라 과금은 없지만 분당 요청 수·동시 요청 수 제한이 있습니다. 혼잡 시 503이 나면 자동 재시도하고, 그래도 실패한 이미지는 오류로 표시됩니다.
+- **비용/한도**: Vertex AI 사용량만큼 GCP 프로젝트에 과금됩니다. 429/5xx가 나면 자동 재시도하고, 그래도 실패한 이미지는 오류로 표시됩니다.
 - **동시 실행**: 이 도구는 한 번에 검수 1건이 진행 중이라고 가정합니다(내부 업무용 규모). 여러 검수를 동시에 진행하면 트리거 처리 로직이 마지막 활성 검수만 이어받습니다.
 - **Drive 업로드 권한**: 웹앱이 `executeAs: USER_DEPLOYING`으로 배포되어 있어, 실제로는 배포한 계정의 Drive/Sheets 권한으로 모든 요청이 처리됩니다(기존 소재 등록 기능과 동일한 방식). 검수이력의 "실행 사용자"도 뷰어가 아니라 배포 계정 기준으로 기록될 수 있습니다.
