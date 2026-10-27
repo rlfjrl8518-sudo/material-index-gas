@@ -3133,10 +3133,6 @@ function renderInspectionCriteriaForm(c) {
       <label class="insp-opt-check"><input type="checkbox" id="insp-opt-ignoreLineBreak" ${opts.ignoreLineBreak ? 'checked' : ''}> 줄바꿈 무시</label>
       <label class="insp-opt-check"><input type="checkbox" id="insp-opt-caseSensitive" ${opts.caseSensitive ? 'checked' : ''}> 영문 대소문자 구분</label>
       <label class="insp-opt-check"><input type="checkbox" id="insp-opt-specialCharStrict" ${opts.specialCharStrict ? 'checked' : ''}> 특수문자 정확히 비교 (심의필 숫자·하이픈은 항상 정확 비교)</label>
-      <label class="insp-opt-num">OCR 신뢰도 기준
-        <input class="form-control" type="number" min="0" max="1" step="0.05" id="insp-opt-ocrConfidence"
-               value="${opts.ocrConfidence != null ? opts.ocrConfidence : 0.7}" style="width:70px">
-      </label>
     </div>
   `;
 
@@ -3162,23 +3158,23 @@ async function saveInspectionCriteriaForm() {
     spacingStrict: document.getElementById('insp-opt-spacingStrict').checked,
     ignoreLineBreak: document.getElementById('insp-opt-ignoreLineBreak').checked,
     caseSensitive: document.getElementById('insp-opt-caseSensitive').checked,
-    specialCharStrict: document.getElementById('insp-opt-specialCharStrict').checked,
-    ocrConfidence: parseFloat(document.getElementById('insp-opt-ocrConfidence').value)
+    specialCharStrict: document.getElementById('insp-opt-specialCharStrict').checked
   };
-  if (isNaN(data.options.ocrConfidence)) data.options.ocrConfidence = 0.7;
 
   btn.disabled = true; spinner.classList.add('show');
   msg.style.color = '#9ca3af'; msg.textContent = '저장 중...';
+  let keepMsg = false;
   try {
     const res = await rpcSaveInspectionCriteria(data);
     if (res.error) { msg.style.color = '#ef4444'; msg.textContent = '❌ ' + res.message; return; }
-    msg.style.color = '#059669'; msg.textContent = '✓ 저장되었습니다.';
+    if (res.warning) { keepMsg = true; msg.style.color = '#d97706'; msg.textContent = '✓ 저장됨 — ⚠ ' + res.warning; }
+    else { msg.style.color = '#059669'; msg.textContent = '✓ 저장되었습니다.'; }
     loadInspectionCriteria();
   } catch (e) {
     msg.style.color = '#ef4444'; msg.textContent = '❌ ' + e.message;
   } finally {
     btn.disabled = false; spinner.classList.remove('show');
-    setTimeout(() => { msg.textContent = ''; }, 4000);
+    if (!keepMsg) setTimeout(() => { msg.textContent = ''; }, 4000);
   }
 }
 

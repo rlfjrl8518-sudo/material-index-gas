@@ -166,8 +166,14 @@ function saveInspectionCriteria(data) {
   sheet.getRange(CRITERIA_ROW.IGNORE_LINEBREAK, 2).setValue(!!opts.ignoreLineBreak);
   sheet.getRange(CRITERIA_ROW.CASE_SENSITIVE, 2).setValue(!!opts.caseSensitive);
   sheet.getRange(CRITERIA_ROW.SPECIAL_CHAR_STRICT, 2).setValue(!!opts.specialCharStrict);
-  const conf = Number(opts.ocrConfidence);
-  sheet.getRange(CRITERIA_ROW.OCR_CONFIDENCE, 2).setValue(isNaN(conf) ? 0.7 : conf);
+  // OCR 신뢰도 기준(16행)은 2026-10-27부터 판정에 쓰지 않는다(모델 자체 confidence가 무의미 —
+  // InspectionVision.gs 상단 메모). 시트 행은 기존 시트 호환을 위해 그대로 두고 값만 건드리지 않는다.
+
+  // 커스텀 지시사항에 기준값을 적으면 검수 시 [기준값]으로 가려서 보낸다 — 담당자가 알 수 있게 경고한다.
+  const leaked = _criteriaValues(data).filter(function (v) { return String(data.customPrompt || '').indexOf(v) !== -1; });
+  if (leaked.length) {
+    return { success: true, warning: '커스텀 지시사항에 기준값(' + leaked.join(', ') + ')이 들어 있습니다. AI가 기준값을 보면 틀린 소재도 일치로 읽는 경향이 있어, 검수 시에는 이 값을 가리고 보냅니다.' };
+  }
 
   return { success: true };
 }

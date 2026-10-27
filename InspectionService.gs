@@ -241,7 +241,7 @@ function _buildResultRow(inspectionId, fileName, imagePublicUrl, analysis, crite
   const extra1Result = _judgeExtraPhrase(criteria.extra1, failed ? null : analysis, opts);
   const extra2Result = _judgeExtraPhrase(criteria.extra2, failed ? null : analysis, opts);
   const extraCombined = _combineExtraResults(extra1Result, extra2Result);
-  const logoResult = judgeLogo(criteria.logo, failed ? null : analysis.logo, opts.ocrConfidence);
+  const logoResult = judgeLogo(criteria.logo, failed ? null : analysis.logo);
   const fontResult = judgeFont(criteria.font, failed ? null : analysis.font);
 
   const finalResult = computeFinalResult([productResult, reviewResult, extraCombined.overall, logoResult]);
@@ -278,21 +278,25 @@ function _buildResultRow(inspectionId, fileName, imagePublicUrl, analysis, crite
   return { row: row, finalResult: finalResult };
 }
 
-// 기타 필수 문구는 개별 confidence가 없어 allTexts 전체 목록에 포함되는지로 판정한다
+// 기타 필수 문구는 판독별 allTexts 목록에 포함되는지로 판정한다.
+// 모든 판독에서 찾으면 일치, 모든 판독에서 못 찾으면 불일치, 판독마다 다르면 확인 필요.
 function _judgeExtraPhrase(extraCriteria, analysis, opts) {
   if (!extraCriteria || !extraCriteria.use) return null;
   if (!analysis || analysis.error) return { result: '확인 필요', recognizedText: '', reason: 'API 응답 실패' };
 
   const allTexts = Array.isArray(analysis.allTexts) ? analysis.allTexts : [];
-  if (allTexts.length === 0) return { result: '확인 필요', recognizedText: '', reason: '문구 인식 실패' };
+  const reads = Array.isArray(analysis.allTextsReads) && analysis.allTextsReads.length ? analysis.allTextsReads : [allTexts];
+  if (reads.every(function (r) { return r.length === 0; })) return { result: '확인 필요', recognizedText: '', reason: '문구 인식 실패' };
 
   const normBase = normalizeText(extraCriteria.value, opts, false);
   if (!normBase) return { result: '확인 필요', recognizedText: '', reason: '기준값 없음' };
 
-  const found = allTexts.some(function (t) { return normalizeText(t, opts, false).indexOf(normBase) !== -1; });
-  return found
-    ? { result: '일치', recognizedText: extraCriteria.value }
-    : { result: '불일치', recognizedText: allTexts.join(' / ').slice(0, 200) };
+  const founds = reads.map(function (texts) {
+    return texts.some(function (t) { return normalizeText(t, opts, false).indexOf(normBase) !== -1; });
+  });
+  if (founds.every(Boolean)) return { result: '일치', recognizedText: extraCriteria.value };
+  if (founds.some(Boolean)) return { result: '확인 필요', recognizedText: allTexts.join(' / ').slice(0, 200), reason: '판독 결과 상이' };
+  return { result: '불일치', recognizedText: allTexts.join(' / ').slice(0, 200) };
 }
 
 function _combineExtraResults(r1, r2) {

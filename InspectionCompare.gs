@@ -90,23 +90,21 @@ function judgeField(baseValue, useFlag, recognizedObj, options, isReviewNumber) 
   }
 
   const text = (recognizedObj.text || '').trim();
-  const confidence = Number(recognizedObj.confidence);
+  // reads: 같은 이미지를 독립적으로 판독한 결과들(InspectionVision.gs _mergeVisionReads).
+  // 모델의 자체 confidence는 틀린 답에도 0.9대라 쓰지 않고, 판독 간 합의와 '?'(판독 불가 글자)로 거른다.
+  const reads = Array.isArray(recognizedObj.reads) && recognizedObj.reads.length ? recognizedObj.reads : [text];
 
-  if (!text) {
+  if (reads.every(function (r) { return !r; })) {
     return { result: '불일치', recognizedText: '', diff: diffText(baseValue, ''), reason: '문구 없음' };
   }
 
-  if (!isNaN(confidence) && confidence < options.ocrConfidence) {
-    return { result: '확인 필요', recognizedText: text, diff: diffText(baseValue, text), reason: '낮은 OCR 신뢰도' };
+  if (reads.some(function (r) { return /[?？]/.test(r); })) {
+    return { result: '확인 필요', recognizedText: text, diff: diffText(baseValue, text), reason: '판독 불가 글자 포함' };
   }
 
-  // Drive OCR과 Vision 단독 판독이 서로 다른 경우(=Vision이 OCR에 없는 문구를 이미지에서
-  // 직접 읽어낸 경우) 둘 중 하나만 믿고 자동으로 일치/불일치를 확정하지 않고 확인 필요로
-  // 낮춘다. Vision이 OCR 제약 없이 이미지를 직접 읽도록 완화한 대신 마련한 2차 안전장치 —
-  // 화려한 배경/장식 폰트에서 OCR이 문구를 통째로 놓쳐 생기던 오탐(false 불일치/확인필요)은
-  // 줄이면서, Vision 단독 판독의 환각 위험은 사람 확인으로 돌려 그대로 가둔다.
-  if (recognizedObj.ocrConfirmed === false) {
-    return { result: '확인 필요', recognizedText: text, diff: diffText(baseValue, text), reason: 'OCR 미대조 - 육안 확인 필요' };
+  const normReads = reads.map(function (r) { return normalizeText(r, options, isReviewNumber); });
+  if (normReads.some(function (r) { return r !== normReads[0]; })) {
+    return { result: '확인 필요', recognizedText: reads.join(' / '), diff: '', reason: '판독 결과 상이' };
   }
 
   const normBase = normalizeText(baseValue, options, isReviewNumber);
@@ -121,18 +119,14 @@ function judgeField(baseValue, useFlag, recognizedObj, options, isReviewNumber) 
 // --------------------------------------------------
 // 로고 판정 — 존재 여부 + 기준 로고와의 유사 여부만 확인 (MVP)
 // --------------------------------------------------
-function judgeLogo(logoCriteria, recognizedLogo, ocrConfidence) {
+function judgeLogo(logoCriteria, recognizedLogo) {
   if (!logoCriteria || !logoCriteria.use) return null;
 
   if (!recognizedLogo || recognizedLogo.error) {
     return { result: '확인 필요', detail: 'API 응답 실패' };
   }
-  const confidence = Number(recognizedLogo.confidence);
   const detail = recognizedLogo.description || '';
-
-  if (!isNaN(confidence) && confidence < ocrConfidence) {
-    return { result: '확인 필요', detail: detail };
-  }
+  // detected는 판독 간 결과가 다르면 null로 들어온다(_mergeVisionReads) → 확인 필요
   if (recognizedLogo.detected === true) return { result: '일치', detail: detail };
   if (recognizedLogo.detected === false) return { result: '불일치', detail: detail || '로고가 확인되지 않음' };
   return { result: '확인 필요', detail: detail };
