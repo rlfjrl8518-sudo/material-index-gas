@@ -2,7 +2,7 @@
 // 소재 인덱싱 시스템 - Code.gs
 // ====================================================
 
-const SHEET_ID                    = '1S74kKyOO3ATqk12nmQR860VT5ms8s5FS33T3gF5kd7I';
+const SHEET_ID                    = '19hqtPbbHtoPeVmxqANHisqBp1ZeN4AUKR12HS5F6Y20';
 const MASTER_SHEET_NAME           = '전매체 인덱스';
 const SETTINGS_SHEET_NAME         = '설정';
 const HIERARCHY_SHEET_NAME        = '매체 구조';
