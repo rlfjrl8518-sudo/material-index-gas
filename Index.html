@@ -1248,18 +1248,6 @@
   .az-conf { font-size: 11px; padding: 2px 7px; border-radius: 10px; background: rgba(148,163,184,.18); color: var(--az-t3, #475569); white-space: nowrap; }
   .az-conf.good { background: #d1fae5; color: #065f46; }
   .az-conf.bad { background: #fee2e2; color: #991b1b; }
-  .az-attr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
-  .az-attr-title { font-size: 12px; font-weight: 700; color: var(--az-t1); margin-bottom: 6px; }
-  .az-attr-row { display: grid; grid-template-columns: 110px 1fr 70px; gap: 8px; align-items: center; font-size: 12px; padding: 3px 0; color: var(--az-t2); }
-  .az-attr-row.muted { opacity: .5; }
-  .az-attr-row .v { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .az-attr-row .bar { position: relative; height: 10px; background: linear-gradient(90deg, transparent calc(50% - .5px), rgba(148,163,184,.6) calc(50% - .5px), rgba(148,163,184,.6) calc(50% + .5px), transparent calc(50% + .5px)); }
-  .az-attr-row .bar i { position: absolute; top: 0; height: 10px; border-radius: 2px; }
-  .az-attr-row .bar i.g { background: #10b981; }
-  .az-attr-row .bar i.b { background: #f87171; }
-  .az-attr-row .n { text-align: right; font-weight: 600; }
-  .az-attr-row .n.g { color: #059669; }
-  .az-attr-row .n.b { color: #dc2626; }
   .az-info-icon {
     display: inline-flex; align-items: center; justify-content: center;
     width: 15px; height: 15px; border-radius: 50%; background: var(--az-bd2); color: var(--az-t1);
@@ -2381,18 +2369,6 @@
       <!-- ============ 차원별 분석 ============ -->
       <div class="az-sub-panel" id="az-sub-dims">
 
-        <div class="az-section" style="margin-bottom:24px">
-          <div class="az-section-header">
-            <span>속성 비교 <span style="font-weight:400;color:var(--az-t4);font-size:11px">매체·보종 구성 차이를 걸러낸 효과 · ★ = 통계적으로 유의(95%)</span>
-              <span class="az-info-icon" onmouseenter="azInfoShow(this,event,'attr')" onmousemove="azInfoMove(event)" onmouseleave="azInfoHide()">!</span></span>
-            <div class="az-metric-tabs">
-              <button class="az-metric-tab active" onclick="switchAttrMetric('ctr',this)">CTR</button>
-              <button class="az-metric-tab" onclick="switchAttrMetric('cvr',this)">CVR</button>
-              <button class="az-metric-tab" onclick="switchAttrMetric('cpa',this)">CPA</button>
-            </div>
-          </div>
-          <div class="az-section-body"><div id="az-attr-body" class="az-attr-grid"></div></div>
-        </div>
 
         <div class="az-two-col">
 
@@ -2628,7 +2604,7 @@
           </div>
         </div>
         <div class="az-section" style="margin-bottom:40px">
-          <div class="az-section-header"><span>🎯 다음 소재 제작 브리프 <span style="font-weight:400;color:var(--az-t4);font-size:11px">속성 비교 · 조합별 성과 · 안 해본 조합 · 피로도 소재를 근거로 제작안을 만듭니다</span></span></div>
+          <div class="az-section-header"><span>🎯 다음 소재 제작 브리프 <span style="font-weight:400;color:var(--az-t4);font-size:11px">속성별 효과 · 조합별 성과 · 안 해본 조합 · 피로도 소재를 근거로 제작안을 만듭니다</span></span></div>
           <div class="az-section-body">
             <button id="az-brief-btn" class="az-insight-btn" onclick="runCreativeBrief()">🎯 브리프 생성</button>
             <div id="az-brief-panel" class="az-insight-panel"><div style="color:#334155;font-size:13px">현재 필터 기준으로 다음에 만들 소재 3~5안과 근거, 테스트 설계를 작성합니다.</div></div>
@@ -6651,7 +6627,6 @@ function updateDashboard() {
   renderCreativeTrend(rows);
   renderPareto(rows);
   renderThresholdAlerts(rows);
-  renderAttribution(rows);
   // 안전망: updateDashboard()를 부르는 경로(필터 변경, 탭 재진입, 데이터 새로고침 등)가
   // 앞으로 늘어나도 "컨테이너가 숨겨진 동안 그려서 캔버스 크기가 0으로 굳는" 문제가
   // 개별 호출부마다 따로 리사이즈를 챙겨야 재발하지 않는 구조였다(2026-09-07,
@@ -7627,13 +7602,6 @@ function azPreviewHide() {
 
 // ── 섹션 설명 호버 툴팁 (❗ 아이콘) ───────────────────────
 const AZ_INFO_TEXT = {
-  attr:
-    '<div class="az-info-title">속성 비교란?</div>' +
-    '매체·보종마다 기본 성과가 크게 다릅니다(예: 피맥스는 원래 CTR이 높음). 그래서 단순 평균을 비교하면 ' +
-    '"어떤 속성이 좋았나"가 아니라 "어느 매체에 많이 썼나"가 드러납니다.<br><br>' +
-    '여기서는 각 행을 <b>같은 매체×보종의 평균</b>과 비교해, 그 차이만 모아 속성의 효과로 보여줍니다.<br><br>' +
-    '<b>+20%</b> = 같은 매체·보종에서 기대되는 수준보다 20% 좋음(CPA는 20% 저렴). ' +
-    '<b>★</b>는 소재마다의 편차를 감안해도 우연으로 보기 어려운(95% 유의) 차이입니다 — 소재 몇 개가 끌어올린 결과면 ★가 붙지 않습니다. 모델 성별·연령대는 모델유형 조합을 나눠서 따로 봅니다.',
   pareto:
     '<div class="az-info-title">예산 쏠림 파레토 분석이란?</div>' +
     '소재별 <b>비용을 큰 순서로 정렬</b>해 상위 15개의 개별 비용 비중(막대)과 누적 비중(꺾은선)을 보여줍니다.<br><br>' +
@@ -11130,7 +11098,6 @@ const AZ_ATTR_DIMS = [
   { label: '모델 성별', vals: r => Array.from(new Set(azColValues(r, AZ.MODELTYPE).map(azModelGender))) },
   { label: '모델 연령대', vals: r => Array.from(new Set(azColValues(r, AZ.MODELTYPE).map(azModelAge))) }
 ];
-let azAttrMetric = 'ctr';
 
 // 속성값별 '매체·보종 구성이 같았다면 기대되는 성과' 대비 실제 성과.
 // 매체·보종마다 기본 CTR/CVR/CPA가 크게 다르므로(예: 피맥스는 CTR이 원래 높음), 단순 평균 비교는 '어느 매체에
@@ -11181,36 +11148,6 @@ function azAttribution(rows) {
     });
     return { label: dim.label, items };
   });
-}
-
-function renderAttribution(rows) {
-  const box = document.getElementById('az-attr-body');
-  if (!box) return;
-  const m = azAttrMetric;
-  const goodDir = m === 'cpa' ? -1 : 1;
-  const data = azAttribution(rows);
-  box.innerHTML = data.map(d => {
-    const items = d.items.slice().sort((a, b) => (b[m].enough - a[m].enough) || (goodDir * ((b[m].lift ?? -9) - (a[m].lift ?? -9))));
-    const maxAbs = Math.max(0.05, ...items.filter(x => x[m].enough && x[m].lift != null).map(x => Math.abs(x[m].lift)));
-    return `<div class="az-attr-block"><div class="az-attr-title">${esc(d.label)}</div>` + items.map(x => {
-      const s = x[m];
-      if (!s.enough || s.lift == null) return `<div class="az-attr-row muted" title="소재 ${x.creatives}개 — 소재 3개 이상·충분한 노출/전환이 있어야 판단합니다"><span class="v">${esc(x.value)}</span><span class="bar"></span><span class="n">표본 부족</span></div>`;
-      const good = goodDir * s.lift > 0, sig = Math.abs(s.z) >= 1.96;
-      const w = Math.min(50, Math.abs(s.lift) / maxAbs * 50);
-      const pct = (s.lift > 0 ? '+' : '') + Math.round(s.lift * 100) + '%';
-      const base = (m === 'ctr' ? `노출 ${azFmt(x.imp)}` : m === 'cvr' ? `클릭 ${azFmt(x.clk)}` : `전환 ${azFmt(x.conv)} · 비용 ${azWon(x.cost)}`) + ` · 소재 ${x.creatives}개`;
-      return `<div class="az-attr-row" title="${esc(base)} · ${sig ? '통계적으로 유의(95%)' : '우연일 가능성 있음'}">
-        <span class="v">${esc(x.value)}</span>
-        <span class="bar"><i class="${good ? 'g' : 'b'}" style="${s.lift > 0 ? 'left:50%' : 'right:50%'};width:${w}%"></i></span>
-        <span class="n ${good ? 'g' : 'b'}">${pct}${sig ? ' ★' : ''}</span></div>`;
-    }).join('') + '</div>';
-  }).join('');
-}
-
-function switchAttrMetric(metric, btn) {
-  azAttrMetric = metric;
-  btn.closest('.az-metric-tabs').querySelectorAll('.az-metric-tab').forEach(b => b.classList.toggle('active', b === btn));
-  renderAttribution(getFilteredRows());
 }
 
 // --- 다음 소재 제작 브리프 ------------------------------------------------
