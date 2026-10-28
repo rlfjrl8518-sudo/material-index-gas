@@ -1472,7 +1472,8 @@ function getMasterData() {
 // API 키 관리 (스크립트 속성)
 // --------------------------------------------------
 const MANAGED_API_KEYS = [
-  { id: 'GCP_PROJECT_ID', label: 'GCP 프로젝트 ID', description: 'Gemini(Vertex AI) 호출 프로젝트 — AI 인사이트 분석 (소재 분석 탭) · 소재 검수 이미지 분석 (소재 검수 탭)' }
+  { id: 'GCP_PROJECT_ID', label: 'GCP 프로젝트 ID', description: 'Gemini(Vertex AI) 호출 프로젝트 — AI 인사이트 분석 (소재 분석 탭) · 소재 검수 이미지 분석 (소재 검수 탭)' },
+  { id: 'DIGEST_WEBHOOK_URL', label: '아침 요약 웹훅 URL', description: 'Slack 또는 Google Chat 수신 웹훅 — 매일 08시 오늘 할 일(심의 만료·피로도·성과 상하위·미등록 소재)을 보냅니다' }
 ];
 
 function getApiKeys() {

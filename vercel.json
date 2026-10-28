@@ -1,8 +1,24 @@
 {
-  "regions": ["icn1"],
+  "regions": [
+    "icn1"
+  ],
   "outputDirectory": "public",
   "functions": {
-    "api/*.js": { "maxDuration": 300, "includeFiles": "{*.gs,Index.html,lib/**,node_modules/fflate/**}" }
+    "api/*.js": {
+      "maxDuration": 300,
+      "includeFiles": "{*.gs,Index.html,lib/**,node_modules/fflate/**}"
+    }
   },
-  "rewrites": [{ "source": "/", "destination": "/api/index" }]
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/api/index"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron",
+      "schedule": "0 23 * * *"
+    }
+  ]
 }
