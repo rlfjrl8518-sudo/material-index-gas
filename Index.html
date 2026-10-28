@@ -2023,6 +2023,16 @@
           (시트에서 직접 열어 수정해도 동일하게 적용됩니다 — 상단 메뉴 [이미지 검수 &gt; 검수 기준 시트 열기])<br>
           API 키는 <b>설정 관리 &gt; API 키</b> 탭에서 GCP 프로젝트 ID로 등록하세요 (Gemini, Vertex AI).
         </p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px;padding:10px;background:#f9fafb;border:1px solid #f3f4f6;border-radius:8px">
+          <span style="font-size:12px;font-weight:600;color:#374151">기준 세트</span>
+          <select class="form-control" id="inspSetSel" style="max-width:260px;padding:5px 8px;font-size:12px"><option value="">불러오는 중...</option></select>
+          <button class="btn btn-secondary btn-sm" onclick="inspApplySet()">적용</button>
+          <button class="btn btn-ghost btn-sm" onclick="inspDeleteSet()">삭제</button>
+          <span style="flex:1"></span>
+          <input class="form-control" id="inspSetName" placeholder="새 세트 이름 (예: 간병인플랜 10월)" style="max-width:220px;padding:5px 8px;font-size:12px">
+          <select class="form-control" id="inspSetBojong" style="max-width:150px;padding:5px 8px;font-size:12px" onfocus="inspFillSetBojong()"><option value="">보종(선택)</option></select>
+          <button class="btn btn-secondary btn-sm" onclick="inspSaveSet()">현재 기준을 세트로 저장</button>
+        </div>
         <div id="inspCriteriaForm" class="insp-criteria-form">
           <div class="insp-criteria-item off">로딩 중...</div>
         </div>
@@ -3192,6 +3202,7 @@ window._inspLastRows = [];
 window._inspPollTimer = null;
 
 function onInspectionTabActivate() {
+  inspLoadSets();
   loadInspectionCriteria();
   loadInspectionHistory();
   if (window._inspCurrentId) loadInspectionResults(window._inspCurrentId);
@@ -3450,7 +3461,7 @@ function renderInspectionResults(rows) {
 
   document.getElementById('inspResultTbody').innerHTML = rows.map((r, i) => `
     <tr>
-      <td>${r['이미지 링크'] ? `<img class="insp-thumb" data-file-id="${escHtml(_inspFileId(r['이미지 링크']))}" src="" loading="lazy">` : ''}</td>
+      <td>${r['이미지 링크'] ? `<img class="insp-thumb" data-file-id="${escHtml(_inspFileId(r['이미지 링크']))}" src="" loading="lazy" style="cursor:zoom-in" title="클릭하면 문구 위치를 표시해 크게 봅니다" onclick="inspOpenViewer(${i})">` : ''}</td>
       <td>${escHtml(r['파일명'])}</td>
       <td>${inspBadge(r['상품명 결과'])}${r['상품명 차이'] ? `<div class="insp-diff-text">${escHtml(r['상품명 차이'])}</div>` : ''}</td>
       <td>${inspBadge(r['심의필 결과'])}${r['심의필 차이'] ? `<div class="insp-diff-text">${escHtml(r['심의필 차이'])}</div>` : ''}</td>
@@ -11253,6 +11264,101 @@ async function runCreativeBrief() {
   } finally {
     btn.disabled = false;
   }
+}
+
+
+// ════════════════════════════════════════════════════════════
+// 검수 기준 세트(보종별 저장/불러오기) + 결과 이미지에 문구 위치 표시
+// ════════════════════════════════════════════════════════════
+async function inspLoadSets() {
+  const sel = document.getElementById('inspSetSel');
+  if (!sel) return;
+  try {
+    const sets = await gasRun('listInspectionCriteriaSets');
+    sel.innerHTML = '<option value="">기준 세트 선택</option>' + sets.map(s =>
+      `<option value="${escHtml(s.name)}">${escHtml(s.name)}${s.보종 ? ' · ' + escHtml(s.보종) : ''}${s.updated ? ' (' + escHtml(s.updated) + ')' : ''}</option>`).join('');
+  } catch (e) { sel.innerHTML = '<option value="">세트 불러오기 실패</option>'; }
+}
+
+async function inspApplySet() {
+  const name = document.getElementById('inspSetSel').value;
+  const msg = document.getElementById('inspCriteriaSaveMsg');
+  if (!name) { msg.style.color = '#ef4444'; msg.textContent = '적용할 세트를 고르세요.'; return; }
+  msg.style.color = '#9ca3af'; msg.textContent = '세트 적용 중...';
+  try {
+    const c = await gasRun('applyInspectionCriteriaSet', name);
+    if (c.error) throw new Error(c.message);
+    renderInspectionCriteriaForm(c);
+    msg.style.color = '#059669'; msg.textContent = `✓ '${name}' 기준을 적용했습니다. 이후 검수에 이 기준이 쓰입니다.`;
+  } catch (e) { msg.style.color = '#ef4444'; msg.textContent = '❌ ' + (e.message || e); }
+}
+
+async function inspSaveSet() {
+  const name = document.getElementById('inspSetName').value.trim();
+  const bojong = document.getElementById('inspSetBojong').value;
+  const msg = document.getElementById('inspCriteriaSaveMsg');
+  if (!name) { msg.style.color = '#ef4444'; msg.textContent = '세트 이름을 입력하세요.'; return; }
+  msg.style.color = '#9ca3af'; msg.textContent = '먼저 현재 입력값을 기준으로 저장한 뒤 세트로 보관합니다...';
+  await saveInspectionCriteriaForm();
+  try {
+    const r = await gasRun('saveInspectionCriteriaSet', name, bojong);
+    if (r.error) throw new Error(r.message);
+    msg.style.color = '#059669'; msg.textContent = `✓ '${name}' 세트로 저장했습니다.`;
+    document.getElementById('inspSetName').value = '';
+    await inspLoadSets();
+    document.getElementById('inspSetSel').value = name;
+  } catch (e) { msg.style.color = '#ef4444'; msg.textContent = '❌ ' + (e.message || e); }
+}
+
+async function inspDeleteSet() {
+  const name = document.getElementById('inspSetSel').value;
+  if (!name || !confirm(`'${name}' 세트를 삭제할까요? (현재 검수 기준은 그대로 유지됩니다)`)) return;
+  await gasRun('deleteInspectionCriteriaSet', name);
+  inspLoadSets();
+}
+
+function inspFillSetBojong() {
+  const sel = document.getElementById('inspSetBojong');
+  if (!sel || sel.options.length > 1) return;
+  ((typeof settings !== 'undefined' && settings && settings['보종']) || []).forEach(v => {
+    const o = document.createElement('option'); o.value = v; o.textContent = v; sel.appendChild(o);
+  });
+}
+
+// --- 결과 이미지 + 문구 위치 ---
+const INSP_BOX_COLOR = { '일치': '#10b981', '불일치': '#ef4444', '확인 필요': '#f59e0b' };
+
+async function inspOpenViewer(i) {
+  const r = (window._inspLastRows || [])[i];
+  if (!r) return;
+  let boxes = {};
+  try { boxes = r['문구 위치'] ? JSON.parse(r['문구 위치']) : {}; } catch (e) {}
+  let ov = document.getElementById('inspViewer');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'inspViewer';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.72);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+    ov.onclick = e => { if (e.target === ov) ov.remove(); };
+    document.body.appendChild(ov);
+  }
+  const legend = [['상품명', r['상품명 결과'], r['상품명 인식값']], ['심의필', r['심의필 결과'], r['심의필 인식값']]]
+    .filter(x => x[1] && x[1] !== '-')
+    .map(([k, res, txt]) => `<div style="display:flex;gap:6px;align-items:flex-start;margin-top:6px"><span style="flex:0 0 12px;height:12px;margin-top:3px;border:3px solid ${INSP_BOX_COLOR[res] || '#94a3b8'}"></span><span><b>${k}</b> ${escHtml(res)}${boxes[k] ? '' : ' (위치 정보 없음)'}<br><span style="color:#64748b">${escHtml(txt || '')}</span></span></div>`).join('');
+  ov.innerHTML = `<div style="background:#fff;border-radius:10px;max-width:min(980px,96vw);max-height:94vh;overflow:auto;padding:14px;display:flex;gap:14px;flex-wrap:wrap">
+      <div id="inspViewerImg" style="position:relative;display:inline-block;max-width:min(640px,90vw)"><div style="padding:60px;color:#94a3b8">이미지 불러오는 중...</div></div>
+      <div style="flex:1;min-width:220px;font-size:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:13px">${escHtml(r['파일명'])}</b><button class="btn btn-ghost btn-sm" onclick="document.getElementById('inspViewer').remove()">닫기</button></div>
+        <div style="margin-top:6px">최종: ${inspBadge(r['최종 결과'])}</div>
+        ${legend}
+        ${r['수정 요청 내용'] ? `<div class="insp-revision-box" style="margin-top:10px">${escHtml(r['수정 요청 내용'])}</div>` : ''}
+      </div>
+    </div>`;
+  const uri = await gasRun('getImageDataUri', _inspFileId(r['이미지 링크'])).catch(() => null);
+  const box = document.getElementById('inspViewerImg');
+  if (!box) return;
+  if (!uri) { box.innerHTML = '<div style="padding:60px;color:#ef4444">이미지를 불러오지 못했습니다</div>'; return; }
+  const rect = (b, res) => b ? `<div style="position:absolute;top:${b[0] / 10}%;left:${b[1] / 10}%;height:${(b[2] - b[0]) / 10}%;width:${(b[3] - b[1]) / 10}%;border:3px solid ${INSP_BOX_COLOR[res] || '#94a3b8'};border-radius:3px;box-shadow:0 0 0 1px #fff"></div>` : '';
+  box.innerHTML = `<img src="${uri}" style="display:block;max-width:100%;max-height:86vh">` + rect(boxes['상품명'], r['상품명 결과']) + rect(boxes['심의필'], r['심의필 결과']);
 }
 
 </script>

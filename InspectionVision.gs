@@ -88,11 +88,14 @@ const IMAGE_EXT_MIME = {
   jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp'
 };
 
+// 문구가 있는 영역 [ymin, xmin, ymax, xmax] (0~1000 정규화, Gemini 기본 좌표 규약) — 결과 화면에서 틀린 위치를 표시하는 데만 쓰고 판정에는 쓰지 않는다
+const VISION_BOX_SCHEMA = { type: 'ARRAY', items: { type: 'INTEGER' } };
+
 const VISION_RESPONSE_SCHEMA = {
   type: 'OBJECT',
   properties: {
-    productText: { type: 'OBJECT', properties: { text: { type: 'STRING' } }, required: ['text'] },
-    reviewText: { type: 'OBJECT', properties: { text: { type: 'STRING' } }, required: ['text'] },
+    productText: { type: 'OBJECT', properties: { text: { type: 'STRING' }, box: VISION_BOX_SCHEMA }, required: ['text'] },
+    reviewText: { type: 'OBJECT', properties: { text: { type: 'STRING' }, box: VISION_BOX_SCHEMA }, required: ['text'] },
     allTexts: { type: 'ARRAY', items: { type: 'STRING' } },
     logo: { type: 'OBJECT', properties: { detected: { type: 'BOOLEAN', nullable: true }, description: { type: 'STRING' } }, required: ['detected', 'description'] },
     font: { type: 'OBJECT', properties: { matched: { type: 'BOOLEAN', nullable: true }, description: { type: 'STRING' } }, required: ['matched', 'description'] }
@@ -235,11 +238,16 @@ function _mergeVisionReads(rs) {
   return {
     productText: { text: texts('productText')[0], reads: texts('productText') },
     reviewText: { text: texts('reviewText')[0], reads: texts('reviewText') },
+    boxes: { 상품명: _validBox(rs[0].productText && rs[0].productText.box), 심의필: _validBox(rs[0].reviewText && rs[0].reviewText.box) },
     allTexts: Array.isArray(rs[0].allTexts) ? rs[0].allTexts : [],
     allTextsReads: rs.map(r => Array.isArray(r.allTexts) ? r.allTexts : []),
     logo: { detected: logoDetected, description: (logos[0].description || '') + (logoDetected === null ? ' (2회 판독 결과 상이)' : '') },
     font: rs[0].font || {}
   };
+}
+
+function _validBox(b) {
+  return Array.isArray(b) && b.length === 4 && b.every(function (n) { return typeof n === 'number' && n >= 0 && n <= 1000; }) && b[2] > b[0] && b[3] > b[1] ? b : null;
 }
 
 function _buildVisionParts(imageBlob, logoBlob, criteria) {
@@ -280,6 +288,7 @@ function _buildVisionPromptText(criteria) {
   } else {
     lines.push('- font: matched는 null, description은 빈 문자열');
   }
+  lines.push('- productText.box / reviewText.box: 그 문구가 있는 영역을 [ymin, xmin, ymax, xmax] (이미지 크기를 0~1000으로 정규화)로. 문구가 없으면 빈 배열');
   lines.push('글자가 전혀 없는 항목은 빈 문자열로 답하라.');
 
   const custom = _redactCriteriaValues(criteria.customPrompt, criteria);

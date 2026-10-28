@@ -156,6 +156,11 @@ function _recentInspectionIssues() {
 // 대시보드 '오늘 할 일' 카드 + 아침 요약이 같이 쓰는 데이터
 // --------------------------------------------------
 function getActionItems() {
+  const ss = getSpreadsheet();
+  if (ss._prefetch) {
+    ss._prefetch(ss.getSheets().map(s => s.getName()).filter(n => n.indexOf('RAW_') === 0)
+      .concat([CONSOLIDATED_RAW_SHEET_NAME, MASTER_SHEET_NAME, DGPM_SHEET_NAME, INSPECTION_HISTORY_SHEET]));
+  }
   const daily = _loadCreativeDaily();
   const queue = getRegistrationQueue();
   const wl = _findWinnersLosers(daily);

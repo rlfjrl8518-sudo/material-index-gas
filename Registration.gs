@@ -14,11 +14,13 @@ const QUEUE_LOOKBACK_DAYS = 60;    // 대기열은 최근 이 기간에 집행�
 // --------------------------------------------------
 function getRegistrationQueue() {
   const ss = getSpreadsheet();
+  const rawSheets = ss.getSheets().filter(s => s.getName().indexOf('RAW_') === 0);
+  if (ss._prefetch) ss._prefetch(rawSheets.map(s => s.getName()).concat([MASTER_SHEET_NAME, DGPM_SHEET_NAME]));
   const registered = _registeredCreativeKeys(ss);
   const cutoff = new Date(Date.now() - QUEUE_LOOKBACK_DAYS * 864e5);
   const byKey = {};
 
-  ss.getSheets().filter(s => s.getName().indexOf('RAW_') === 0).forEach(sheet => {
+  rawSheets.forEach(sheet => {
     const last = sheet.getLastRow();
     if (last < 2) return;
     sheet.getRange(2, 1, last - 1, CONSOLIDATED_RAW_HEADERS.length).getValues().forEach(r => {

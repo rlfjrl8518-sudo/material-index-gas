@@ -121,6 +121,7 @@ function _processInspectionBatch(inspectionId) {
 
     const pending = _listPendingImages(folder, processedNames, INSPECTION_BATCH_SIZE);
     const resultSheet = getSpreadsheet().getSheetByName(INSPECTION_RESULT_SHEET);
+    _ensureResultHeaders(resultSheet);
     const criteria = state.criteria || getInspectionCriteria();
 
     // pending 최대 20장을 한 번에 분석(Gemini Vision 호출은 fetchAll로 동시 발사)하고,
@@ -221,7 +222,7 @@ function _analyzeAndBuildRows(inspectionId, items, criteria) {
         row: [
           inspectionId, new Date(), it.fileName, it.imagePublicUrl || '',
           '-', '', '', '-', '', '', '-', '', '-', '', '-', '',
-          '확인 필요', '처리 중 오류로 확인 필요 처리됨: ' + e.message
+          '확인 필요', '처리 중 오류로 확인 필요 처리됨: ' + e.message, ''
         ],
         finalResult: '확인 필요'
       };
@@ -272,7 +273,8 @@ function _buildResultRow(inspectionId, fileName, imagePublicUrl, analysis, crite
     extraCombined.resultLabel, extraCombined.detail,
     logoResult ? logoResult.result : '-', logoResult ? logoResult.detail : '',
     fontResult ? fontResult.result : '-', fontResult ? fontResult.detail : '',
-    finalResult, revisionMessage
+    finalResult, revisionMessage,
+    failed || !analysis.boxes ? '' : JSON.stringify(analysis.boxes)
   ];
 
   return { row: row, finalResult: finalResult };
@@ -403,6 +405,7 @@ function retryFailedImages(inspectionId) {
   if (!criteria.apiKeyConfigured) return { error: true, message: 'API 키가 설정되지 않았습니다.' };
 
   const sheet = getSpreadsheet().getSheetByName(INSPECTION_RESULT_SHEET);
+  _ensureResultHeaders(sheet);
   const results = getInspectionResults(inspectionId);
   const targets = results
     .filter(function (r) { return r['최종 결과'] === '확인 필요'; })

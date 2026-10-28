@@ -14,8 +14,15 @@ const INSPECTION_RESULT_HEADERS = [
   '기타 문구 결과', '기타 문구 상세',
   '로고 결과', '로고 상세',
   '폰트 결과', '폰트 상세',
-  '최종 결과', '수정 요청 내용'
+  '최종 결과', '수정 요청 내용', '문구 위치'
 ];
+
+// 기존 검수결과 시트(열 18개)에 새로 추가된 열 머리글을 채운다
+function _ensureResultHeaders(sheet) {
+  if (sheet.getLastColumn() < INSPECTION_RESULT_HEADERS.length) {
+    sheet.getRange(1, 1, 1, INSPECTION_RESULT_HEADERS.length).setValues([INSPECTION_RESULT_HEADERS]).setFontWeight('bold');
+  }
+}
 
 const INSPECTION_HISTORY_HEADERS = [
   '검수번호', '실행일시', '업로드 파일 수', '정상 수', '불일치 수', '확인 필요 수', '실행 사용자', '상태'
@@ -175,6 +182,65 @@ function saveInspectionCriteria(data) {
     return { success: true, warning: '커스텀 지시사항에 기준값(' + leaked.join(', ') + ')이 들어 있습니다. AI가 기준값을 보면 틀린 소재도 일치로 읽는 경향이 있어, 검수 시에는 이 값을 가리고 보냅니다.' };
   }
 
+  return { success: true };
+}
+
+// --------------------------------------------------
+// 검수 기준 세트 — 상품(보종)마다 기준이 달라 매번 시트를 고쳐 쓰던 것을 세트로 저장해 두고 불러온다.
+// 검수기준세트 시트: 세트명 | 보종 | 기준JSON | 최근수정일시
+// --------------------------------------------------
+const INSPECTION_SET_SHEET = '검수기준세트';
+
+function _inspectionSetSheet() {
+  const ss = getSpreadsheet();
+  let sheet = ss.getSheetByName(INSPECTION_SET_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(INSPECTION_SET_SHEET);
+    sheet.getRange(1, 1, 1, 4).setValues([['세트명', '보종', '기준JSON', '최근수정일시']]).setFontWeight('bold');
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function listInspectionCriteriaSets() {
+  const sheet = _inspectionSetSheet();
+  if (sheet.getLastRow() < 2) return [];
+  return sheet.getRange(2, 1, sheet.getLastRow() - 1, 4).getValues()
+    .filter(function (r) { return r[0]; })
+    .map(function (r) { return { name: String(r[0]), 보종: String(r[1] || ''), updated: r[3] instanceof Date ? Utilities.formatDate(r[3], 'Asia/Seoul', 'yyyy-MM-dd') : String(r[3] || '') }; });
+}
+
+// 현재 검수기준 시트의 값을 이름 붙여 저장(같은 이름이면 덮어씀)
+function saveInspectionCriteriaSet(name, bojong) {
+  name = String(name || '').trim();
+  if (!name) return { error: true, message: '세트 이름을 입력하세요.' };
+  const c = getInspectionCriteria();
+  if (c.error) return c;
+  delete c.apiKeyConfigured;
+  const sheet = _inspectionSetSheet();
+  const names = sheet.getLastRow() >= 2 ? sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().map(function (r) { return String(r[0]); }) : [];
+  const row = [name, String(bojong || ''), JSON.stringify(c), new Date()];
+  const i = names.indexOf(name);
+  if (i >= 0) sheet.getRange(i + 2, 1, 1, 4).setValues([row]); else sheet.appendRow(row);
+  return { success: true };
+}
+
+// 세트를 현재 검수기준으로 적용한다(검수기준 시트에 기록 → 이후 검수가 이 기준을 쓴다)
+function applyInspectionCriteriaSet(name) {
+  const sheet = _inspectionSetSheet();
+  if (sheet.getLastRow() < 2) return { error: true, message: '저장된 세트가 없습니다.' };
+  const r = sheet.getRange(2, 1, sheet.getLastRow() - 1, 3).getValues().filter(function (x) { return String(x[0]) === name; })[0];
+  if (!r) return { error: true, message: '세트를 찾을 수 없습니다: ' + name };
+  const res = saveInspectionCriteria(JSON.parse(r[2]));
+  if (res.error) return res;
+  return getInspectionCriteria();
+}
+
+function deleteInspectionCriteriaSet(name) {
+  const sheet = _inspectionSetSheet();
+  if (sheet.getLastRow() < 2) return { success: true };
+  const names = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues();
+  for (let i = names.length - 1; i >= 0; i--) if (String(names[i][0]) === name) sheet.deleteRow(i + 2);
   return { success: true };
 }
 
