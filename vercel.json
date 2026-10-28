@@ -1,4 +1,5 @@
 {
+  "regions": ["icn1"],
   "outputDirectory": "public",
   "functions": {
     "api/*.js": { "maxDuration": 300, "includeFiles": "{*.gs,Index.html,lib/**,node_modules/fflate/**}" }

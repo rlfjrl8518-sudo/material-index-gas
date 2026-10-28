@@ -7,8 +7,12 @@ const UPLOAD_TOKEN_FNS = ['getUploadToken', 'getInspectionUploadContext'];
 // 시트 메뉴 전용(getUi 사용) 또는 웹앱 진입점 — 대시보드에서 호출할 이유가 없다.
 const BLOCKED = ['onOpen', 'doGet', 'openDashboard'];
 
-async function run(fn, args, req) {
-  const { result, triggers } = await runGas({ fn, args, token: await accessToken(), appUrl: appUrl(req), user: 'playddmt1@gmail.com' });
+async function run(fn, args, req, res) {
+  const t0 = Date.now();
+  const token = await accessToken();
+  const t1 = Date.now();
+  const { result, triggers, timing } = await runGas({ fn, args, token, appUrl: appUrl(req), user: 'playddmt1@gmail.com' });
+  if (res) res.setHeader('Server-Timing', `token;dur=${t1 - t0}, worker;dur=${Date.now() - t1}, gas;dur=${timing.gas}, http;dur=${timing.http};desc="${timing.calls} calls"`);
   if (result && result.token && UPLOAD_TOKEN_FNS.includes(fn)) result.token = await accessToken('https://www.googleapis.com/auth/drive');
   // ScriptApp.newTrigger(...).after(ms) 대체: 응답 후 같은 함수를 자기 자신에게 다시 호출한다.
   triggers.forEach(t => waitUntil(new Promise(r => setTimeout(r, t.ms)).then(() => fetch(appUrl(req) + '/api/rpc', {
@@ -32,7 +36,7 @@ module.exports = async (req, res) => {
     return res.status(202).json({ ok: true });
   }
   try {
-    res.status(200).json({ result: (await run(fn, args, req)) ?? null });
+    res.status(200).json({ result: (await run(fn, args, req, res)) ?? null });
   } catch (e) {
     console.error(fn, e);
     res.status(200).json({ error: e.message || String(e) });
