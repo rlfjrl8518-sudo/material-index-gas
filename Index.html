@@ -2381,6 +2381,19 @@
       <!-- ============ 차원별 분석 ============ -->
       <div class="az-sub-panel" id="az-sub-dims">
 
+        <div class="az-section" style="margin-bottom:24px">
+          <div class="az-section-header">
+            <span>속성 비교 <span style="font-weight:400;color:var(--az-t4);font-size:11px">매체·보종 구성 차이를 걸러낸 효과 · ★ = 통계적으로 유의(95%)</span>
+              <span class="az-info-icon" onmouseenter="azInfoShow(this,event,'attr')" onmousemove="azInfoMove(event)" onmouseleave="azInfoHide()">!</span></span>
+            <div class="az-metric-tabs">
+              <button class="az-metric-tab active" onclick="switchAttrMetric('ctr',this)">CTR</button>
+              <button class="az-metric-tab" onclick="switchAttrMetric('cvr',this)">CVR</button>
+              <button class="az-metric-tab" onclick="switchAttrMetric('cpa',this)">CPA</button>
+            </div>
+          </div>
+          <div class="az-section-body"><div id="az-attr-body" class="az-attr-grid"></div></div>
+        </div>
+
         <div class="az-two-col">
 
           <div class="az-section">
@@ -2455,18 +2468,6 @@
           </div>
         </div>
 
-        <div class="az-section" style="margin-bottom:40px">
-          <div class="az-section-header">
-            <span>속성별 순효과 <span style="font-weight:400;color:var(--az-t4);font-size:11px">매체·보종 구성 차이를 걸러낸 효과 · ★ = 통계적으로 유의(95%)</span>
-              <span class="az-info-icon" onmouseenter="azInfoShow(this,event,'attr')" onmousemove="azInfoMove(event)" onmouseleave="azInfoHide()">!</span></span>
-            <div class="az-metric-tabs">
-              <button class="az-metric-tab active" onclick="switchAttrMetric('ctr',this)">CTR</button>
-              <button class="az-metric-tab" onclick="switchAttrMetric('cvr',this)">CVR</button>
-              <button class="az-metric-tab" onclick="switchAttrMetric('cpa',this)">CPA</button>
-            </div>
-          </div>
-          <div class="az-section-body"><div id="az-attr-body" class="az-attr-grid"></div></div>
-        </div>
       </div><!-- /#az-sub-dims -->
 
       <!-- ============ 교차 분석 ============ -->
@@ -2627,7 +2628,7 @@
           </div>
         </div>
         <div class="az-section" style="margin-bottom:40px">
-          <div class="az-section-header"><span>🎯 다음 소재 제작 브리프 <span style="font-weight:400;color:var(--az-t4);font-size:11px">속성별 순효과 · 조합별 성과 · 안 해본 조합 · 피로도 소재를 근거로 제작안을 만듭니다</span></span></div>
+          <div class="az-section-header"><span>🎯 다음 소재 제작 브리프 <span style="font-weight:400;color:var(--az-t4);font-size:11px">속성 비교 · 조합별 성과 · 안 해본 조합 · 피로도 소재를 근거로 제작안을 만듭니다</span></span></div>
           <div class="az-section-body">
             <button id="az-brief-btn" class="az-insight-btn" onclick="runCreativeBrief()">🎯 브리프 생성</button>
             <div id="az-brief-panel" class="az-insight-panel"><div style="color:#334155;font-size:13px">현재 필터 기준으로 다음에 만들 소재 3~5안과 근거, 테스트 설계를 작성합니다.</div></div>
@@ -7627,7 +7628,7 @@ function azPreviewHide() {
 // ── 섹션 설명 호버 툴팁 (❗ 아이콘) ───────────────────────
 const AZ_INFO_TEXT = {
   attr:
-    '<div class="az-info-title">속성별 순효과란?</div>' +
+    '<div class="az-info-title">속성 비교란?</div>' +
     '매체·보종마다 기본 성과가 크게 다릅니다(예: 피맥스는 원래 CTR이 높음). 그래서 단순 평균을 비교하면 ' +
     '"어떤 속성이 좋았나"가 아니라 "어느 매체에 많이 썼나"가 드러납니다.<br><br>' +
     '여기서는 각 행을 <b>같은 매체×보종의 평균</b>과 비교해, 그 차이만 모아 속성의 효과로 보여줍니다.<br><br>' +
