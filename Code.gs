@@ -3,6 +3,8 @@
 // ====================================================
 
 const SHEET_ID                    = '19hqtPbbHtoPeVmxqANHisqBp1ZeN4AUKR12HS5F6Y20';
+// 대시보드는 Vercel에서 서비스한다(시트 메뉴의 대시보드 열기, 광고단위 링크 모두 이 주소)
+const DASHBOARD_URL               = 'https://material-index-nine.vercel.app';
 const MASTER_SHEET_NAME           = '전매체 인덱스';
 const SETTINGS_SHEET_NAME         = '설정';
 const HIERARCHY_SHEET_NAME        = '매체 구조';
@@ -126,7 +128,7 @@ function fetchReportImages(urls) {
 // [통합 적재] 버튼 대체 수단으로도 활용
 // --------------------------------------------------
 function openDashboard() {
-  const url = ScriptApp.getService().getUrl();
+  const url = DASHBOARD_URL;
   if (!url) {
     SpreadsheetApp.getUi().alert('웹앱이 배포되지 않았습니다.\n배포 후 다시 시도하세요.');
     return;
@@ -1066,8 +1068,8 @@ function _splitList(val) {
 
 function _getBundleUrl(unitCode) {
   try {
-    const url = ScriptApp.getService().getUrl();
-    return url ? url + '?unit=' + encodeURIComponent(unitCode) : '';
+    const url = DASHBOARD_URL;
+    return url ? url + '/?unit=' + encodeURIComponent(unitCode) : '';
   } catch(e) {
     return '';
   }
@@ -2254,4 +2256,4 @@ function getABTestPerformance(codes, startDate, endDate, scope) {
   });
 }
 
-function getWebAppUrl() { return ScriptApp.getService().getUrl(); }
+function getWebAppUrl() { return DASHBOARD_URL; }

@@ -1,2 +1,10 @@
 README.md
 .git/**
+api/**
+lib/**
+public/**
+node_modules/**
+.vercel/**
+package.json
+package-lock.json
+vercel.json

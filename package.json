@@ -1,0 +1,11 @@
+{
+  "name": "material-index",
+  "private": true,
+  "engines": {
+    "node": "22.x"
+  },
+  "dependencies": {
+    "@vercel/functions": "^3.10.4",
+    "fflate": "^0.8.3"
+  }
+}

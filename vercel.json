@@ -1,0 +1,7 @@
+{
+  "outputDirectory": "public",
+  "functions": {
+    "api/*.js": { "maxDuration": 300, "includeFiles": "{*.gs,Index.html,lib/**,node_modules/fflate/**}" }
+  },
+  "rewrites": [{ "source": "/", "destination": "/api/index" }]
+}
