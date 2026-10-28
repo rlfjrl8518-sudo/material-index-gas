@@ -10317,7 +10317,7 @@ function renderABCompare(perf) {
     </tr>`;
   }).join('');
 
-  table.innerHTML = `<thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody>`;
+  table.innerHTML = `<thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody>` + abVerdictFoot(perf, 11);
 }
 
 async function saveABConclusion() {
@@ -10636,7 +10636,7 @@ function renderTargetingABCompare(perf) {
     </tr>`;
   }).join('');
 
-  table.innerHTML = `<thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody>`;
+  table.innerHTML = `<thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody>` + abVerdictFoot(perf, 13);
 }
 
 async function saveTargetingABConclusion() {
@@ -11359,6 +11359,55 @@ async function inspOpenViewer(i) {
   if (!uri) { box.innerHTML = '<div style="padding:60px;color:#ef4444">이미지를 불러오지 못했습니다</div>'; return; }
   const rect = (b, res) => b ? `<div style="position:absolute;top:${b[0] / 10}%;left:${b[1] / 10}%;height:${(b[2] - b[0]) / 10}%;width:${(b[3] - b[1]) / 10}%;border:3px solid ${INSP_BOX_COLOR[res] || '#94a3b8'};border-radius:3px;box-shadow:0 0 0 1px #fff"></div>` : '';
   box.innerHTML = `<img src="${uri}" style="display:block;max-width:100%;max-height:86vh">` + rect(boxes['상품명'], r['상품명 결과']) + rect(boxes['심의필'], r['심의필 결과']);
+}
+
+
+// ════════════════════════════════════════════════════════════
+// AB 테스트 판정 — 1등 안을 나머지 각 안과 비교해 '확실한 차이인지 / 얼마나 더 모아야 하는지'를 알려준다
+//  · CTR·CVR: 두 비율 z검정(95%)  · CPA: 비용 1원당 전환(포아송) 비교
+//  · 표본이 부족하면 검정력 80% 기준으로 안별 추가로 필요한 클릭/노출 수를 계산
+// ════════════════════════════════════════════════════════════
+function abTwoPropZ(x1, n1, x2, n2) {
+  if (!n1 || !n2) return 0;
+  const p = (x1 + x2) / (n1 + n2);
+  const se = Math.sqrt(p * (1 - p) * (1 / n1 + 1 / n2));
+  return se > 0 ? (x1 / n1 - x2 / n2) / se : 0;
+}
+function abNeededPerArm(p1, p2) {
+  const d = Math.abs(p1 - p2);
+  return d > 0 ? Math.ceil(Math.pow(1.96 + 0.84, 2) * (p1 * (1 - p1) + p2 * (1 - p2)) / (d * d)) : Infinity;
+}
+function abVerdictFoot(perf, colspan) {
+  const L = i => String.fromCharCode(65 + i);
+  const arms = perf.map((p, i) => ({ ...p, label: L(i) })).filter(p => !p.notFound && p.imp > 0);
+  if (arms.length < 2) return '';
+  const lines = [];
+  const metric = (name, key, x, n, unit) => {
+    const best = arms.reduce((a, b) => (b[key] > a[key] ? b : a));
+    arms.filter(o => o !== best).forEach(o => {
+      const z = abTwoPropZ(best[x], best[n], o[x], o[n]);
+      if (Math.abs(z) >= 1.96) { lines.push(`✅ <b>${name}</b>: ${best.label}안이 ${o.label}안보다 높음 — 통계적으로 확실(95%)`); return; }
+      const need = abNeededPerArm(best[x] / best[n], o[x] / o[n]);
+      const more = isFinite(need) ? Math.max(0, need - Math.min(best[n], o[n])) : null;
+      lines.push(`⏳ <b>${name}</b>: ${best.label}안 vs ${o.label}안 차이는 아직 우연일 수 있음` + (more ? ` — 안별 ${unit} 약 ${more.toLocaleString('ko-KR')}회 더 필요` : ''));
+    });
+  };
+  metric('CTR', 'ctr', 'clk', 'imp', '노출');
+  if (arms.every(a => a.clk > 0)) metric('CVR', 'cvr', 'conv', 'clk', '클릭');
+  // CPA — 비용 1원당 전환율을 포아송으로 비교(전환이 적으면 판단 보류)
+  const cpaArms = arms.filter(a => a.cost > 0);
+  if (cpaArms.length >= 2) {
+    const best = cpaArms.reduce((a, b) => (b.conv / b.cost > a.conv / a.cost ? b : a));
+    cpaArms.filter(o => o !== best).forEach(o => {
+      const r1 = best.conv / best.cost, r2 = o.conv / o.cost;
+      const se = Math.sqrt(best.conv / (best.cost * best.cost) + o.conv / (o.cost * o.cost));
+      const z = se > 0 ? (r1 - r2) / se : 0;
+      if (best.conv + o.conv < 10) lines.push(`⏳ <b>CPA</b>: ${best.label}안 vs ${o.label}안 — 전환이 적어(합계 ${Math.round(best.conv + o.conv)}건) 아직 판단 불가, 안별 전환 30건 이상 권장`);
+      else if (z >= 1.96) lines.push(`✅ <b>CPA</b>: ${best.label}안이 ${o.label}안보다 저렴 — 통계적으로 확실(95%)`);
+      else lines.push(`⏳ <b>CPA</b>: ${best.label}안 vs ${o.label}안 차이는 아직 우연일 수 있음 (전환 ${Math.round(best.conv)} vs ${Math.round(o.conv)})`);
+    });
+  }
+  return `<tfoot><tr><td colspan="${colspan}" style="text-align:left;white-space:normal;background:#f9fafb;font-size:12px;line-height:1.8;padding:10px 14px">${lines.join('<br>')}</td></tr></tfoot>`;
 }
 
 </script>
