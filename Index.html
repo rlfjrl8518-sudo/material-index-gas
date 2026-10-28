@@ -1411,6 +1411,78 @@
 
 <div class="tab-panel active" id="panel-register">
 
+  <!-- ════ 일괄 등록 (등록 대기열 + 여러 장 업로드 + AI 태그 추천) ════ -->
+  <style>
+    .bulk-wrap { max-width: 1100px; margin: 0 auto; padding: 28px 24px 0; }
+    .bulk-sub { font-weight: 400; color: #9ca3af; font-size: 12px; margin-left: 6px; }
+    .bulk-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13px; }
+    .bulk-head .grow { flex: 1; color: #6b7280; font-size: 12px; }
+    .bulk-queue-list { max-height: 220px; overflow: auto; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 14px; }
+    .bulk-q { display: flex; gap: 10px; align-items: center; padding: 7px 10px; border-bottom: 1px solid #f3f4f6; font-size: 12px; }
+    .bulk-q:last-child { border-bottom: 0; }
+    .bulk-q .m { flex: 0 0 70px; color: #4f6ef7; font-weight: 600; }
+    .bulk-q .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bulk-q .c { flex: 0 0 auto; color: #6b7280; }
+    .bulk-q .linked { color: #059669; font-weight: 600; }
+    .bulk-empty { color: #9ca3af; font-size: 12px; text-align: center; padding: 16px; }
+    .bulk-item { display: grid; grid-template-columns: 120px 1fr; gap: 14px; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; margin-top: 12px; }
+    .bulk-item.saved { opacity: .55; }
+    .bulk-thumb { width: 120px; height: 120px; object-fit: contain; background: #f9fafb; border-radius: 6px; border: 1px solid #f3f4f6; }
+    .bulk-fname { font-size: 11px; color: #6b7280; word-break: break-all; margin-top: 4px; }
+    .bulk-status { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; background: #f3f4f6; color: #374151; margin-top: 4px; }
+    .bulk-status.ok { background: #d1fae5; color: #065f46; }
+    .bulk-status.err { background: #fee2e2; color: #991b1b; }
+    .bulk-status.busy { background: #fef3c7; color: #92400e; }
+    .bulk-links { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; font-size: 12px; }
+    .bulk-link { background: #eef2ff; color: #3730a3; border-radius: 12px; padding: 3px 4px 3px 10px; display: inline-flex; align-items: center; gap: 4px; }
+    .bulk-link button { border: 0; background: transparent; cursor: pointer; color: #6366f1; font-size: 13px; }
+    .bulk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+    .bulk-grid label { display: block; font-size: 11px; color: #6b7280; margin-bottom: 2px; }
+    .bulk-grid .form-control { padding: 6px 8px; font-size: 12px; }
+    .bulk-grid .wide { grid-column: 1 / -1; }
+    .bulk-grid .ai { outline: 2px solid #c7d2fe; }
+    .bulk-models { display: flex; flex-wrap: wrap; gap: 4px; }
+    .bulk-models label { display: inline-flex; gap: 3px; align-items: center; font-size: 11px; color: #374151; background: #f3f4f6; padding: 3px 7px; border-radius: 10px; margin: 0; cursor: pointer; }
+    .bulk-actions { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
+    .bulk-actions #bulkMsg { font-size: 12px; color: #374151; }
+    .bulk-expiry-warn { color: #b91c1c; font-weight: 600; }
+    @media (max-width: 700px) { .bulk-wrap { padding: 14px 14px 0; } .bulk-item { grid-template-columns: 1fr; } }
+  </style>
+  <div class="bulk-wrap">
+    <div class="card" style="margin-bottom:0">
+      <div class="card-header">
+        <span>⚡ 일괄 등록<span class="bulk-sub">여러 장을 올리면 대기열 소재와 자동 연결하고 AI가 태그를 채웁니다 — 사람은 확인만</span></span>
+        <button class="btn btn-ghost btn-sm" id="bulkToggleBtn" onclick="bulkToggle()">펼치기</button>
+      </div>
+      <div class="card-body" id="bulkBody" style="display:none">
+        <div class="bulk-head">
+          <b>등록 대기열</b>
+          <span class="grow" id="bulkQueueInfo">RAW에는 있는데 인덱스에 없는 소재 (최근 60일, 광고비순)</span>
+          <button class="btn btn-secondary btn-sm" onclick="bulkLoadQueue()">↺ 새로고침</button>
+        </div>
+        <div class="bulk-queue-list" id="bulkQueueList"><div class="bulk-empty">불러오는 중...</div></div>
+
+        <div class="upload-zone" id="bulkDrop"
+             ondragover="event.preventDefault();this.classList.add('dragover')"
+             ondragleave="this.classList.remove('dragover')"
+             ondrop="event.preventDefault();this.classList.remove('dragover');bulkAddFiles(event.dataTransfer.files)">
+          <input type="file" multiple accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime" onchange="bulkAddFiles(this.files);this.value=''">
+          <div class="upload-icon">📁</div>
+          <div style="font-size:13px;color:#374151;font-weight:500;">이미지 여러 장을 드래그하거나 클릭해서 선택</div>
+          <div class="upload-hint">파일명이 소재이름과 비슷하면 자동 연결 · 이미지는 AI가 태그·심의필을 미리 채움(보라 테두리 = AI 추천값)</div>
+        </div>
+
+        <div id="bulkItems"></div>
+
+        <div class="bulk-actions">
+          <button class="btn btn-primary" id="bulkSaveBtn" onclick="bulkSaveAll()">💾 체크한 항목 일괄 저장</button>
+          <button class="btn btn-ghost btn-sm" onclick="bulkClearSaved()">저장된 항목 지우기</button>
+          <span id="bulkMsg"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="container">
 
 
@@ -1958,6 +2030,7 @@
       <div class="card-header">
         <span>검수 결과<span id="inspResultRunLabel" style="color:#9ca3af;font-weight:400"></span></span>
         <div style="display:flex;gap:6px">
+          <button class="btn btn-primary btn-sm" onclick="inspSendToRegister()" title="최종 결과가 정상인 이미지를 소재 등록 탭의 일괄 등록으로 넘깁니다">정상 이미지 등록하기 →</button>
           <button class="btn btn-ghost btn-sm" id="inspRetryBtn" style="display:none" onclick="retryInspectionFailed()">확인 필요 항목 재처리</button>
           <button class="btn btn-secondary btn-sm" id="inspRefreshResultsBtn" style="display:none" onclick="loadInspectionResults(window._inspCurrentId)">↺ 새로고침</button>
         </div>
@@ -10503,6 +10576,327 @@ async function deleteTargetingABTestConfirm(testId) {
   } catch (err) {
     alert('삭제 실패: ' + (err.message || String(err)));
   }
+}
+
+
+// ════════════════════════════════════════════════════════════
+// 일괄 등록 — 등록 대기열 + 여러 장 업로드 + AI 태그 추천 + 일괄 저장
+// 흐름: 파일 추가 → Drive 직접 업로드(병렬) → 파일명으로 대기열 소재 자동 연결 → AI가 태그·심의필 채움 → 사람이 확인 → 일괄 저장
+// ════════════════════════════════════════════════════════════
+const BULK_TAG_SELECTS = ['보종', '광고유형', '소재유형', '소구포인트', '후킹방식', '이미지유형'];
+const BULK_REQUIRED = ['보종', '광고유형', '소재유형'];
+const BULK_AI_CHUNK = 8;      // suggestCreativeTags 한 번에 보낼 장수(서버 동시 호출 한도와 맞춤)
+const BULK_UPLOAD_PARALLEL = 4;
+let bulkQueue = [];           // getRegistrationQueue().items
+let bulkItems = [];           // 업로드한 이미지 단위 상태
+let bulkSeq = 0;
+let bulkQueueLoaded = false;
+
+const bulkKey = q => [q.매체, q.캠페인, q.그룹, q.소재이름].join('\u0000');
+
+function bulkToggle() {
+  const body = document.getElementById('bulkBody');
+  const open = body.style.display === 'none';
+  body.style.display = open ? 'block' : 'none';
+  document.getElementById('bulkToggleBtn').textContent = open ? '접기' : '펼치기';
+  if (open && !bulkQueueLoaded) bulkLoadQueue();
+}
+
+function bulkOpen() {
+  if (document.getElementById('bulkBody').style.display === 'none') bulkToggle();
+}
+
+async function bulkLoadQueue() {
+  const list = document.getElementById('bulkQueueList');
+  list.innerHTML = '<div class="bulk-empty">불러오는 중...</div>';
+  try {
+    const res = await gasRun('getRegistrationQueue');
+    bulkQueue = res.items || [];
+    bulkQueueLoaded = true;
+    bulkRenderQueue();
+    bulkItems.forEach(bulkAutoLink);
+    bulkRenderItems();
+  } catch (e) {
+    list.innerHTML = '<div class="bulk-empty">대기열을 불러오지 못했습니다: ' + escHtml(e.message || String(e)) + '</div>';
+  }
+}
+
+function bulkLinkedCount(key) {
+  return bulkItems.filter(it => !it.saved && it.links.includes(key)).length;
+}
+
+function bulkRenderQueue() {
+  const list = document.getElementById('bulkQueueList');
+  document.getElementById('bulkQueueInfo').textContent = bulkQueue.length
+    ? `미등록 ${bulkQueue.length}건 — RAW에는 있는데 인덱스에 없는 소재 (최근 60일, 광고비순)`
+    : 'RAW의 모든 소재가 등록되어 있습니다';
+  if (!bulkQueue.length) { list.innerHTML = '<div class="bulk-empty">미등록 소재가 없습니다 👍</div>'; return; }
+  list.innerHTML = bulkQueue.map(q => {
+    const n = bulkLinkedCount(bulkKey(q));
+    return `<div class="bulk-q" title="${escHtml(q.캠페인 + ' / ' + q.그룹)}">
+      <span class="m">${escHtml(q.매체)}</span>
+      <span class="n">${escHtml(q.소재이름)} <span style="color:#9ca3af">· ${escHtml(q.그룹)}</span></span>
+      <span class="c">${Math.round(q.비용).toLocaleString('ko-KR')}원 · ${escHtml(q.첫집행일 || '')}~</span>
+      ${n ? `<span class="linked">이미지 ${n}장 연결</span>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// --- 파일 추가 ---------------------------------------------------
+async function bulkAddFiles(fileList) {
+  const files = Array.from(fileList || []).filter(f => /^(image|video)\//.test(f.type));
+  if (!files.length) return;
+  bulkOpen();
+  const added = files.map(f => ({
+    id: ++bulkSeq, file: f, name: f.name, mime: f.type, hash: null, driveFileId: '',
+    thumb: f.type.startsWith('image/') ? URL.createObjectURL(f) : '',
+    status: '업로드 중', statusCls: 'busy', links: [], tags: { 광고유형: f.type.startsWith('video/') ? '동영상' : '이미지' },
+    모델유형: '', 소구상세: '', 심의필: '', 심의만료일: '', checked: false, saved: false, aiFields: {}
+  }));
+  bulkItems = bulkItems.concat(added);
+  added.forEach(bulkAutoLink);
+  bulkRenderItems();
+
+  let token, folderId;
+  try { ({ token, folderId } = await gasRun('getUploadToken')); }
+  catch (e) { added.forEach(it => bulkSetStatus(it, '업로드 실패: ' + (e.message || e), 'err')); return; }
+
+  // 업로드 + 해시 계산을 BULK_UPLOAD_PARALLEL개씩 병렬로
+  let next = 0;
+  await Promise.all(Array.from({ length: BULK_UPLOAD_PARALLEL }, async () => {
+    while (next < added.length) {
+      const it = added[next++];
+      try {
+        const buf = await it.file.arrayBuffer();
+        const hashBuf = await crypto.subtle.digest('SHA-256', buf);
+        it.hash = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+        it.driveFileId = await uploadToDriveDirect(it.file, token, folderId);
+        bulkSetStatus(it, it.mime.startsWith('image/') ? 'AI 분석 대기' : '태그 입력 필요', it.mime.startsWith('image/') ? 'busy' : '');
+      } catch (e) {
+        bulkSetStatus(it, '업로드 실패: ' + (e.message || e), 'err');
+      }
+    }
+  }));
+  await bulkSuggest(added.filter(it => it.driveFileId && it.mime.startsWith('image/')));
+}
+
+// 검수 탭에서 넘어온 이미지(이미 Drive에 있음) — rows: [{ fileId, fileName, imageUrl }]
+async function bulkAddFromDrive(rows) {
+  bulkOpen();
+  const added = rows.map(r => ({
+    id: ++bulkSeq, file: null, name: r.fileName, mime: 'image/jpeg', hash: null, driveFileId: r.fileId,
+    thumb: '', status: 'AI 분석 대기', statusCls: 'busy', links: [], tags: { 광고유형: '이미지' },
+    모델유형: '', 소구상세: '', 심의필: '', 심의만료일: '', checked: false, saved: false, aiFields: {}
+  }));
+  bulkItems = bulkItems.concat(added);
+  added.forEach(bulkAutoLink);
+  bulkRenderItems();
+  added.forEach(it => gasRun('getImageDataUri', it.driveFileId).then(uri => { if (uri) { it.thumb = uri; const img = document.getElementById('bulk-thumb-' + it.id); if (img) img.src = uri; } }).catch(() => {}));
+  await bulkSuggest(added);
+}
+
+// --- 파일명 ↔ 소재이름 자동 연결 -----------------------------------
+function bulkTokens(s) {
+  return String(s || '').toLowerCase().replace(/\.[a-z0-9]{2,4}$/, '').split(/[\s_\-()\[\].,]+/).filter(t => t.length >= 2);
+}
+function bulkCompact(s) { return String(s || '').toLowerCase().replace(/\.[a-z0-9]{2,4}$/, '').replace(/[^0-9a-z가-힣]/g, ''); }
+function bulkMatchScore(fileName, creativeName) {
+  const a = bulkCompact(fileName), b = bulkCompact(creativeName);
+  if (a && b && (a.includes(b) || b.includes(a))) return 1;
+  const A = new Set(bulkTokens(fileName)), B = new Set(bulkTokens(creativeName));
+  if (!A.size || !B.size) return 0;
+  let hit = 0;
+  A.forEach(t => { if (B.has(t)) hit++; });
+  return hit / Math.min(A.size, B.size);
+}
+function bulkAutoLink(it) {
+  if (it.links.length || !bulkQueue.length) return;
+  let best = null, bestScore = 0;
+  bulkQueue.forEach(q => {
+    const s = bulkMatchScore(it.name, q.소재이름);
+    if (s > bestScore) { bestScore = s; best = q; }
+  });
+  if (best && bestScore >= 0.6) it.links = [bulkKey(best)];
+}
+
+// --- AI 추천 ------------------------------------------------------
+async function bulkSuggest(items) {
+  for (let i = 0; i < items.length; i += BULK_AI_CHUNK) {
+    const chunk = items.slice(i, i + BULK_AI_CHUNK);
+    chunk.forEach(it => bulkSetStatus(it, 'AI 분석 중...', 'busy'));
+    const payload = chunk.map(it => {
+      const q = bulkQueue.find(x => bulkKey(x) === it.links[0]);
+      return { fileId: it.driveFileId, 소재이름: q ? q.소재이름 : it.name, 캠페인: q ? q.캠페인 : '' };
+    });
+    let res;
+    try { res = await gasRun('suggestCreativeTags', payload); }
+    catch (e) { chunk.forEach(it => bulkSetStatus(it, 'AI 추천 실패 — 직접 입력', 'err')); continue; }
+    chunk.forEach((it, k) => {
+      const r = res[k];
+      if (!r || r.error) { bulkSetStatus(it, 'AI 추천 실패 — 직접 입력', 'err'); return; }
+      // 사람이 이미 고친 칸은 덮어쓰지 않는다
+      ['보종', '소재유형', '소구포인트', '후킹방식', '이미지유형'].forEach(f => {
+        if (!it.tags[f] && r.tags[f]) { it.tags[f] = r.tags[f]; it.aiFields[f] = true; }
+      });
+      if (!it.모델유형 && r.tags.모델유형) { it.모델유형 = r.tags.모델유형; it.aiFields.모델유형 = true; }
+      if (!it.소구상세 && r.tags.소구상세) { it.소구상세 = r.tags.소구상세; it.aiFields.소구상세 = true; }
+      if (!it.심의필) it.심의필 = r.심의필 || '';
+      if (!it.심의만료일) it.심의만료일 = r.심의만료일 || '';
+      it.checked = bulkIsReady(it);
+      bulkSetStatus(it, it.links.length ? '검토 후 저장' : '연결할 소재를 선택하세요', it.links.length ? 'ok' : '');
+    });
+    bulkRenderItems();
+  }
+}
+
+// --- 렌더링 -------------------------------------------------------
+function bulkSetStatus(it, text, cls) {
+  it.status = text; it.statusCls = cls || '';
+  const el = document.getElementById('bulk-status-' + it.id);
+  if (el) { el.textContent = text; el.className = 'bulk-status ' + it.statusCls; }
+}
+
+function bulkIsReady(it) {
+  return !it.saved && !!it.driveFileId && it.links.length > 0 && BULK_REQUIRED.every(f => it.tags[f]);
+}
+
+function bulkOptions(field, value) {
+  const vals = (typeof settings !== 'undefined' && settings && settings[field]) || [];
+  return '<option value="">선택</option>' + vals.map(v => `<option value="${escHtml(v)}"${v === value ? ' selected' : ''}>${escHtml(v)}</option>`).join('');
+}
+
+function bulkExpiryNote(d) {
+  if (!d) return '';
+  const days = Math.round((new Date(d + 'T00:00:00+09:00') - Date.now()) / 864e5);
+  return days < 0 ? `<span class="bulk-expiry-warn">만료됨</span>` : days <= 30 ? `<span class="bulk-expiry-warn">${days}일 남음</span>` : '';
+}
+
+function bulkRenderItems() {
+  const box = document.getElementById('bulkItems');
+  const models = (typeof settings !== 'undefined' && settings && settings['모델유형']) || [];
+  box.innerHTML = bulkItems.map(it => {
+    const linkChips = it.links.map(k => {
+      const q = bulkQueue.find(x => bulkKey(x) === k);
+      return q ? `<span class="bulk-link" title="${escHtml(q.캠페인 + ' / ' + q.그룹)}">${escHtml(q.매체)} · ${escHtml(q.소재이름)}${it.saved ? '' : `<button onclick="bulkUnlink(${it.id}, ${bulkQueue.indexOf(q)})">×</button>`}</span>` : '';
+    }).join('');
+    const addSel = it.saved ? '' : `<select class="form-control" style="max-width:320px;padding:4px 6px;font-size:12px" onchange="bulkLink(${it.id}, this.value); this.value=''">
+        <option value="">+ 연결할 소재 선택 (${bulkQueue.length}건)</option>
+        ${bulkQueue.map((q, qi) => it.links.includes(bulkKey(q)) ? '' : `<option value="${qi}">${escHtml(q.매체 + ' · ' + q.소재이름 + ' (' + q.그룹 + ')')}</option>`).join('')}
+      </select>`;
+    const sel = f => `<div><label>${f}${BULK_REQUIRED.includes(f) ? ' *' : ''}</label>
+      <select class="form-control${it.aiFields[f] ? ' ai' : ''}" ${it.saved ? 'disabled' : ''} onchange="bulkSetTag(${it.id}, '${f}', this.value)">${bulkOptions(f, it.tags[f] || '')}</select></div>`;
+    const chosen = new Set(clientSplitList(it.모델유형));
+    return `<div class="bulk-item${it.saved ? ' saved' : ''}">
+      <div>
+        ${it.thumb ? `<img class="bulk-thumb" id="bulk-thumb-${it.id}" src="${escHtml(it.thumb)}">` : `<div class="bulk-thumb" id="bulk-thumb-${it.id}" style="display:flex;align-items:center;justify-content:center;font-size:28px">${it.mime.startsWith('video/') ? '▶' : '🖼'}</div>`}
+        <div class="bulk-fname">${escHtml(it.name)}</div>
+        <span class="bulk-status ${it.statusCls}" id="bulk-status-${it.id}">${escHtml(it.status)}</span>
+        ${it.saved ? '' : `<label style="display:flex;gap:4px;align-items:center;font-size:12px;margin-top:6px;cursor:pointer"><input type="checkbox" ${it.checked ? 'checked' : ''} onchange="bulkItems.find(x=>x.id===${it.id}).checked=this.checked"> 저장 대상</label>
+        <button class="btn btn-ghost btn-sm" style="margin-top:4px" onclick="bulkRemove(${it.id})">빼기</button>`}
+      </div>
+      <div>
+        <div class="bulk-links">${linkChips}${addSel}</div>
+        <div class="bulk-grid">
+          ${BULK_TAG_SELECTS.map(sel).join('')}
+          <div class="wide"><label>모델유형${it.aiFields.모델유형 ? ' (AI)' : ''}</label><div class="bulk-models">
+            ${models.map(v => `<label><input type="checkbox" ${chosen.has(v) ? 'checked' : ''} ${it.saved ? 'disabled' : ''} onchange="bulkToggleModel(${it.id}, '${escHtml(v)}', this.checked)">${escHtml(v)}</label>`).join('')}
+          </div></div>
+          <div class="wide"><label>소구상세</label><input class="form-control${it.aiFields.소구상세 ? ' ai' : ''}" value="${escHtml(it.소구상세)}" ${it.saved ? 'disabled' : ''} oninput="bulkItems.find(x=>x.id===${it.id}).소구상세=this.value"></div>
+          <div class="wide" style="display:grid;grid-template-columns:1fr 150px;gap:8px">
+            <div><label>심의필 (AI 판독)</label><input class="form-control" value="${escHtml(it.심의필)}" ${it.saved ? 'disabled' : ''} oninput="bulkItems.find(x=>x.id===${it.id}).심의필=this.value"></div>
+            <div><label>심의 만료일 ${bulkExpiryNote(it.심의만료일)}</label><input class="form-control" type="date" value="${escHtml(it.심의만료일)}" ${it.saved ? 'disabled' : ''} onchange="bulkItems.find(x=>x.id===${it.id}).심의만료일=this.value"></div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  bulkRenderQueue();
+}
+
+function bulkFind(id) { return bulkItems.find(x => x.id === id); }
+function bulkSetTag(id, f, v) { const it = bulkFind(id); it.tags[f] = v; delete it.aiFields[f]; it.checked = bulkIsReady(it); }
+function bulkToggleModel(id, v, on) {
+  const it = bulkFind(id);
+  const s = new Set(clientSplitList(it.모델유형));
+  on ? s.add(v) : s.delete(v);
+  it.모델유형 = Array.from(s).join(','); delete it.aiFields.모델유형;
+}
+function bulkLink(id, qi) {
+  const it = bulkFind(id), q = bulkQueue[Number(qi)];
+  if (!it || !q) return;
+  const k = bulkKey(q);
+  if (!it.links.includes(k)) it.links.push(k);
+  it.checked = bulkIsReady(it);
+  if (it.statusCls !== 'busy' && it.statusCls !== 'err') bulkSetStatus(it, '검토 후 저장', 'ok');
+  bulkRenderItems();
+}
+function bulkUnlink(id, qi) {
+  const it = bulkFind(id), q = bulkQueue[qi];
+  it.links = it.links.filter(k => k !== bulkKey(q));
+  it.checked = bulkIsReady(it);
+  bulkRenderItems();
+}
+function bulkRemove(id) { bulkItems = bulkItems.filter(x => x.id !== id); bulkRenderItems(); }
+function bulkClearSaved() { bulkItems = bulkItems.filter(x => !x.saved); bulkRenderItems(); }
+
+// --- 저장 ---------------------------------------------------------
+async function bulkSaveAll() {
+  const msg = document.getElementById('bulkMsg');
+  const targets = bulkItems.filter(it => it.checked && !it.saved);
+  const notReady = targets.filter(it => !bulkIsReady(it));
+  if (!targets.length) { msg.textContent = '체크한 항목이 없습니다.'; return; }
+  if (notReady.length) { msg.textContent = `${notReady.length}건은 연결 소재 또는 필수 태그(보종·광고유형·소재유형)가 비어 있습니다.`; return; }
+
+  const entries = [], owners = [];
+  targets.forEach(it => it.links.forEach(k => {
+    const q = bulkQueue.find(x => bulkKey(x) === k);
+    if (!q) return;
+    entries.push({
+      매체: q.매체, 캠페인: q.캠페인, 그룹: q.그룹, 소재이름: q.소재이름,
+      보종: it.tags.보종, 광고유형: it.tags.광고유형, 소재유형: it.tags.소재유형,
+      소구포인트: it.tags.소구포인트 || '', 후킹방식: it.tags.후킹방식 || '', 이미지유형: it.tags.이미지유형 || '',
+      모델유형: it.모델유형, 소구상세: (it.소구상세 || '').trim(),
+      fileName: it.name, mimeType: it.mime, fileHash: it.hash || '', driveFileId: it.driveFileId,
+      심의필: it.심의필 || '', 심의만료일: it.심의만료일 || ''
+    });
+    owners.push(it);
+  }));
+
+  const btn = document.getElementById('bulkSaveBtn');
+  btn.disabled = true;
+  msg.textContent = `${entries.length}건 저장 중...`;
+  try {
+    const res = await gasRun('saveCreativesBulk', entries);
+    let ok = 0, fail = 0;
+    res.forEach((r, i) => {
+      const it = owners[i];
+      if (r && r.success) { ok++; it._codes = (it._codes || []).concat(r.imageCode); }
+      else { fail++; bulkSetStatus(it, '저장 실패: ' + ((r && r.message) || ''), 'err'); it._failed = true; }
+    });
+    const savedKeys = new Set();
+    targets.forEach(it => {
+      if (it._failed) { delete it._failed; return; }
+      it.saved = true; it.checked = false;
+      it.links.forEach(k => savedKeys.add(k));
+      bulkSetStatus(it, '저장됨 · ' + Array.from(new Set(it._codes || [])).join(', '), 'ok');
+    });
+    bulkQueue = bulkQueue.filter(q => !savedKeys.has(bulkKey(q)));
+    bulkRenderItems();
+    msg.textContent = `저장 완료 ${ok}건` + (fail ? ` · 실패 ${fail}건` : '') + ' — 다음 통합 적재부터 분석에 반영됩니다.';
+  } catch (e) {
+    msg.textContent = '저장 실패: ' + (e.message || String(e));
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// 검수 결과에서 '정상' 이미지를 일괄 등록으로 넘긴다
+function inspSendToRegister() {
+  const rows = (window._inspLastRows || []).filter(r => r['최종 결과'] === '정상' && _inspFileId(r['이미지 링크']));
+  if (!rows.length) { showInspError('등록으로 넘길 정상 이미지가 없습니다.'); return; }
+  document.querySelector('.tab-btn[onclick*="\'register\'"]').click();
+  bulkAddFromDrive(rows.map(r => ({ fileId: _inspFileId(r['이미지 링크']), fileName: r['파일명'] })));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 </script>
