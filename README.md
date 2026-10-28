@@ -5,7 +5,31 @@
 - **소재 등록 / 소재 분석 / 보고서 / AB 테스트 / 설정 관리**: 매체 성과 데이터를 소재 단위로 인덱싱·분석
 - **소재 검수** (신규): 이미지 소재 속 문구(상품명·심의필·기타 필수 문구)를 사용자가 입력한 기준값과 비교해 불일치를 찾아주는 내부 검수 도구
 
-모든 화면은 하나의 웹앱(`doGet` → `Index.html`)에서 탭으로 전환됩니다. 스프레드시트를 열면 상단에 커스텀 메뉴(`소재 인덱싱`, `이미지 검수`)가 추가됩니다.
+모든 화면은 하나의 웹앱(`Index.html`)에서 탭으로 전환됩니다. 스프레드시트를 열면 상단에 커스텀 메뉴(`소재 인덱싱`, `이미지 검수`)가 추가됩니다.
+
+## 운영 구조 (2026-10-28~)
+
+- **대시보드는 Vercel**(https://material-index-nine.vercel.app)에서 서비스한다. `api/`·`lib/`가 기존 `.gs`를 고치지 않고 Node에서 그대로 실행하는 GAS 호환 레이어다(`lib/gas.js`: SpreadsheetApp·DriveApp·UrlFetchApp·Properties 등). 시트·드라이브 접근은 playddmt1 계정의 OAuth refresh token(Vercel 환경변수)으로 한다.
+- **데이터는 지금처럼 구글시트**. RAW 붙여넣기 → 시트 메뉴 `소재 인덱싱 > 통합 적재`는 그대로(시트에 붙은 Apps Script가 실행). 기존 Apps Script 웹앱도 예비로 살아 있다.
+- 배포: `vercel deploy --prod` (Vercel) / `clasp push --force --user playddmt1` (시트 메뉴용 Apps Script). `.claspignore`가 `api/`·`lib/` 등을 제외한다.
+- Script Properties 대신 숨김 시트 `_properties`에 설정을 저장한다(없으면 같은 이름의 환경변수). 쓰기 호출은 `작업이력` 시트에 남는다.
+- 매일 08시(KST) Vercel Cron → `sendDailyDigest`(설정 관리 > API 키의 `아침 요약 웹훅 URL`이 있을 때만).
+- 로그인: `APP_PASSWORD`(비밀번호) / `GOOGLE_LOGIN_CLIENT_ID` + `ALLOWED_EMAILS`·`ALLOWED_DOMAINS`(구글 로그인, 설정 시).
+
+## 주요 기능 (2026-10-28 추가)
+
+| 위치 | 기능 |
+|---|---|
+| 소재 등록 › 📌 오늘 할 일 | 심의 만료 임박(집행 중), 피로도(초기 7일 대비 최근 7일 CTR 30%↓), 최근 7일 성과 상·하위(매체 CPA 중앙값 기준), 미등록 소재, 확인 필요 검수 |
+| 소재 등록 › ⚡ 일괄 등록 | RAW에 있고 인덱스에 없는 소재 대기열(광고비순) · 여러 장 업로드 · 파일명↔소재이름 자동 연결 · AI 태그/심의필 추천 · 일괄 저장 |
+| 소재 분석 › TOP 10 | 95% 신뢰구간 배지, 표본 고려 정렬 |
+| 소재 분석 › 차원별 분석 | 속성별 순효과(매체×보종 보정, 소재 클러스터 유의성), 모델 성별/연령대 분리 |
+| 소재 분석 › AI 인사이트 | 다음 소재 제작 브리프 |
+| AB 테스트 | 비교표 하단 판정(유의성·추가 필요 표본) |
+| 소재 검수 | 기준 세트(보종별 저장/적용), 결과 썸네일 클릭 시 상품명·심의필 위치 표시, 정상 이미지 → 일괄 등록 |
+
+AI 태그 추천 정확도(기존 태깅 30건 대비, 2026-10-28): 보종·소재유형 100%, 후킹방식·이미지유형 93%, 모델유형 90%, 소구포인트 83%. 측정은 `evaluateTagSuggestions(30)`.
+`전매체 인덱스` Q·R열(심의필, 심의만료일)은 AI 판독값이다 — 기존 이미지는 `backfillReviewExpiry`로 채운다.
 
 ## 파일 구성
 
@@ -15,6 +39,9 @@ InspectionConfig.gs      소재 검수 - 검수기준/검수결과/검수이력 
 InspectionVision.gs      소재 검수 - Gemini(Vertex AI) 이미지 분석, ZIP 압축 해제
 InspectionCompare.gs     소재 검수 - 문자열 정규화/비교/판정, 수정 요청 문구 생성
 InspectionService.gs     소재 검수 - 업로드~검수~결과조회 오케스트레이션, 대량 처리(배치/트리거)
+Registration.gs          등록 대기열, AI 태그·심의필 추천, 일괄 저장, 심의필 백필
+Insights.gs              오늘 할 일(getActionItems), 아침 요약, 제작 브리프
+api/ lib/                Vercel 함수 + GAS 호환 레이어 (Apps Script에는 올라가지 않음)
 Index.html               단일 페이지 웹앱 (탭: 소재 등록/분석/보고서/AB테스트/설정관리/소재 검수)
 appsscript.json          매니페스트 (oauthScopes에 spreadsheets/drive/script.external_request 포함)
 ```
