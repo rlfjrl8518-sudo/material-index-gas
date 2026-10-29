@@ -3346,20 +3346,53 @@ async function startInspectionRun() {
   setInspStarting(true);
   try {
     const ctx = await rpcGetInspectionUploadContext();
-    const fileRefs = [];
-    for (const f of window._inspFiles) {
-      const fileId = await uploadToDriveDirect(f, ctx.token, ctx.folderId);
-      const ext = (f.name.split('.').pop() || '').toLowerCase();
-      fileRefs.push({ fileId: fileId, fileName: f.name, isZip: ext === 'zip' });
-    }
+    if (!ctx || !ctx.token || !ctx.folderId) throw new Error('업로드 준비 실패 — ' + ((ctx && ctx.message) || '서버 응답이 비어 있습니다'));
+
+    // 4장씩 동시에 올리고, 실패한 파일은 2번까지 다시 시도한다. 그래도 안 되는 파일만 빼고 검수를 진행한다
+    // (예전엔 한 장이라도 실패하면 전체가 멈췄고, 한 장씩 순서대로 올려 26장에 2분이 걸렸다 — 2026-10-29).
+    const files = window._inspFiles.slice();
+    const fileRefs = new Array(files.length);
+    const failed = [];
+    let next = 0, done = 0;
+    const tick = () => { document.getElementById('inspStartBtnText').textContent = `업로드 중 ${done}/${files.length}${failed.length ? ` (실패 ${failed.length})` : ''}`; };
+    tick();
+    await Promise.all(Array.from({ length: Math.min(4, files.length) }, async () => {
+      while (next < files.length) {
+        const i = next++, f = files[i];
+        let err = null;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            // 파일을 먼저 읽어 본다 — 읽기 실패(동기화 폴더의 온라인 전용 파일, 선택 후 바뀐 파일 등)를 업로드 실패와 구분하기 위해
+            let buf;
+            try { buf = await f.arrayBuffer(); } catch (e) { throw new Error('파일을 읽을 수 없습니다(OneDrive 등 동기화 폴더의 파일이면 PC에 내려받은 뒤 다시 선택하세요)'); }
+            const fileId = await uploadToDriveDirect(new File([buf], f.name, { type: f.type || 'application/octet-stream' }), ctx.token, ctx.folderId);
+            const ext = (f.name.split('.').pop() || '').toLowerCase();
+            fileRefs[i] = { fileId: fileId, fileName: f.name, isZip: ext === 'zip' };
+            err = null;
+            break;
+          } catch (e) {
+            err = e;
+            if (/읽을 수 없습니다/.test(e.message)) break;
+            await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+          }
+        }
+        if (err) failed.push(f.name + ' — ' + (err.message || String(err)));
+        done++;
+        tick();
+      }
+    }));
+    const refs = fileRefs.filter(Boolean);
+    if (!refs.length) throw new Error('모든 파일 업로드에 실패했습니다. ' + failed.slice(0, 3).join(' / '));
 
     window._inspCurrentId = ctx.inspectionId;
     document.getElementById('inspResultRunLabel').textContent = ' — ' + ctx.inspectionId;
 
-    const progress = await rpcStartInspection(ctx.inspectionId, fileRefs);
+    const progress = await rpcStartInspection(ctx.inspectionId, refs);
     if (progress.error) { showInspError(progress.message); return; }
 
     inspClearFiles();
+    hideInspMsg();
+    if (failed.length) showInspError(`${failed.length}개 파일은 업로드하지 못해 제외하고 검수합니다: ` + failed.join(' / '));
     showInspProgress(progress);
     loadInspectionResults(ctx.inspectionId);
     inspPollProgress(ctx.inspectionId);
@@ -3372,6 +3405,7 @@ async function startInspectionRun() {
 
 function setInspStarting(on) {
   document.getElementById('inspStartBtn').disabled = on;
+  document.getElementById('inspStartBtnText').textContent = on ? '준비 중...' : '검수 시작';
   document.getElementById('inspStartSpinner').classList.toggle('show', on);
 }
 
@@ -3451,7 +3485,13 @@ function renderInspectionResults(rows) {
         : '-'}</td>
     </tr>
   `).join('');
-  document.querySelectorAll('#inspResultTbody img.insp-thumb[data-file-id]').forEach(img => { const fid = img.getAttribute('data-file-id'); if (!fid) return; google.script.run.withSuccessHandler(uri => { if (uri) img.src = uri; }).getImageDataUri(fid); });
+  // 검수 이미지는 분석 단계에서 공개 처리되므로 Drive 썸네일 URL을 먼저 쓰고, 안 뜨는 것만 서버에서 받아온다(행마다 서버 호출하던 것을 줄임)
+  document.querySelectorAll('#inspResultTbody img.insp-thumb[data-file-id]').forEach(img => {
+    const fid = img.getAttribute('data-file-id');
+    if (!fid) return;
+    img.onerror = () => { img.onerror = null; google.script.run.withSuccessHandler(uri => { if (uri) img.src = uri; }).getImageDataUri(fid); };
+    img.src = 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(fid) + '&sz=w200';
+  });
 }
 
 function inspCopyRevision(i) {
