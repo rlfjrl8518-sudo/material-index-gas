@@ -1410,43 +1410,50 @@
 
 
 
+<!-- ════ 오늘 할 일 (심의 만료·피로도·성과 상하위·미등록·검수) — 모든 탭 공용 접이식 사이드 패널 ════ -->
+<style>
+  .todo-fab { position: fixed; right: 0; top: 40%; z-index: 900; writing-mode: vertical-rl; border: 1px solid #e5e7eb; border-right: 0; background: #fff; border-radius: 10px 0 0 10px; padding: 12px 7px; font-size: 12px; font-weight: 600; color: #374151; cursor: pointer; box-shadow: -2px 2px 8px rgba(0,0,0,.08); display: flex; gap: 6px; align-items: center; }
+  .todo-fab b { writing-mode: horizontal-tb; background: #ef4444; color: #fff; border-radius: 9px; padding: 1px 6px; font-size: 11px; }
+  .todo-fab b:empty { display: none; }
+  .todo-drawer { position: fixed; top: 0; right: 0; height: 100vh; width: 440px; max-width: 92vw; z-index: 1000; background: #fff; box-shadow: -4px 0 20px rgba(0,0,0,.12); transform: translateX(100%); transition: transform .2s ease; display: flex; flex-direction: column; }
+  .todo-drawer.open { transform: none; }
+  .todo-drawer .card-header { flex: 0 0 auto; }
+  .todo-drawer .card-body { flex: 1; overflow: auto; }
+  .todo-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .todo-chip { border: 1px solid #e5e7eb; background: #fff; border-radius: 18px; padding: 6px 12px; font-size: 12px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+  .todo-chip b { font-size: 14px; }
+  .todo-chip.hot { border-color: #fecaca; background: #fef2f2; color: #991b1b; }
+  .todo-chip.good { border-color: #bbf7d0; background: #f0fdf4; color: #166534; }
+  .todo-chip.on { outline: 2px solid #4f6ef7; }
+  .todo-list { margin-top: 12px; border: 1px solid #f3f4f6; border-radius: 8px; }
+  .todo-row { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-bottom: 1px solid #f3f4f6; font-size: 12px; }
+  .todo-row:last-child { border-bottom: 0; }
+  .todo-row img { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; background: #f3f4f6; flex: 0 0 40px; }
+  .todo-row .t { flex: 1; min-width: 0; }
+  .todo-row .t div:first-child { font-weight: 600; color: #111827; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .todo-row .t div:last-child { color: #6b7280; }
+  .todo-row .v { text-align: right; white-space: nowrap; }
+  .todo-foot { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; font-size: 12px; color: #6b7280; }
+</style>
+<button type="button" class="todo-fab" id="todoFab" onclick="todoDrawer()" title="오늘 할 일 열기/닫기">📌 오늘 할 일 <b id="todoFabN"></b></button>
+<aside class="todo-drawer" id="todoDrawer" aria-label="오늘 할 일">
+  <div class="card-header">
+    <span>📌 오늘 할 일<span class="bulk-sub" id="todoBase"></span></span>
+    <span>
+      <button class="btn btn-ghost btn-sm" onclick="todoLoad()">↺ 새로고침</button>
+      <button class="btn btn-ghost btn-sm" onclick="todoDrawer(false)" aria-label="닫기">✕</button>
+    </span>
+  </div>
+  <div class="card-body" style="padding:14px 20px">
+    <div class="todo-chips" id="todoChips"><span style="font-size:12px;color:#9ca3af">불러오는 중...</span></div>
+    <div id="todoList"></div>
+    <div class="todo-foot" id="todoFoot"></div>
+  </div>
+</aside>
+
 <!-- ════ TAB 1: 소재 등록 ════ -->
 
 <div class="tab-panel active" id="panel-register">
-
-  <!-- ════ 오늘 할 일 (심의 만료·피로도·성과 상하위·미등록·검수) ════ -->
-  <style>
-    .todo-wrap { max-width: 1100px; margin: 0 auto; padding: 28px 24px 0; }
-    .todo-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-    .todo-chip { border: 1px solid #e5e7eb; background: #fff; border-radius: 18px; padding: 6px 12px; font-size: 12px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
-    .todo-chip b { font-size: 14px; }
-    .todo-chip.hot { border-color: #fecaca; background: #fef2f2; color: #991b1b; }
-    .todo-chip.good { border-color: #bbf7d0; background: #f0fdf4; color: #166534; }
-    .todo-chip.on { outline: 2px solid #4f6ef7; }
-    .todo-list { margin-top: 12px; border: 1px solid #f3f4f6; border-radius: 8px; max-height: 360px; overflow: auto; }
-    .todo-row { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-bottom: 1px solid #f3f4f6; font-size: 12px; }
-    .todo-row:last-child { border-bottom: 0; }
-    .todo-row img { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; background: #f3f4f6; flex: 0 0 40px; }
-    .todo-row .t { flex: 1; min-width: 0; }
-    .todo-row .t div:first-child { font-weight: 600; color: #111827; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .todo-row .t div:last-child { color: #6b7280; }
-    .todo-row .v { text-align: right; white-space: nowrap; }
-    .todo-foot { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; font-size: 12px; color: #6b7280; }
-    @media (max-width: 700px) { .todo-wrap { padding: 14px 14px 0; } }
-  </style>
-  <div class="todo-wrap">
-    <div class="card" style="margin-bottom:0">
-      <div class="card-header">
-        <span>📌 오늘 할 일<span class="bulk-sub" id="todoBase"></span></span>
-        <button class="btn btn-ghost btn-sm" onclick="todoLoad()">↺ 새로고침</button>
-      </div>
-      <div class="card-body" style="padding:14px 20px">
-        <div class="todo-chips" id="todoChips"><span style="font-size:12px;color:#9ca3af">불러오는 중...</span></div>
-        <div id="todoList"></div>
-        <div class="todo-foot" id="todoFoot"></div>
-      </div>
-    </div>
-  </div>
 
   <!-- ════ 일괄 등록 (등록 대기열 + 여러 장 업로드 + AI 태그 추천) ════ -->
   <style>
@@ -11078,6 +11085,9 @@ async function todoLoad() {
 function todoRender() {
   const d = todoData;
   document.getElementById('todoBase').textContent = d.기준일 ? '데이터 기준일 ' + d.기준일 : '';
+  // 사이드 버튼 배지 — 성과 상위(good)는 할 일이 아니라 빼고 센다
+  const todoN = TODO_SECTIONS.filter(s => s.cls !== 'good').reduce((a, s) => a + (s.count ? s.count(d) : s.list(d).length), 0);
+  document.getElementById('todoFabN').textContent = todoN ? (todoN > 99 ? '99+' : todoN) : '';
   document.getElementById('todoChips').innerHTML = TODO_SECTIONS.map(s => {
     const n = s.count ? s.count(d) : s.list(d).length;
     return `<button class="todo-chip ${n ? s.cls : ''} ${todoOpen === s.id ? 'on' : ''}" onclick="todoToggle('${s.id}')">${s.label} <b>${n}</b></button>`;
@@ -11094,11 +11104,20 @@ function todoRender() {
 
   const foot = [];
   if (d.expiring.unknown) foot.push(`집행 중인 소재 ${d.expiring.unknown}건은 심의필 정보가 없습니다 <button class="btn btn-secondary btn-sm" onclick="todoBackfill(this)">AI로 심의필 채우기</button>`);
-  if (todoOpen === 'queue' && d.queue.count) foot.push('<button class="btn btn-primary btn-sm" onclick="bulkOpen();document.getElementById(\'bulkBody\').scrollIntoView({behavior:\'smooth\'})">일괄 등록으로 이동</button>');
-  if (todoOpen === 'inspections') foot.push('<button class="btn btn-primary btn-sm" onclick="document.querySelector(\'.tab-btn[onclick*=&quot;inspection&quot;]\').click()">소재 검수 탭으로</button>');
+  if (todoOpen === 'queue' && d.queue.count) foot.push('<button class="btn btn-primary btn-sm" onclick="todoDrawer(false);switchTab(\'register\', document.querySelector(\'.tab-btn\'));bulkOpen();document.getElementById(\'bulkBody\').scrollIntoView({behavior:\'smooth\'})">일괄 등록으로 이동</button>');
+  if (todoOpen === 'inspections') foot.push('<button class="btn btn-primary btn-sm" onclick="todoDrawer(false);document.querySelector(\'.tab-btn[onclick*=&quot;inspection&quot;]\').click()">소재 검수 탭으로</button>');
   foot.push('<span>매일 08시 메신저 알림: 설정 관리 › API 키 › 아침 요약 웹훅 URL</span> <button class="btn btn-ghost btn-sm" onclick="todoSendDigest(this)">지금 보내기</button>');
   document.getElementById('todoFoot').innerHTML = foot.join(' ');
 }
+
+// 사이드 패널 열기/닫기(open 생략 시 토글). 열린 상태는 브라우저에 기억한다.
+function todoDrawer(open) {
+  const el = document.getElementById('todoDrawer');
+  open = open === undefined ? !el.classList.contains('open') : open;
+  el.classList.toggle('open', open);
+  try { localStorage.setItem('todoDrawerOpen', open ? '1' : ''); } catch (e) {}
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') todoDrawer(false); });
 
 function todoToggle(id) { todoOpen = todoOpen === id ? '' : id; todoRender(); }
 
@@ -11119,7 +11138,11 @@ async function todoSendDigest(btn) {
   setTimeout(() => { btn.disabled = false; btn.textContent = '지금 보내기'; }, 4000);
 }
 
-document.addEventListener('DOMContentLoaded', () => { if (!__BUNDLE__) todoLoad(); });
+document.addEventListener('DOMContentLoaded', () => {
+  if (__BUNDLE__) { document.getElementById('todoFab').style.display = 'none'; return; }
+  todoLoad();
+  try { if (localStorage.getItem('todoDrawerOpen')) todoDrawer(true); } catch (e) {}
+});
 
 
 // ════════════════════════════════════════════════════════════
