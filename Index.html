@@ -1513,7 +1513,7 @@
           <input type="file" multiple accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime" onchange="bulkAddFiles(this.files);this.value=''">
           <div class="upload-icon">📁</div>
           <div style="font-size:13px;color:#374151;font-weight:500;">이미지 여러 장을 드래그하거나 클릭해서 선택</div>
-          <div class="upload-hint">파일명이 소재이름과 비슷하면 자동 연결 · 이미지는 AI가 태그·심의필을 미리 채움(보라 테두리 = AI 추천값)</div>
+          <div class="upload-hint">파일명이 소재이름과 비슷하면 자동 연결 · 이미지·영상 모두 AI가 태그·심의필을 미리 채움(보라 테두리 = AI 추천값, 틀린 것만 수정)</div>
         </div>
 
         <div id="bulkItems"></div>
@@ -10814,13 +10814,13 @@ async function bulkAddFiles(fileList) {
         const hashBuf = await crypto.subtle.digest('SHA-256', buf);
         it.hash = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
         it.driveFileId = await uploadToDriveDirect(it.file, token, folderId);
-        bulkSetStatus(it, it.mime.startsWith('image/') ? 'AI 분석 대기' : '태그 입력 필요', it.mime.startsWith('image/') ? 'busy' : '');
+        bulkSetStatus(it, 'AI 분석 대기', 'busy');
       } catch (e) {
         bulkSetStatus(it, '업로드 실패: ' + (e.message || e), 'err');
       }
     }
   }));
-  await bulkSuggest(added.filter(it => it.driveFileId && it.mime.startsWith('image/')));
+  await bulkSuggest(added.filter(it => it.driveFileId));
 }
 
 // 검수 탭에서 넘어온 이미지(이미 Drive에 있음) — rows: [{ fileId, fileName, imageUrl }]

@@ -6,6 +6,7 @@
 const MASTER_REVIEW_COL = 17;      // 전매체 인덱스 Q열: 심의필 문구(AI 판독)
 const MASTER_REVIEW_END_COL = 18;  // 전매체 인덱스 R열: 심의필 만료일(yyyy-MM-dd)
 const TAG_FIELDS = ['보종', '소재유형', '소구포인트', '후킹방식', '이미지유형', '모델유형'];
+const TAG_VIDEO_MAX_BYTES = 20 * 1024 * 1024; // AI 태그 추천에 inline으로 보낼 영상 최대 크기
 const QUEUE_LOOKBACK_DAYS = 60;    // 대기열은 최근 이 기간에 집행된 소재만 본다(예전에 끝난 미등록 소재까지 쌓이지 않게)
 
 // --------------------------------------------------
@@ -90,11 +91,17 @@ function suggestCreativeTags(items, excludeNames) {
   const built = items.map((it, i) => {
     try {
       const blob = blobs[i];
-      if (!blob) return { error: '이미지 파일을 읽을 수 없습니다.' };
-      if (!/^image\//.test(blob.getContentType() || '')) return { error: '이미지 파일만 AI 추천을 지원합니다(동영상은 직접 입력).' };
+      if (!blob) return { error: '파일을 읽을 수 없습니다.' };
+      const mime = blob.getContentType() || '';
+      const isVideo = /^video\//.test(mime);
+      if (!isVideo && !/^image\//.test(mime)) return { error: '이미지·영상 파일만 AI 추천을 지원합니다.' };
+      const bytes = blob.getBytes();
+      // ponytail: 영상은 inline 전송이라 Vertex 요청 한도(약 20MB) 아래만 — 더 큰 영상이 흔해지면 GCS 업로드 후 fileData로
+      if (isVideo && bytes.length > TAG_VIDEO_MAX_BYTES) return { error: '영상이 20MB를 넘어 AI 추천을 못 합니다(직접 입력).' };
       return { parts: [
-        { text: guide + '\n\n[이번 소재]\n캠페인: ' + _s(it.캠페인) + '\n소재이름: ' + _s(it.소재이름) },
-        { inlineData: { mimeType: blob.getContentType(), data: Utilities.base64Encode(blob.getBytes()) } }
+        { text: guide + '\n\n[이번 소재]\n캠페인: ' + _s(it.캠페인) + '\n소재이름: ' + _s(it.소재이름) +
+          (isVideo ? '\n이 소재는 영상이다. 처음부터 끝까지 장면·자막·내레이션을 모두 보고 태깅한다. 심의필은 보통 마지막 화면에 나온다.' : '') },
+        { inlineData: { mimeType: mime, data: Utilities.base64Encode(bytes) } }
       ] };
     } catch (e) {
       return { error: '이미지 파일을 읽을 수 없습니다: ' + e.message };
