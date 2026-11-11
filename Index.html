@@ -1501,7 +1501,7 @@
       <div class="card-body" id="bulkBody" style="display:none">
         <div class="bulk-head">
           <b>등록 대기열</b>
-          <span class="grow" id="bulkQueueInfo">RAW에는 있는데 인덱스에 없는 소재 (최근 60일, 광고비순)</span>
+          <span class="grow" id="bulkQueueInfo">RAW·매체 구조에 있는데 인덱스에 없는 소재</span>
           <button class="btn btn-secondary btn-sm" onclick="bulkLoadQueue()">↺ 새로고침</button>
         </div>
         <div class="bulk-queue-list" id="bulkQueueList"><div class="bulk-empty">불러오는 중...</div></div>
@@ -10771,15 +10771,15 @@ function bulkLinkedCount(key) {
 function bulkRenderQueue() {
   const list = document.getElementById('bulkQueueList');
   document.getElementById('bulkQueueInfo').textContent = bulkQueue.length
-    ? `미등록 ${bulkQueue.length}건 — RAW에는 있는데 인덱스에 없는 소재 (최근 60일, 광고비순)`
-    : 'RAW의 모든 소재가 등록되어 있습니다';
+    ? `미등록 ${bulkQueue.length}건 — RAW(최근 60일, 광고비순)·매체 구조에 있는데 인덱스에 없는 소재`
+    : 'RAW·매체 구조의 모든 소재가 등록되어 있습니다';
   if (!bulkQueue.length) { list.innerHTML = '<div class="bulk-empty">미등록 소재가 없습니다 👍</div>'; return; }
   list.innerHTML = bulkQueue.map(q => {
     const n = bulkLinkedCount(bulkKey(q));
     return `<div class="bulk-q" title="${escHtml(q.캠페인 + ' / ' + q.그룹)}">
       <span class="m">${escHtml(q.매체)}</span>
       <span class="n">${escHtml(q.소재이름)} <span style="color:#9ca3af">· ${escHtml(q.그룹)}</span></span>
-      <span class="c">${Math.round(q.비용).toLocaleString('ko-KR')}원 · ${escHtml(q.첫집행일 || '')}~</span>
+      <span class="c">${q.출처 === '매체구조' ? '매체 구조' : Math.round(q.비용).toLocaleString('ko-KR') + '원 · ' + escHtml(q.첫집행일 || '') + '~'}</span>
       ${n ? `<span class="linked">이미지 ${n}장 연결</span>` : ''}
     </div>`;
   }).join('');

@@ -15,7 +15,7 @@ const QUEUE_LOOKBACK_DAYS = 60;    // 대기열은 최근 이 기간에 집행�
 function getRegistrationQueue() {
   const ss = getSpreadsheet();
   const rawSheets = ss.getSheets().filter(s => s.getName().indexOf('RAW_') === 0);
-  if (ss._prefetch) ss._prefetch(rawSheets.map(s => s.getName()).concat([MASTER_SHEET_NAME, DGPM_SHEET_NAME]));
+  if (ss._prefetch) ss._prefetch(rawSheets.map(s => s.getName()).concat([MASTER_SHEET_NAME, DGPM_SHEET_NAME, HIERARCHY_SHEET_NAME]));
   const registered = _registeredCreativeKeys(ss);
   const cutoff = new Date(Date.now() - QUEUE_LOOKBACK_DAYS * 864e5);
   const byKey = {};
@@ -39,6 +39,15 @@ function getRegistrationQueue() {
         if (!q.최근집행일 || ds > q.최근집행일) q.최근집행일 = ds;
       }
     });
+  });
+
+  // 매체 구조 시트에만 있는(아직 집행 전 등) 미등록 소재도 연결 대상으로 — RAW 항목 뒤에 붙는다.
+  getHierarchy().forEach(h => {
+    const item = { 매체: _s(h.매체), 캠페인: _s(h.캠페인), 그룹: _s(h.그룹), 소재이름: _s(h.소재이름) };
+    if (!item.매체 || !item.소재이름) return;
+    const key = _creativeKey(item);
+    if (registered[key] || byKey[key]) return;
+    byKey[key] = Object.assign(item, { 비용: 0, 노출수: 0, 첫집행일: '', 최근집행일: '', 출처: '매체구조' });
   });
 
   const items = Object.keys(byKey).map(k => byKey[k]).sort((a, b) => b.비용 - a.비용);
