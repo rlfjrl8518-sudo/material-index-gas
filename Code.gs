@@ -659,10 +659,13 @@ function getCreativeByImageCode(imageCode) {
   const ss = getSpreadsheet();
   const sheet = ss.getSheetByName(MASTER_SHEET_NAME);
   if (sheet && sheet.getLastRow() >= 2) {
-    const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 16).getValues();
+    // Q·R열(심의필·만료일)까지 — 일괄 등록에서 기존 이미지를 재사용할 때 같이 넘긴다
+    const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, Math.min(MASTER_REVIEW_END_COL, sheet.getMaxColumns())).getValues();
     const rows = data.filter(r => String(r[0]).trim() === imageCode);
     if (rows.length) {
       const row = rows[rows.length - 1]; // 가장 최근 행
+      const reviewRow = rows.slice().reverse().find(r => r[MASTER_REVIEW_COL - 1]) || row;
+      const reviewEnd = reviewRow[MASTER_REVIEW_END_COL - 1];
       return {
         매체:       String(row[2]  || '').trim(),
         캠페인:     String(row[3]  || '').trim(),
@@ -676,7 +679,9 @@ function getCreativeByImageCode(imageCode) {
         소구상세:   String(row[11] || '').trim(),
         이미지유형: String(row[12] || '').trim(),
         모델유형:   String(row[13] || '').trim(),
-        이미지URL:  String(row[14] || '').trim()
+        이미지URL:  String(row[14] || '').trim(),
+        심의필:     String(reviewRow[MASTER_REVIEW_COL - 1] || '').trim(),
+        심의만료일: reviewEnd instanceof Date ? Utilities.formatDate(reviewEnd, 'Asia/Seoul', 'yyyy-MM-dd') : String(reviewEnd || '').trim()
       };
     }
   }

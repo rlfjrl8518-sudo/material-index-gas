@@ -4712,6 +4712,7 @@ function saveHierarchyData() {
 let selectedImageCodeValue = '';
 
 let allImageCodes = [];   // 검색 필터용 전체 목록
+let imagePickCallback = null; // 설정되어 있으면 이미지 선택 시 단건 폼 대신 이 함수로 넘긴다(일괄 등록)
 
 let imageCodesLoaded = false;
 
@@ -4862,6 +4863,15 @@ function ensureModal() {
 
     if (!item) return;
 
+    // 일괄 등록 대기열에서 연 경우: 단건 폼 대신 콜백으로 넘긴다
+    if (imagePickCallback) {
+      const cb = imagePickCallback;
+      imagePickCallback = null;
+      closeImageModal();
+      cb(item.dataset.code, item.dataset.name, item.dataset.url);
+      return;
+    }
+
     selectImageCode(item.dataset.code, item.dataset.name, item.dataset.url, item);
 
   });
@@ -4892,7 +4902,9 @@ function ensureModal() {
 
 
 
-function openImageModal() {
+function openImageModal(onPick) {
+
+  imagePickCallback = typeof onPick === 'function' ? onPick : null;
 
   ensureModal();
 
@@ -10774,26 +10786,30 @@ function bulkRenderQueue() {
     ? `미등록 ${bulkQueue.length}건 — RAW(최근 60일, 광고비순)·매체 구조에 있는데 인덱스에 없는 소재`
     : 'RAW·매체 구조의 모든 소재가 등록되어 있습니다';
   if (!bulkQueue.length) { list.innerHTML = '<div class="bulk-empty">미등록 소재가 없습니다 👍</div>'; return; }
-  list.innerHTML = bulkQueue.map(q => {
+  list.innerHTML = bulkQueue.map((q, qi) => {
     const n = bulkLinkedCount(bulkKey(q));
     return `<div class="bulk-q" title="${escHtml(q.캠페인 + ' / ' + q.그룹)}">
       <span class="m">${escHtml(q.매체)}</span>
       <span class="n">${escHtml(q.소재이름)} <span style="color:#9ca3af">· ${escHtml(q.그룹)}</span></span>
       <span class="c">${q.출처 === '매체구조' ? '매체 구조' : Math.round(q.비용).toLocaleString('ko-KR') + '원 · ' + escHtml(q.첫집행일 || '') + '~'}</span>
       ${n ? `<span class="linked">이미지 ${n}장 연결</span>` : ''}
+      <button class="btn btn-ghost btn-sm" onclick="bulkPickExisting(${qi})" title="이미 등록된 이미지를 골라 이 소재에 연결">기존 이미지</button>
+      <label class="btn btn-ghost btn-sm" style="margin:0;cursor:pointer" title="새 파일을 올려 이 소재에 바로 연결">새 파일<input type="file" multiple hidden accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime" onchange="bulkAddFiles(this.files, ${qi});this.value=''"></label>
     </div>`;
   }).join('');
 }
 
 // --- 파일 추가 ---------------------------------------------------
-async function bulkAddFiles(fileList) {
+// queueIdx가 있으면(대기열 줄의 '새 파일') 파일명 자동 매칭 대신 그 소재에 바로 연결한다
+async function bulkAddFiles(fileList, queueIdx) {
   const files = Array.from(fileList || []).filter(f => /^(image|video)\//.test(f.type));
   if (!files.length) return;
   bulkOpen();
+  const preset = bulkQueue[queueIdx];
   const added = files.map(f => ({
     id: ++bulkSeq, file: f, name: f.name, mime: f.type, hash: null, driveFileId: '',
     thumb: f.type.startsWith('image/') ? URL.createObjectURL(f) : '',
-    status: '업로드 중', statusCls: 'busy', links: [], tags: { 광고유형: f.type.startsWith('video/') ? '동영상' : '이미지' },
+    status: '업로드 중', statusCls: 'busy', links: preset ? [bulkKey(preset)] : [], tags: { 광고유형: f.type.startsWith('video/') ? '동영상' : '이미지' },
     모델유형: '', 소구상세: '', 심의필: '', 심의만료일: '', checked: false, saved: false, aiFields: {}
   }));
   bulkItems = bulkItems.concat(added);
@@ -10836,6 +10852,46 @@ async function bulkAddFromDrive(rows) {
   bulkRenderItems();
   added.forEach(it => gasRun('getImageDataUri', it.driveFileId).then(uri => { if (uri) { it.thumb = uri; const img = document.getElementById('bulk-thumb-' + it.id); if (img) img.src = uri; } }).catch(() => {}));
   await bulkSuggest(added);
+}
+
+// 대기열 소재 → 이미 등록된 이미지 선택. 업로드 없이 그 이미지코드를 재사용하고, 태그·심의필은 기존 등록값을 가져온다.
+// 같은 이미지를 이미 골라 둔 항목이 있으면 새로 만들지 않고 그 항목에 소재만 더 연결한다.
+function bulkPickExisting(qi) {
+  const q = bulkQueue[qi];
+  if (!q) return;
+  openImageModal(async (code, name, url) => {
+    const key = bulkKey(q);
+    let it = bulkItems.find(x => !x.saved && x.existingCode === code);
+    if (it) {
+      if (!it.links.includes(key)) it.links.push(key);
+      it.checked = bulkIsReady(it);
+      bulkRenderItems();
+      return;
+    }
+    const isVid = code.startsWith('VID');
+    it = {
+      id: ++bulkSeq, file: null, name: code + ' · ' + (name || ''), mime: isVid ? 'video/mp4' : 'image/jpeg', hash: null, driveFileId: '',
+      existingCode: code, existingUrl: url || '', thumb: isVid ? '' : driveThumbnail(url),
+      status: '기존 정보 불러오는 중', statusCls: 'busy', links: [key], tags: { 광고유형: isVid ? '동영상' : '이미지' },
+      모델유형: '', 소구상세: '', 심의필: '', 심의만료일: '', checked: false, saved: false, aiFields: {}
+    };
+    bulkItems.push(it);
+    bulkRenderItems();
+    try {
+      const c = await gasRun('getCreativeByImageCode', code);
+      if (c) {
+        ['보종', '광고유형', '소재유형', '소구포인트', '후킹방식', '이미지유형'].forEach(f => { if (c[f]) it.tags[f] = c[f]; });
+        it.모델유형 = c.모델유형 || ''; it.소구상세 = c.소구상세 || '';
+        it.심의필 = c.심의필 || ''; it.심의만료일 = c.심의만료일 || '';
+        if (!it.existingUrl) it.existingUrl = c.이미지URL || '';
+      }
+      bulkSetStatus(it, '기존 이미지 · 태그 확인 후 저장', 'ok');
+    } catch (e) {
+      bulkSetStatus(it, '기존 정보 불러오기 실패 — 직접 입력', 'err');
+    }
+    it.checked = bulkIsReady(it);
+    bulkRenderItems();
+  });
 }
 
 // --- 파일명 ↔ 소재이름 자동 연결 -----------------------------------
@@ -10900,7 +10956,7 @@ function bulkSetStatus(it, text, cls) {
 }
 
 function bulkIsReady(it) {
-  return !it.saved && !!it.driveFileId && it.links.length > 0 && BULK_REQUIRED.every(f => it.tags[f]);
+  return !it.saved && !!(it.driveFileId || it.existingCode) && it.links.length > 0 && BULK_REQUIRED.every(f => it.tags[f]);
 }
 
 function bulkOptions(field, value) {
@@ -11000,6 +11056,7 @@ async function bulkSaveAll() {
       소구포인트: it.tags.소구포인트 || '', 후킹방식: it.tags.후킹방식 || '', 이미지유형: it.tags.이미지유형 || '',
       모델유형: it.모델유형, 소구상세: (it.소구상세 || '').trim(),
       fileName: it.name, mimeType: it.mime, fileHash: it.hash || '', driveFileId: it.driveFileId,
+      selectedImageCode: it.existingCode || '', existingImageUrl: it.existingUrl || '',
       심의필: it.심의필 || '', 심의만료일: it.심의만료일 || ''
     });
     owners.push(it);
