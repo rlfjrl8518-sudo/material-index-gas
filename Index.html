@@ -2294,12 +2294,12 @@
                     <th class="sortable" data-key="imp"  onclick="azSortBojong('imp')">노출</th>
                     <th class="sortable" data-key="clk"  onclick="azSortBojong('clk')">클릭</th>
                     <th class="sortable" data-key="ctr"  onclick="azSortBojong('ctr')">CTR</th>
+                    <th class="sortable" data-key="cpc"  onclick="azSortBojong('cpc')">CPC</th>
+                    <th class="sortable" data-key="cpm"  onclick="azSortBojong('cpm')">CPM</th>
                     <th class="sortable" data-key="cost" onclick="azSortBojong('cost')">비용</th>
                     <th class="sortable" data-key="conv" onclick="azSortBojong('conv')">전환</th>
                     <th class="sortable" data-key="cvr"  onclick="azSortBojong('cvr')">CVR</th>
                     <th class="sortable" data-key="cpa"  onclick="azSortBojong('cpa')">CPA</th>
-                    <th class="sortable" data-key="cpc"  onclick="azSortBojong('cpc')">CPC</th>
-                    <th class="sortable" data-key="cpm"  onclick="azSortBojong('cpm')">CPM</th>
                   </tr>
                 </thead>
                 <tbody id="az-bojong-tbody">
@@ -2315,11 +2315,11 @@
           <div class="az-section-header">TOP 소재 랭킹</div>
           <div class="az-section-body">
             <div class="az-rank-tabs">
+              <button class="az-rank-tab" data-tab="clk"  onclick="switchRankTab('clk')">클릭 TOP 10</button>
               <button class="az-rank-tab active" data-tab="ctr"  onclick="switchRankTab('ctr')">CTR TOP 10</button>
+              <button class="az-rank-tab" data-tab="conv" onclick="switchRankTab('conv')">전환 TOP 10</button>
               <button class="az-rank-tab" data-tab="cvr"  onclick="switchRankTab('cvr')">CVR TOP 10</button>
               <button class="az-rank-tab" data-tab="cpa"  onclick="switchRankTab('cpa')">CPA TOP 10 ↑낮은순</button>
-              <button class="az-rank-tab" data-tab="clk"  onclick="switchRankTab('clk')">클릭 TOP 10</button>
-              <button class="az-rank-tab" data-tab="conv" onclick="switchRankTab('conv')">전환 TOP 10</button>
             </div>
             <div class="az-rank-min-row">
               <span>최소 모수:</span>
@@ -2341,7 +2341,7 @@
                     <th style="text-align:left">소재이름</th>
                     <th style="text-align:left">캠페인</th>
                     <th style="text-align:left">그룹</th>
-                    <th>CTR</th><th>CVR</th><th>CPA</th><th>CPC</th><th>CPM</th><th>신뢰도</th>
+                    <th>CTR</th><th>CPC</th><th>CPM</th><th>CVR</th><th>CPA</th><th>신뢰도</th>
                   </tr>
                 </thead>
                 <tbody id="az-rank-tbody"></tbody>
@@ -2386,10 +2386,10 @@
               소재유형 분석
               <div class="az-metric-tabs" data-dim="crtype">
                 <button class="az-metric-tab active" data-metric="ctr" onclick="switchDimMetric('crtype','ctr',this)">CTR</button>
-                <button class="az-metric-tab" data-metric="cvr" onclick="switchDimMetric('crtype','cvr',this)">CVR</button>
-                <button class="az-metric-tab" data-metric="cpa" onclick="switchDimMetric('crtype','cpa',this)">CPA</button>
                 <button class="az-metric-tab" data-metric="cpc" onclick="switchDimMetric('crtype','cpc',this)">CPC</button>
                 <button class="az-metric-tab" data-metric="cpm" onclick="switchDimMetric('crtype','cpm',this)">CPM</button>
+                <button class="az-metric-tab" data-metric="cvr" onclick="switchDimMetric('crtype','cvr',this)">CVR</button>
+                <button class="az-metric-tab" data-metric="cpa" onclick="switchDimMetric('crtype','cpa',this)">CPA</button>
               </div>
             </div>
             <div class="az-section-body">
@@ -2402,10 +2402,10 @@
               소구포인트 분석
               <div class="az-metric-tabs" data-dim="appeal">
                 <button class="az-metric-tab active" data-metric="ctr" onclick="switchDimMetric('appeal','ctr',this)">CTR</button>
-                <button class="az-metric-tab" data-metric="cvr" onclick="switchDimMetric('appeal','cvr',this)">CVR</button>
-                <button class="az-metric-tab" data-metric="cpa" onclick="switchDimMetric('appeal','cpa',this)">CPA</button>
                 <button class="az-metric-tab" data-metric="cpc" onclick="switchDimMetric('appeal','cpc',this)">CPC</button>
                 <button class="az-metric-tab" data-metric="cpm" onclick="switchDimMetric('appeal','cpm',this)">CPM</button>
+                <button class="az-metric-tab" data-metric="cvr" onclick="switchDimMetric('appeal','cvr',this)">CVR</button>
+                <button class="az-metric-tab" data-metric="cpa" onclick="switchDimMetric('appeal','cpa',this)">CPA</button>
               </div>
             </div>
             <div class="az-section-body">
@@ -2418,10 +2418,10 @@
               후킹방식 분석
               <div class="az-metric-tabs" data-dim="hook">
                 <button class="az-metric-tab active" data-metric="ctr" onclick="switchDimMetric('hook','ctr',this)">CTR</button>
-                <button class="az-metric-tab" data-metric="cvr" onclick="switchDimMetric('hook','cvr',this)">CVR</button>
-                <button class="az-metric-tab" data-metric="cpa" onclick="switchDimMetric('hook','cpa',this)">CPA</button>
                 <button class="az-metric-tab" data-metric="cpc" onclick="switchDimMetric('hook','cpc',this)">CPC</button>
                 <button class="az-metric-tab" data-metric="cpm" onclick="switchDimMetric('hook','cpm',this)">CPM</button>
+                <button class="az-metric-tab" data-metric="cvr" onclick="switchDimMetric('hook','cvr',this)">CVR</button>
+                <button class="az-metric-tab" data-metric="cpa" onclick="switchDimMetric('hook','cpa',this)">CPA</button>
               </div>
             </div>
             <div class="az-section-body">
@@ -2434,10 +2434,10 @@
               이미지유형 분석
               <div class="az-metric-tabs" data-dim="imgtype">
                 <button class="az-metric-tab active" data-metric="ctr" onclick="switchDimMetric('imgtype','ctr',this)">CTR</button>
-                <button class="az-metric-tab" data-metric="cvr" onclick="switchDimMetric('imgtype','cvr',this)">CVR</button>
-                <button class="az-metric-tab" data-metric="cpa" onclick="switchDimMetric('imgtype','cpa',this)">CPA</button>
                 <button class="az-metric-tab" data-metric="cpc" onclick="switchDimMetric('imgtype','cpc',this)">CPC</button>
                 <button class="az-metric-tab" data-metric="cpm" onclick="switchDimMetric('imgtype','cpm',this)">CPM</button>
+                <button class="az-metric-tab" data-metric="cvr" onclick="switchDimMetric('imgtype','cvr',this)">CVR</button>
+                <button class="az-metric-tab" data-metric="cpa" onclick="switchDimMetric('imgtype','cpa',this)">CPA</button>
               </div>
             </div>
             <div class="az-section-body">
@@ -2452,10 +2452,10 @@
             모델유형 분석 <span style="font-weight:400;font-size:11px;color:#94a3b8">— 조합별 (예: 20대남자+20대여자)</span>
             <div class="az-metric-tabs" data-dim="modeltype">
               <button class="az-metric-tab active" data-metric="ctr" onclick="switchDimMetric('modeltype','ctr',this)">CTR</button>
-              <button class="az-metric-tab" data-metric="cvr" onclick="switchDimMetric('modeltype','cvr',this)">CVR</button>
-              <button class="az-metric-tab" data-metric="cpa" onclick="switchDimMetric('modeltype','cpa',this)">CPA</button>
                 <button class="az-metric-tab" data-metric="cpc" onclick="switchDimMetric('modeltype','cpc',this)">CPC</button>
                 <button class="az-metric-tab" data-metric="cpm" onclick="switchDimMetric('modeltype','cpm',this)">CPM</button>
+              <button class="az-metric-tab" data-metric="cvr" onclick="switchDimMetric('modeltype','cvr',this)">CVR</button>
+              <button class="az-metric-tab" data-metric="cpa" onclick="switchDimMetric('modeltype','cpa',this)">CPA</button>
             </div>
           </div>
           <div class="az-section-body">
@@ -2484,7 +2484,7 @@
               </select>
               <label>지표</label>
               <select id="az-hm-metric" onchange="azLoaded && renderHeatmap(getFilteredRows())">
-                <option>CTR</option><option>CVR</option><option>CPA</option><option>CPC</option><option>CPM</option>
+                <option>CTR</option><option>CPC</option><option>CPM</option><option>CVR</option><option>CPA</option>
               </select>
               <label>색상 기준</label>
               <select id="az-hm-scale" onchange="azLoaded && renderHeatmap(getFilteredRows())">
@@ -6618,7 +6618,7 @@ function azMetricVal(s, metric) {
 // 자릿수가 다르다) 단위별로만 묶으면 부족하고, 지표마다 축을 따로 둬야 한다.
 // 막대·선 구분도 지표마다 기본값을 다르게 둬서(비율=선, 절대값=막대) 아무 설정
 // 없이 켜도 바로 읽기 편한 조합이 뜨고, 사용자가 칩을 눌러 얼마든지 바꿀 수 있다.
-const AZ_METRIC_GROUP        = { CTR:'pct', CVR:'pct', CPC:'money', CPM:'money', CPA:'money', 비용:'money', 전환:'count' };
+const AZ_METRIC_GROUP        = { CTR:'pct', CPC:'money', CPM:'money', 비용:'money', 전환:'count', CVR:'pct', CPA:'money' }; // 키 순서 = 화면 표시 순서(노출 클릭 CTR CPC CPM 비용 전환 CVR CPA)
 const AZ_METRIC_COLOR        = { CTR:'#4f6ef7', CVR:'#10b981', CPC:'#06b6d4', CPM:'#a78bfa', CPA:'#f59e0b', 비용:'#e879f9', 전환:'#34d399' };
 const AZ_METRIC_DEFAULT_TYPE = { CTR:'line', CVR:'line', CPC:'line', CPM:'line', CPA:'bar', 비용:'bar', 전환:'bar' };
 // 낮을수록 좋은 단가 지표 (히트맵 색 방향)
@@ -6780,10 +6780,10 @@ function renderKPI(rows) {
   const cards = [
     { label:'노출',  value: azFmt(k.imp),  sub:'합계',     delta: azKpiDelta(k.imp,  pk && pk.imp) },
     { label:'클릭',  value: azFmt(k.clk),  sub:'합계',     delta: azKpiDelta(k.clk,  pk && pk.clk) },
-    { label:'비용',  value: azWon(k.cost), sub:'합계',     delta: azKpiDelta(k.cost, pk && pk.cost, true) },
     { label:'CTR',   value: azPct(k.ctr),  sub:'클릭/노출', delta: azKpiDelta(k.ctr,  pk && pk.ctr) },
     { label:'CPC',   value: azWon(k.cpc),  sub:'비용/클릭', delta: azKpiDelta(k.cpc,  pk && pk.cpc, true) },
     { label:'CPM',   value: azWon(k.cpm),  sub:'비용/노출×1000', delta: azKpiDelta(k.cpm,  pk && pk.cpm, true) },
+    { label:'비용',  value: azWon(k.cost), sub:'합계',     delta: azKpiDelta(k.cost, pk && pk.cost, true) },
     { label:'전환',  value: azFmt(k.conv), sub:'합계',     delta: azKpiDelta(k.conv, pk && pk.conv) },
     { label:'CVR',   value: azPct(k.cvr),  sub:'전환/클릭', delta: azKpiDelta(k.cvr,  pk && pk.cvr) },
     { label:'CPA',   value: azWon(k.cpa),  sub:'비용/전환', delta: azKpiDelta(k.cpa,  pk && pk.cpa, true) },
@@ -6967,8 +6967,8 @@ function renderBojongTable(rows) {
     `<tr>
       <td>${esc(e.k)}</td>
       <td>${azFmt(e.imp)}</td><td>${azFmt(e.clk)}</td><td>${azPct(e.ctr)}</td>
-      <td>${azWon(e.cost)}</td><td>${azFmt(e.conv)}</td><td>${azPct(e.cvr)}</td><td>${azWon(e.cpa)}</td>
       <td>${azWon(e.cpc)}</td><td>${azWon(e.cpm)}</td>
+      <td>${azWon(e.cost)}</td><td>${azFmt(e.conv)}</td><td>${azPct(e.cvr)}</td><td>${azWon(e.cpa)}</td>
     </tr>`).join('');
 }
 
@@ -7029,10 +7029,10 @@ function renderRanking(rows) {
       <td style="text-align:left;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.campaign)}">${esc(e.campaign)}</td>
       <td style="text-align:left;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.group)}">${esc(e.group)}</td>
       <td>${azPct(e.ctr)}</td>
-      <td>${azPct(e.cvr)}</td>
-      <td>${azWon(e.cpa)}</td>
       <td>${azWon(e.cpc)}</td>
       <td>${azWon(e.cpm)}</td>
+      <td>${azPct(e.cvr)}</td>
+      <td>${azWon(e.cpa)}</td>
       <td><span class="az-conf ${e.conf.cls}" title="${esc(e.conf.tip)}">${esc(e.conf.label)}</span></td>
     </tr>`;
   }).join('');
@@ -8240,12 +8240,12 @@ function renderLifecycle(rows) {
       data: {
         labels: phaseStats.map(p => `${p.n} (${p.count}개)`),
         datasets: [
-          { label: 'CTR (%)', data: phaseStats.map(p => +p.ctr.toFixed(3)), backgroundColor:'#4f6ef7bb', yAxisID:'y' },
-          { label: 'CVR (%)', data: phaseStats.map(p => +p.cvr.toFixed(3)), backgroundColor:'#10b981bb', yAxisID:'y' },
-          { label: 'CPA',     data: phaseStats.map(p => +p.cpa.toFixed(0)), backgroundColor:'#f59e0bbb', yAxisID:'y2' },
           // CPC·CPM은 CPA와 자릿수가 달라 축을 따로 둔다(눈금 숨김, 값은 툴팁). 범례 클릭으로 켜고 끈다.
+          { label: 'CTR (%)', data: phaseStats.map(p => +p.ctr.toFixed(3)), backgroundColor:'#4f6ef7bb', yAxisID:'y' },
           { label: 'CPC',     data: phaseStats.map(p => Math.round(p.cpc)),  backgroundColor:'#06b6d4bb', yAxisID:'y3', hidden:true },
           { label: 'CPM',     data: phaseStats.map(p => Math.round(p.cpm)),  backgroundColor:'#a78bfabb', yAxisID:'y4', hidden:true },
+          { label: 'CVR (%)', data: phaseStats.map(p => +p.cvr.toFixed(3)), backgroundColor:'#10b981bb', yAxisID:'y' },
+          { label: 'CPA',     data: phaseStats.map(p => +p.cpa.toFixed(0)), backgroundColor:'#f59e0bbb', yAxisID:'y2' },
         ]
       },
       options: {
@@ -8307,7 +8307,7 @@ async function runAIInsight() {
     const grouped = col === AZ.MODELTYPE ? azGroupModelCombo(rows) : azGroup(rows, col);
     return Object.entries(grouped).map(([k, rs]) => {
       const kk = azKPI(azSum(rs));
-      return { [label]:k, CTR:+kk.ctr.toFixed(3), CVR:+kk.cvr.toFixed(3), CPA:Math.round(kk.cpa), CPC:Math.round(kk.cpc), CPM:Math.round(kk.cpm), 노출:Math.round(kk.imp), 클릭:Math.round(kk.clk) };
+      return { [label]:k, 노출:Math.round(kk.imp), 클릭:Math.round(kk.clk), CTR:+kk.ctr.toFixed(3), CPC:Math.round(kk.cpc), CPM:Math.round(kk.cpm), CVR:+kk.cvr.toFixed(3), CPA:Math.round(kk.cpa) };
     }).sort((a,b) => b.CTR - a.CTR);
   }
 
@@ -8344,7 +8344,7 @@ async function runAIInsight() {
 
     return Object.keys(buckets).sort().map(key => {
       const k = azKPI(azSum(buckets[key]));
-      return { 날짜: key, 노출: Math.round(k.imp), 클릭: Math.round(k.clk), CTR: +k.ctr.toFixed(3), 비용: Math.round(k.cost), 전환: Math.round(k.conv), CVR: +k.cvr.toFixed(3), CPA: Math.round(k.cpa), CPC: Math.round(k.cpc), CPM: Math.round(k.cpm) };
+      return { 날짜: key, 노출: Math.round(k.imp), 클릭: Math.round(k.clk), CTR: +k.ctr.toFixed(3), CPC: Math.round(k.cpc), CPM: Math.round(k.cpm), 비용: Math.round(k.cost), 전환: Math.round(k.conv), CVR: +k.cvr.toFixed(3), CPA: Math.round(k.cpa) };
     });
   }
 
@@ -8356,13 +8356,13 @@ async function runAIInsight() {
   function dimTop(col, label, n) {
     return Object.entries(azGroup(rows, col)).map(([k, rs]) => {
       const kk = azKPI(azSum(rs));
-      return { [label]:k, CTR:+kk.ctr.toFixed(3), CVR:+kk.cvr.toFixed(3), CPA:Math.round(kk.cpa), CPC:Math.round(kk.cpc), CPM:Math.round(kk.cpm), 노출:Math.round(kk.imp), 클릭:Math.round(kk.clk) };
+      return { [label]:k, 노출:Math.round(kk.imp), 클릭:Math.round(kk.clk), CTR:+kk.ctr.toFixed(3), CPC:Math.round(kk.cpc), CPM:Math.round(kk.cpm), CVR:+kk.cvr.toFixed(3), CPA:Math.round(kk.cpa) };
     }).sort((a,b) => b.클릭 - a.클릭).slice(0, n);
   }
 
   const agg = {
     기간:      { 시작: document.getElementById('az-f-start').value, 종료: document.getElementById('az-f-end').value },
-    전체KPI:   (() => { const k=azKPI(azSum(rows)); return { 노출:Math.round(k.imp), 클릭:Math.round(k.clk), CTR:+k.ctr.toFixed(3), 비용:Math.round(k.cost), 전환:Math.round(k.conv), CVR:+k.cvr.toFixed(3), CPA:Math.round(k.cpa), CPC:Math.round(k.cpc), CPM:Math.round(k.cpm) }; })(),
+    전체KPI:   (() => { const k=azKPI(azSum(rows)); return { 노출:Math.round(k.imp), 클릭:Math.round(k.clk), CTR:+k.ctr.toFixed(3), CPC:Math.round(k.cpc), CPM:Math.round(k.cpm), 비용:Math.round(k.cost), 전환:Math.round(k.conv), CVR:+k.cvr.toFixed(3), CPA:Math.round(k.cpa) }; })(),
     일자별추이: dailyTrend(rows),
     // 매체/캠페인/광고그룹/소재이름별 breakdown은 원래 아래 필터컨텍스트 블록에서
     // "계층 필터를 걸었을 때만" 넘겼는데, 그러면 필터를 아무것도 안 건 상태에서
@@ -8604,12 +8604,12 @@ const REPORT_METRICS = [
   { key: 'imp',  label: '노출' },
   { key: 'clk',  label: '클릭' },
   { key: 'ctr',  label: 'CTR' },
+  { key: 'cpc',  label: 'CPC' },
+  { key: 'cpm',  label: 'CPM' },
   { key: 'cost', label: '비용' },
   { key: 'conv', label: '전환' },
   { key: 'cvr',  label: 'CVR' },
-  { key: 'cpa',  label: 'CPA' },
-  { key: 'cpc',  label: 'CPC' },
-  { key: 'cpm',  label: 'CPM' }
+  { key: 'cpa',  label: 'CPA' }
 ];
 
 let reportFilterSeq  = 0;
@@ -9574,7 +9574,7 @@ function reportAnchorTopNImage(ws, url, drawInfo, col0, row0, cellW, cellH) {
 }
 
 function reportBuildTopNSheets(wb, byMedia, drawInfo, topN) {
-  const COLS = ['순위', '소재이름', '소재유형', '이미지유형', '노출', '클릭', 'CTR(%)', '전환', 'CVR(%)', '비용(원)', 'CPA(원)', '이미지'];
+  const COLS = ['순위', '소재이름', '소재유형', '이미지유형', '노출', '클릭', 'CTR(%)', '비용(원)', '전환', 'CVR(%)', 'CPA(원)', '이미지'];
   const ROW_H = 50, COL_W = 16, IMG_COL_W = 14;
   const IMG_CELL_W = reportCharsToPx(IMG_COL_W), IMG_CELL_H = reportRowPx(ROW_H);
   const usedNames = new Set(['보고서']);
@@ -9618,12 +9618,12 @@ function reportBuildTopNSheets(wb, byMedia, drawInfo, topN) {
       picked.forEach((c, i) => {
         const rowNow = R;
         ws.getRow(R).height = ROW_H;
-        const vals = [i + 1, c.name, c.소재유형, c.이미지유형, Math.round(c.imp), Math.round(c.clk), c.ctr, Math.round(c.conv), c.cvr, Math.round(c.cost), Math.round(c.cpa), ''];
+        const vals = [i + 1, c.name, c.소재유형, c.이미지유형, Math.round(c.imp), Math.round(c.clk), c.ctr, Math.round(c.cost), Math.round(c.conv), c.cvr, Math.round(c.cpa), ''];
         vals.forEach((v, ci) => {
           const cell = ws.getCell(R, 2 + ci);
           cell.value = v; cell.font = REPORT_TOPN_FONT; cell.border = REPORT_TOPN_BORDER;
           cell.alignment = REPORT_TOPN_ALIGN;
-          if (ci === 6 || ci === 8) cell.numFmt = '0.00%';
+          if (ci === 6 || ci === 9) cell.numFmt = '0.00%'; // CTR·CVR 열
           else if (typeof v === 'number' && ci >= 4) cell.numFmt = REPORT_TOPN_NUMFMT;
         });
         reportAnchorTopNImage(ws, c.url, drawInfo, 2 + COLS.length - 2, rowNow - 1, IMG_CELL_W, IMG_CELL_H);
@@ -11339,7 +11339,7 @@ async function runCreativeBrief() {
     rows.forEach(r => { (combos[comboKey(r)] = combos[comboKey(r)] || []).push(r); });
     const tested = Object.entries(combos).map(([k, rs]) => {
       const kk = azKPI(azSum(rs));
-      return { 조합: k, 비용: Math.round(kk.cost), 전환: Math.round(kk.conv), CPA: Math.round(kk.cpa), CTR: +kk.ctr.toFixed(3), 소재수: Object.keys(azGroupByCreative(rs)).length };
+      return { 조합: k, CTR: +kk.ctr.toFixed(3), 비용: Math.round(kk.cost), 전환: Math.round(kk.conv), CPA: Math.round(kk.cpa), 소재수: Object.keys(azGroupByCreative(rs)).length };
     }).sort((a, b) => b.비용 - a.비용).slice(0, 25);
     const s = (typeof settings !== 'undefined' && settings) || {};
     const untested = [];
@@ -11350,7 +11350,7 @@ async function runCreativeBrief() {
     if (!todoData) { try { todoData = await gasRun('getActionItems'); } catch (e) {} }
     const payload = {
       기간: dates.length ? dates[0] + ' ~ ' + dates[dates.length - 1] : '',
-      전체: (k => ({ 비용: Math.round(k.cost), 전환: Math.round(k.conv), CPA: Math.round(k.cpa), CTR: +k.ctr.toFixed(3) }))(azKPI(azSum(rows))),
+      전체: (k => ({ CTR: +k.ctr.toFixed(3), 비용: Math.round(k.cost), 전환: Math.round(k.conv), CPA: Math.round(k.cpa) }))(azKPI(azSum(rows))),
       보종별: Object.entries(azGroup(rows, AZ.BOJONG)).map(([k, rs]) => { const kk = azKPI(azSum(rs)); return { 보종: k, 비용: Math.round(kk.cost), CPA: Math.round(kk.cpa) }; }),
       속성별순효과: attr,
       조합성과: tested,
