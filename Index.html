@@ -10783,7 +10783,7 @@ function bulkLinkedCount(key) {
 function bulkRenderQueue() {
   const list = document.getElementById('bulkQueueList');
   document.getElementById('bulkQueueInfo').textContent = bulkQueue.length
-    ? `미등록 ${bulkQueue.length}건 — RAW(최근 60일, 광고비순)·매체 구조에 있는데 인덱스에 없는 소재`
+    ? `미등록 ${bulkQueue.length}건 — RAW(최근 60일, 매체·캠페인·그룹별 광고비순)·매체 구조에 있는데 인덱스에 없는 소재`
     : 'RAW·매체 구조의 모든 소재가 등록되어 있습니다';
   if (!bulkQueue.length) { list.innerHTML = '<div class="bulk-empty">미등록 소재가 없습니다 👍</div>'; return; }
   list.innerHTML = bulkQueue.map((q, qi) => {

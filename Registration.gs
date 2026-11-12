@@ -51,7 +51,14 @@ function getRegistrationQueue() {
     byKey[key] = Object.assign(item, { 비용: 0, 노출수: 0, 첫집행일: '', 최근집행일: '', 출처: '매체구조' });
   });
 
-  const items = Object.keys(byKey).map(k => byKey[k]).sort((a, b) => b.비용 - a.비용);
+  // 매체·캠페인·그룹이 같은 소재끼리 붙여서 보여준다. 그룹 순서는 그룹 광고비 합계순, 그룹 안은 광고비순.
+  const groupKey = o => [o.매체, o.캠페인, o.그룹].join('\x00');
+  const groupCost = {};
+  Object.keys(byKey).forEach(k => { const g = groupKey(byKey[k]); groupCost[g] = (groupCost[g] || 0) + byKey[k].비용; });
+  const items = Object.keys(byKey).map(k => byKey[k]).sort((a, b) => {
+    const ga = groupKey(a), gb = groupKey(b);
+    return groupCost[gb] - groupCost[ga] || (ga < gb ? -1 : ga > gb ? 1 : 0) || b.비용 - a.비용;
+  });
   return { count: items.length, items: items };
 }
 
