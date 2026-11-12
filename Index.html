@@ -10955,6 +10955,14 @@ function bulkSetStatus(it, text, cls) {
   if (el) { el.textContent = text; el.className = 'bulk-status ' + it.statusCls; }
 }
 
+function bulkMissing(it) {
+  const m = [];
+  if (!(it.driveFileId || it.existingCode)) m.push('이미지 업로드(실패·진행 중)');
+  if (!it.links.length) m.push('연결 소재');
+  BULK_REQUIRED.forEach(f => { if (!it.tags[f]) m.push(f); });
+  return m;
+}
+
 function bulkIsReady(it) {
   return !it.saved && !!(it.driveFileId || it.existingCode) && it.links.length > 0 && BULK_REQUIRED.every(f => it.tags[f]);
 }
@@ -11044,7 +11052,13 @@ async function bulkSaveAll() {
   const targets = bulkItems.filter(it => it.checked && !it.saved);
   const notReady = targets.filter(it => !bulkIsReady(it));
   if (!targets.length) { msg.textContent = '체크한 항목이 없습니다.'; return; }
-  if (notReady.length) { msg.textContent = `${notReady.length}건은 연결 소재 또는 필수 태그(보종·광고유형·소재유형)가 비어 있습니다.`; return; }
+  if (notReady.length) {
+    // 무엇이 빠졌는지 항목마다 상태에 적어 준다(AI가 막혀 태그가 비어 있는 경우가 흔하다)
+    notReady.forEach(it => bulkSetStatus(it, '빠진 항목: ' + bulkMissing(it).join(', '), 'err'));
+    const first = notReady[0];
+    msg.textContent = `${notReady.length}건 저장 불가 — 예: ${first.name} → ${bulkMissing(first).join(', ')} (빨간 상태 표시 확인)`;
+    return;
+  }
 
   const entries = [], owners = [];
   targets.forEach(it => it.links.forEach(k => {

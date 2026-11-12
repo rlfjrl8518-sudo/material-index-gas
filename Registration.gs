@@ -125,7 +125,7 @@ function suggestCreativeTags(items, excludeNames) {
       const responses = UrlFetchApp.fetchAll(chunk.map(i => _tagRequestOptions(built[i].parts, schema)));
       chunk.forEach((i, k) => {
         const parsed = _parseVisionResponse(responses[k]);
-        if (parsed.error) { out[i] = parsed; next.push(i); return; }
+        if (parsed.error) { out[i] = parsed; if (!parsed.fatal) next.push(i); return; }
         out[i] = _normalizeTagSuggestion(parsed, settings);
       });
     }

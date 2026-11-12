@@ -51,7 +51,8 @@ function _parseAiHttpResponse(res) {
   const code = res.getResponseCode();
   if (code < 200 || code >= 300) {
     const msg = (json.error && json.error.message) || res.getContentText().slice(0, 300);
-    return { error: true, message: 'Gemini API 오류 (HTTP ' + code + '): ' + msg };
+    // 429·5xx만 재시도할 가치가 있다. 403(정책 거절)·400 같은 건 몇 번을 다시 보내도 같다.
+    return { error: true, fatal: code !== 429 && code < 500, message: 'Gemini API 오류 (HTTP ' + code + '): ' + msg };
   }
   const choice = json.choices && json.choices[0];
   const text = choice && choice.message && choice.message.content;
@@ -141,7 +142,8 @@ function _parseVisionResponse(res) {
   const code = res.getResponseCode();
   if (code < 200 || code >= 300) {
     const msg = (json.error && json.error.message) || res.getContentText().slice(0, 300);
-    return { error: true, message: 'Gemini API 오류 (HTTP ' + code + '): ' + msg };
+    // 429·5xx만 재시도할 가치가 있다. 403(정책 거절)·400 같은 건 몇 번을 다시 보내도 같다.
+    return { error: true, fatal: code !== 429 && code < 500, message: 'Gemini API 오류 (HTTP ' + code + '): ' + msg };
   }
   const cand = json.candidates && json.candidates[0];
   const parts = (cand && cand.content && cand.content.parts) || [];
